@@ -133,7 +133,7 @@ export const useStore = create<AppState>()(
       },
     }),
     {
-      name: 'dividend-h5-store',
+      name: 'xuxu-efu-store',
     }
   )
 )

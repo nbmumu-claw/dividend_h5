@@ -60,7 +60,7 @@ export default function Settings() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `dividend-backup-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`
+      a.download = `xuxu-efu-backup-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`
       a.click()
       URL.revokeObjectURL(url)
       showToast('备份文件已下载')
