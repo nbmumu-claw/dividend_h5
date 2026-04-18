@@ -1,6 +1,7 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useStore } from '../store'
 import { fetchStockPrices, searchStocks, searchStocksLocal } from '../utils/api'
+import Disclaimer from '../components/Disclaimer'
 import type { SearchResult } from '../utils/api'
 import { STATIC_STOCKS } from '../data/stocks'
 import type { Stock } from '../types'
@@ -52,6 +53,21 @@ export default function Discovery() {
     const manualForSector = manualStocks.filter(s => s.sector === activeSector)
     return [...staticForSector, ...manualForSector]
   }, [activeSector, manualStocks, staticEdits, hiddenStocks])
+
+  // 首次加载静默拉价格（含涨跌）
+  useEffect(() => {
+    if (!displayStocks.length) return
+    const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK }))
+    fetchStockPrices(stockInputs, false).then(priceMap => {
+      displayStocks.forEach(s => {
+        const pd = priceMap[s.code]
+        if (!pd) return
+        const patch = { price: pd.price, pctChg: pd.pctChg }
+        if (s.isManual) updateManualStock(s.code, patch)
+        else updateStaticEdit(s.code, patch)
+      })
+    })
+  }, [activeSector]) // activeSector 切换时重新拉
 
   const handleRefresh = async () => {
     setLoading(true)
@@ -481,6 +497,7 @@ export default function Discovery() {
         </>
       )}
 
+      <Disclaimer />
       <Toast message={message} />
     </div>
   )

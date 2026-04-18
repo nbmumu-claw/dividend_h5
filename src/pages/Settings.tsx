@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { fetchExchangeRate, fetchStockPrices } from '../utils/api'
+import { fetchExchangeRate } from '../utils/api'
 import { cacheClear } from '../utils/cache'
 import type { BackupData } from '../types'
 import { Toast, useToast } from '../components/Toast'
@@ -10,12 +10,12 @@ import { afterTax } from '../utils/tax'
 
 export default function Settings() {
   const store = useStore()
-  const { watchlist, exchangeRate, setExchangeRate, setWatchlist, importBackup, updateWatchlistStock } = store
+  const { watchlist, exchangeRate, setExchangeRate, setWatchlist, importBackup, agreementAccepted, setAgreementAccepted } = store
   const navigate = useNavigate()
   const [loadingRate, setLoadingRate] = useState(false)
-  const [loadingPrices, setLoadingPrices] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
+  const [showAgreement, setShowAgreement] = useState(false)
   const { message, showToast } = useToast()
 
   const stats = (() => {
@@ -87,31 +87,6 @@ export default function Settings() {
     }
   }
 
-  const handleRefreshPrices = async () => {
-    if (!watchlist.length) { showToast('自选列表为空'); return }
-    setLoadingPrices(true)
-    try {
-      const priceMap = await fetchStockPrices(watchlist.map(s => ({ code: s.code, isHK: s.isHK })), true)
-      watchlist.forEach(s => {
-        const pd = priceMap[s.code]
-        if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
-        const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
-        updateWatchlistStock(s.code, {
-          price: pd.price,
-          priceCny,
-          yieldRate: rawYield > 30 ? s.yieldRate : rawYield,
-          pctChg: pd.pctChg,
-        })
-      })
-      showToast(`已刷新 ${watchlist.length} 只股票价格`)
-    } catch {
-      showToast('刷新失败，请重试')
-    }
-    setLoadingPrices(false)
-  }
-
   const handleClearCache = () => {
     cacheClear()
     showToast('缓存已清除')
@@ -180,24 +155,37 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Stock prices */}
+      {/* Privacy & Agreement */}
       <div className="mx-4 mb-3">
-        <div className="section-header px-0">行情</div>
+        <div className="section-header px-0">隐私与协议</div>
         <div className="card">
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <div className="text-gray-400 w-5">📈</div>
-            <div className="flex-1">
-              <span className="text-sm text-gray-800">刷新股价</span>
-              <div className="text-xs text-gray-400 mt-0.5">强制更新自选股实时价格缓存</div>
+          <div
+            className="flex items-center gap-3 px-4 py-3.5 cursor-pointer active:bg-gray-50"
+            onClick={() => setShowAgreement(true)}
+          >
+            <div className="text-gray-400 w-5 flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
-            <button
-              onClick={handleRefreshPrices}
-              className="text-xs text-primary border border-primary rounded-full px-3 py-1"
-              disabled={loadingPrices}
-            >
-              {loadingPrices ? '刷新中...' : '刷新'}
-            </button>
+            <div className="flex-1">
+              <span className="text-sm text-gray-800">服务与隐私协议</span>
+            </div>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${agreementAccepted ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'}`}>
+              {agreementAccepted ? '已确认' : '点击查看'}
+            </span>
+            <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
+          {!agreementAccepted && (
+            <div className="px-4 pb-4">
+              <button
+                className="w-full py-2.5 bg-red-500 text-white text-sm font-medium rounded-lg"
+                onClick={() => { setAgreementAccepted(true); setShowAgreement(false); showToast('已确认协议') }}
+              >
+                确认并接受协议
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -249,6 +237,26 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      {/* Agreement Modal */}
+      <Modal open={showAgreement} onClose={() => setShowAgreement(false)} title="服务与隐私协议">
+        <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
+          <p>本服务基于历史公开数据提供参考信息，不构成投资建议。使用本应用即表示您已阅读并同意本协议。</p>
+          <p>本应用不对数据的准确性、完整性做任何担保。用户需自行承担使用本应用进行投资决策的风险。</p>
+          <p>股息数据可能存在延迟，请以实际公告为准。本应用保留随时修改服务条款的权利，修改后继续使用即表示接受。</p>
+          {!agreementAccepted && (
+            <button
+              className="w-full py-2.5 bg-red-500 text-white text-sm font-medium rounded-lg"
+              onClick={() => { setAgreementAccepted(true); setShowAgreement(false); showToast('已确认协议') }}
+            >
+              确认并接受协议
+            </button>
+          )}
+          <button className="w-full py-2 text-gray-500 text-sm" onClick={() => setShowAgreement(false)}>
+            {agreementAccepted ? '关闭' : '暂不接受'}
+          </button>
+        </div>
+      </Modal>
 
       {/* Import Modal */}
       <Modal open={showImport} onClose={() => setShowImport(false)} title="导入备份">

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useStore } from '../store'
+import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
 import type { WatchlistStock } from '../types'
 
@@ -125,34 +126,49 @@ export default function Portfolio() {
       {/* Summary cards */}
       <div className="px-4 mb-4">
         <div className="card p-4">
-          <div className="grid grid-cols-2 gap-4">
+          {/* 顶部：两个大数字并排 */}
+          <div className="flex justify-between items-start">
             <div>
-              <div className="stat-number text-primary">¥{metrics.annualDiv.toFixed(0)}</div>
-              <div className="stat-label">年度红利（税后）</div>
+              <div className="text-xs text-gray-400 mb-1">年度红利（税后）</div>
+              <div className="text-3xl font-bold text-primary">¥{metrics.annualDiv.toFixed(0)}</div>
             </div>
-            <div>
-              <div className="stat-number">¥{metrics.monthlyIncome.toFixed(0)}</div>
-              <div className="stat-label">月均收入</div>
-            </div>
-            {metrics.hasHoldings && (
-              <>
-                <div>
-                  <div className="stat-number">{metrics.overallYield.toFixed(2)}%</div>
-                  <div className="stat-label">整体股息率</div>
+            {metrics.hasHoldings ? (
+              <div className="text-right">
+                <div className="text-xs text-gray-400 mb-1">持仓盈亏</div>
+                <div className={`text-3xl font-bold ${metrics.profitLoss >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                  {metrics.profitLoss >= 0 ? '+' : ''}¥{Math.abs(metrics.profitLoss).toFixed(0)}
                 </div>
-                <div>
-                  <div className={`stat-number ${metrics.profitLoss >= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                    {metrics.profitLoss >= 0 ? '+' : ''}{metrics.profitLossRatio.toFixed(2)}%
-                  </div>
-                  <div className="stat-label">持仓盈亏</div>
+                <div className={`text-sm font-semibold ${metrics.profitLossRatio >= 0 ? 'text-red-400' : 'text-green-500'}`}>
+                  {metrics.profitLossRatio >= 0 ? '+' : ''}{metrics.profitLossRatio.toFixed(2)}%
                 </div>
-              </>
+              </div>
+            ) : (
+              <div className="text-right">
+                <div className="text-xs text-gray-400 mb-1">月均收入</div>
+                <div className="text-3xl font-bold text-gray-800">¥{metrics.monthlyIncome.toFixed(0)}</div>
+              </div>
             )}
           </div>
+
+          {/* 辅助数据：两列 */}
           {metrics.hasHoldings && (
-            <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-sm">
-              <div className="text-gray-500">持仓市值 <span className="font-medium text-gray-800">¥{metrics.totalMarket.toFixed(0)}</span></div>
-              <div className="text-gray-500">成本金额 <span className="font-medium text-gray-800">¥{metrics.totalCost.toFixed(0)}</span></div>
+            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-y-3 gap-x-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">月均收入</span>
+                <span className="font-medium text-gray-800">¥{metrics.monthlyIncome.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">整体股息率</span>
+                <span className="font-medium text-gray-800">{metrics.overallYield.toFixed(2)}%</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">持仓市值</span>
+                <span className="font-medium text-gray-800">¥{metrics.totalMarket.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">成本金额</span>
+                <span className="font-medium text-gray-800">¥{metrics.totalCost.toFixed(0)}</span>
+              </div>
             </div>
           )}
         </div>
@@ -265,6 +281,7 @@ export default function Portfolio() {
           )}
         </div>
       </div>
+      <Disclaimer />
     </div>
   )
 }

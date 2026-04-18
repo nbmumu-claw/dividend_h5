@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { fetchStockPrices } from '../utils/api'
+import Disclaimer from '../components/Disclaimer'
 import { getTaxRate, getTaxLabel, afterTax } from '../utils/tax'
 import type { WatchlistStock } from '../types'
 import { Toast, useToast } from '../components/Toast'
@@ -27,6 +28,19 @@ export default function Watchlist() {
 
   const sectors = ['全部', ...customSectors.filter(s => watchlist.some(w => w.sector === s))]
   const filtered = activeSector === '全部' ? watchlist : watchlist.filter(w => w.sector === activeSector)
+
+  // 首次加载静默拉价格（含涨跌）
+  useEffect(() => {
+    if (!watchlist.length) return
+    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK }))
+    fetchStockPrices(inputs, false).then(priceMap => {
+      watchlist.forEach(s => {
+        const pd = priceMap[s.code]
+        if (!pd) return
+        updateWatchlistStock(s.code, { price: pd.price, pctChg: pd.pctChg })
+      })
+    })
+  }, [])
 
   const handleRefresh = async () => {
     if (!watchlist.length) return
@@ -248,6 +262,7 @@ export default function Watchlist() {
         )}
       </div>
 
+      <Disclaimer />
       <Toast message={message} />
     </div>
   )

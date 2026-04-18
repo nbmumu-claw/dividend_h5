@@ -1,5 +1,6 @@
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useMemo } from 'react'
+import Disclaimer from '../components/Disclaimer'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
 
@@ -95,6 +96,7 @@ export default function Matrix() {
           表格展示不同股息率目标下的对应买入价。若目标股息率为5%，应在目标价格附近买入。
         </p>
       </div>
+      <Disclaimer />
     </div>
   )
 }
