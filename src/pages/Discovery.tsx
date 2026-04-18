@@ -1,6 +1,7 @@
-import { useState, useCallback, useRef } from 'react'
-import { useStore, getDiscoveryStocks } from '../store'
-import { fetchStockPrices } from '../utils/api'
+import { useState, useMemo, useRef } from 'react'
+import { useStore } from '../store'
+import { fetchStockPrices, searchStocks, searchStocksLocal } from '../utils/api'
+import type { SearchResult } from '../utils/api'
 import { STATIC_STOCKS } from '../data/stocks'
 import type { Stock } from '../types'
 import Modal from '../components/Modal'
@@ -31,23 +32,26 @@ export default function Discovery() {
   const [showSectorModal, setShowSectorModal] = useState(false)
   const [editStock, setEditStock] = useState<Stock | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
+  const [sectorContextMenu, setSectorContextMenu] = useState<string | null>(null)
+  const sectorLongPressTimer = useRef<number | null>(null)
   const [sectorInput, setSectorInput] = useState('')
   const [renamingSector, setRenamingSector] = useState<string | null>(null)
   const { message, showToast } = useToast()
   const longPressTimer = useRef<number | null>(null)
 
-  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false })
+  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, confirmed: false })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const searchTimer = useRef<number | null>(null)
 
-  const currentStocks = useCallback(() => {
-    const { staticEdits, hiddenStocks, manualStocks } = useStore.getState()
+  const displayStocks = useMemo(() => {
     const staticForSector = STATIC_STOCKS
       .filter(s => s.sector === activeSector && !hiddenStocks.includes(s.code))
       .map(s => ({ ...s, ...staticEdits[s.code] }))
     const manualForSector = manualStocks.filter(s => s.sector === activeSector)
     return [...staticForSector, ...manualForSector]
-  }, [activeSector])
-
-  const displayStocks = currentStocks()
+  }, [activeSector, manualStocks, staticEdits, hiddenStocks])
 
   const handleRefresh = async () => {
     setLoading(true)
@@ -65,8 +69,9 @@ export default function Discovery() {
       })
       // persist price updates
       updated.forEach(s => {
-        if (s.isManual) updateManualStock(s.code, { price: s.price, yieldRate: s.yieldRate })
-        else updateStaticEdit(s.code, { price: s.price, yieldRate: s.yieldRate })
+        const patch = { price: s.price, yieldRate: s.yieldRate, pctChg: s.pctChg ?? null }
+        if (s.isManual) updateManualStock(s.code, patch)
+        else updateStaticEdit(s.code, patch)
       })
       showToast('价格已更新')
     } catch {
@@ -85,7 +90,7 @@ export default function Discovery() {
   }
 
   const openAddForm = () => {
-    setForm({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false })
+    setForm({ name: '', code: '', sector: customSectors[0] || '', price: '', dividendPerShare: '', isHK: false, confirmed: false })
     setEditStock(null)
     setShowAdd(true)
   }
@@ -99,9 +104,44 @@ export default function Discovery() {
       price: String(stock.price),
       dividendPerShare: String(stock.dividendPerShare),
       isHK: stock.isHK || false,
+      confirmed: stock.confirmed,
     })
     setContextMenu(null)
     setShowAdd(true)
+  }
+
+  const handleSearchInput = (q: string) => {
+    setSearchQuery(q)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (!q.trim()) { setSearchResults([]); setSearching(false); return }
+    const local = searchStocksLocal(q)
+    setSearchResults(local.slice(0, 6))
+    setSearching(local.length < 3)
+    if (local.length < 3) {
+      searchTimer.current = window.setTimeout(async () => {
+        const results = await searchStocks(q, true)
+        setSearchResults(prev => {
+          const existing = new Set(prev.map(r => r.code))
+          const newOnes = results.filter(r => !existing.has(r.code))
+          return [...prev, ...newOnes].slice(0, 6)
+        })
+        setSearching(false)
+      }, 350)
+    }
+  }
+
+  const selectSearchResult = (r: SearchResult) => {
+    setForm(f => ({ ...f, name: r.name, code: r.code, isHK: r.isHK, price: '', dividendPerShare: '' }))
+    setSearchQuery('')
+    setSearchResults([])
+
+    // fetch live price
+    fetchStockPrices([{ code: r.code, isHK: r.isHK }], true).then(priceMap => {
+      const pd = priceMap[r.code]
+      if (pd?.price) {
+        setForm(f => ({ ...f, price: String(pd.price) }))
+      }
+    })
   }
 
   const submitForm = () => {
@@ -119,13 +159,13 @@ export default function Discovery() {
     if (editStock) {
       const isManualStock = manualStocks.find(m => m.code === editStock.code)
       if (isManualStock) {
-        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, yieldRate })
+        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, yieldRate, confirmed: form.confirmed })
       } else {
-        updateStaticEdit(editStock.code, { price, dividendPerShare: div, yieldRate, sector: form.sector })
+        updateStaticEdit(editStock.code, { name: form.name, price, dividendPerShare: div, yieldRate, sector: form.sector, confirmed: form.confirmed })
       }
       showToast('已保存')
     } else {
-      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: false, isHK: form.isHK, isManual: true })
+      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: form.confirmed, isHK: form.isHK, isManual: true })
       showToast('已添加')
     }
     setShowAdd(false)
@@ -140,8 +180,22 @@ export default function Discovery() {
 
   const handleLongPress = (e: React.MouseEvent | React.TouchEvent, stock: Stock) => {
     const isManual = !!manualStocks.find(m => m.code === stock.code)
-    const rect = (e.target as HTMLElement).getBoundingClientRect()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     setContextMenu({ x: rect.left, y: rect.bottom + 4, stock, isManual })
+  }
+
+  const startLongPress = (stock: Stock) => {
+    longPressTimer.current = window.setTimeout(() => {
+      const isManual = !!manualStocks.find(m => m.code === stock.code)
+      setContextMenu({ x: 16, y: 200, stock, isManual })
+    }, 500)
+  }
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
   }
 
   const submitSector = () => {
@@ -184,7 +238,14 @@ export default function Discovery() {
             key={sector}
             className={`sector-tab ${activeSector === sector ? 'active' : ''}`}
             onClick={() => setActiveSector(sector)}
-            onContextMenu={e => { e.preventDefault() }}
+            onContextMenu={e => { e.preventDefault(); setSectorContextMenu(sector) }}
+            onTouchStart={() => {
+              sectorLongPressTimer.current = window.setTimeout(() => {
+                setSectorContextMenu(sector)
+              }, 500)
+            }}
+            onTouchEnd={() => { if (sectorLongPressTimer.current) { clearTimeout(sectorLongPressTimer.current); sectorLongPressTimer.current = null } }}
+            onTouchMove={() => { if (sectorLongPressTimer.current) { clearTimeout(sectorLongPressTimer.current); sectorLongPressTimer.current = null } }}
           >
             {sector}
           </button>
@@ -217,11 +278,14 @@ export default function Discovery() {
                   key={stock.code}
                   className="stock-item"
                   onContextMenu={e => { e.preventDefault(); handleLongPress(e, stock) }}
+                  onTouchStart={() => startLongPress(stock)}
+                  onTouchEnd={cancelLongPress}
+                  onTouchMove={cancelLongPress}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-sm font-semibold text-gray-900">{stock.name}</span>
-                      {stock.confirmed && <span className="tag tag-blue">确认</span>}
+                      {stock.confirmed ? <span className="tag tag-blue">确认</span> : <span className="tag tag-gray">预估</span>}
                       {isManual && <span className="tag tag-gray">手动</span>}
                       {stock.isHK && <span className="tag tag-yellow">港股</span>}
                     </div>
@@ -260,8 +324,38 @@ export default function Discovery() {
       </div>
 
       {/* Add/Edit Stock Modal */}
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title={editStock ? '编辑股票' : '添加股票'}>
+      <Modal open={showAdd} onClose={() => { setShowAdd(false); setSearchQuery(''); setSearchResults([]) }} title={editStock ? '编辑股票' : '添加股票'}>
         <div className="space-y-3">
+          {!editStock && (
+            <div className="relative">
+              <label className="text-xs text-gray-500 mb-1 block">搜索股票</label>
+              <input
+                className="input-field"
+                placeholder="输入名称或代码搜索"
+                value={searchQuery}
+                onChange={e => handleSearchInput(e.target.value)}
+                autoComplete="off"
+              />
+              {searching && <div className="absolute right-3 top-9 text-gray-400 text-xs">搜索中…</div>}
+              {searchResults.length > 0 && (
+                <div className="absolute z-50 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
+                  {searchResults.map(r => (
+                    <button
+                      key={r.code}
+                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 text-left"
+                      onClick={() => selectSearchResult(r)}
+                    >
+                      <span className="text-sm font-medium text-gray-900">{r.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">{r.code}</span>
+                        {r.isHK && <span className="tag tag-yellow">港股</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <label className="text-xs text-gray-500 mb-1 block">股票名称</label>
             <input className="input-field" placeholder="如：招商银行" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
@@ -289,6 +383,10 @@ export default function Discovery() {
           <div className="flex items-center gap-2">
             <input type="checkbox" id="isHK" checked={form.isHK} onChange={e => setForm(f => ({ ...f, isHK: e.target.checked }))} />
             <label htmlFor="isHK" className="text-sm text-gray-700">港股（价格单位：HKD）</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="confirmed" checked={form.confirmed} onChange={e => setForm(f => ({ ...f, confirmed: e.target.checked }))} />
+            <label htmlFor="confirmed" className="text-sm text-gray-700">股息已确认（取消勾选为预估）</label>
           </div>
           {form.price && form.dividendPerShare && (
             <div className="bg-green-50 rounded-lg p-3 text-sm">
@@ -344,6 +442,40 @@ export default function Discovery() {
             </div>
             <div className="context-menu-item danger" onClick={() => handleDeleteStock(contextMenu.stock, contextMenu.isManual)}>
               删除
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Sector context menu */}
+      {sectorContextMenu && (
+        <>
+          <div className="fixed inset-0 z-[200]" onClick={() => setSectorContextMenu(null)} />
+          <div
+            className="context-menu"
+            style={{ left: Math.min(16, window.innerWidth - 160), top: 140, position: 'fixed', zIndex: 300 }}
+          >
+            <div className="context-menu-item" onClick={() => {
+              setSectorInput(sectorContextMenu)
+              setRenamingSector(sectorContextMenu)
+              setShowSectorModal(true)
+              setSectorContextMenu(null)
+            }}>
+              重命名
+            </div>
+            <div className="context-menu-item danger" onClick={() => {
+              const sec = sectorContextMenu
+              const stocksInSector = manualStocks.filter(m => m.sector === sec)
+              if (stocksInSector.length > 0) {
+                const target = customSectors.find(s => s !== sec) || '其他'
+                stocksInSector.forEach(s => updateManualStock(s.code, { sector: target }))
+              }
+              if (activeSector === sec) setActiveSector(customSectors.find(s => s !== sec) || '其他')
+              deleteSector(sec)
+              setSectorContextMenu(null)
+              showToast('已删除板块')
+            }}>
+              删除板块
             </div>
           </div>
         </>

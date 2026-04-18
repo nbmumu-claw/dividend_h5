@@ -87,7 +87,11 @@ export const useStore = create<AppState>()(
       addSector: (name) =>
         set(s => {
           if (s.customSectors.includes(name)) return s
-          return { customSectors: [...s.customSectors, name] }
+          const othersIdx = s.customSectors.indexOf('其他')
+          const sectors = [...s.customSectors]
+          if (othersIdx >= 0) sectors.splice(othersIdx, 0, name)
+          else sectors.push(name)
+          return { customSectors: sectors }
         }),
       renameSector: (oldName, newName) =>
         set(s => ({

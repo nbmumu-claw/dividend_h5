@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { fetchExchangeRate } from '../utils/api'
+import { fetchExchangeRate, fetchStockPrices } from '../utils/api'
 import { cacheClear } from '../utils/cache'
 import type { BackupData } from '../types'
 import { Toast, useToast } from '../components/Toast'
@@ -9,8 +10,10 @@ import { afterTax } from '../utils/tax'
 
 export default function Settings() {
   const store = useStore()
-  const { watchlist, exchangeRate, setExchangeRate, setWatchlist, importBackup } = store
+  const { watchlist, exchangeRate, setExchangeRate, setWatchlist, importBackup, updateWatchlistStock } = store
+  const navigate = useNavigate()
   const [loadingRate, setLoadingRate] = useState(false)
+  const [loadingPrices, setLoadingPrices] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
   const { message, showToast } = useToast()
@@ -84,6 +87,31 @@ export default function Settings() {
     }
   }
 
+  const handleRefreshPrices = async () => {
+    if (!watchlist.length) { showToast('自选列表为空'); return }
+    setLoadingPrices(true)
+    try {
+      const priceMap = await fetchStockPrices(watchlist.map(s => ({ code: s.code, isHK: s.isHK })), true)
+      watchlist.forEach(s => {
+        const pd = priceMap[s.code]
+        if (!pd) return
+        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
+        updateWatchlistStock(s.code, {
+          price: pd.price,
+          priceCny,
+          yieldRate: rawYield > 30 ? s.yieldRate : rawYield,
+          pctChg: pd.pctChg,
+        })
+      })
+      showToast(`已刷新 ${watchlist.length} 只股票价格`)
+    } catch {
+      showToast('刷新失败，请重试')
+    }
+    setLoadingPrices(false)
+  }
+
   const handleClearCache = () => {
     cacheClear()
     showToast('缓存已清除')
@@ -152,6 +180,27 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Stock prices */}
+      <div className="mx-4 mb-3">
+        <div className="section-header px-0">行情</div>
+        <div className="card">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="text-gray-400 w-5">📈</div>
+            <div className="flex-1">
+              <span className="text-sm text-gray-800">刷新股价</span>
+              <div className="text-xs text-gray-400 mt-0.5">强制更新自选股实时价格缓存</div>
+            </div>
+            <button
+              onClick={handleRefreshPrices}
+              className="text-xs text-primary border border-primary rounded-full px-3 py-1"
+              disabled={loadingPrices}
+            >
+              {loadingPrices ? '刷新中...' : '刷新'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Data management */}
       <div className="mx-4 mb-3">
         <div className="section-header px-0">数据管理</div>
@@ -189,6 +238,11 @@ export default function Settings() {
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01" strokeLinecap="round"/></svg>}
             label="版本"
             value="v1.0.0"
+          />
+          <SettingRow
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10z"/><path d="M12 8h.01M11 12h1v4h1" strokeLinecap="round"/></svg>}
+            label="数据说明"
+            onClick={() => navigate('/data-guide')}
           />
           <div className="px-4 py-3 text-xs text-gray-400 leading-relaxed">
             本应用提供的数据仅供参考，不构成投资建议。股市有风险，投资需谨慎。股息数据可能存在延迟，请以实际公告为准。

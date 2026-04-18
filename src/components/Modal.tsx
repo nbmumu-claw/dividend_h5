@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
   open: boolean
@@ -19,7 +20,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="modal-backdrop fade-in" onClick={onClose}>
       <div className="modal-sheet slide-up" onClick={e => e.stopPropagation()}>
         {title && (
@@ -34,6 +35,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
         )}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

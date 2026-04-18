@@ -1,5 +1,6 @@
 import type { PriceMap } from '../types'
 import { cacheGet, cacheSet } from './cache'
+import { STATIC_STOCKS } from '../data/stocks'
 
 const PRICE_TTL = 5 * 60 * 1000
 const RATE_TTL = 6 * 60 * 60 * 1000
@@ -59,13 +60,15 @@ export async function fetchStockPrices(stocks: StockInput[], forceRefresh = fals
   })
 
   try {
-    const res = await fetch(`/api/stock-price?${txCodes.join(',')}`)
+    const res = await fetch(`/api/stock-price?${new URLSearchParams({ codes: txCodes.join(',') })}`)
     const body = await res.text()
     const parsed = parseTxBody(body)
 
     const result: PriceMap = {}
     for (const [parsedCode, data] of Object.entries(parsed)) {
-      const origCode = reverseMap[parsedCode] || parsedCode
+      const origCode = reverseMap[parsedCode]
+        ?? reverseMap[parsedCode.replace(/^0+/, '')]  // hk02318 → 2318 fallback
+        ?? parsedCode
       result[origCode] = { ...data, source: 'txzq' }
     }
 
@@ -108,23 +111,110 @@ export interface SearchResult {
   isHK: boolean
 }
 
-export async function searchStocks(keyword: string): Promise<SearchResult[]> {
-  try {
-    const res = await fetch(`/api/stock-search?v=2&type=S&count=8&q=${encodeURIComponent(keyword)}`)
-    const text = await res.text()
-    // Parse smartbox format: v_hint="0^code^name^..."
-    const results: SearchResult[] = []
-    const matches = text.matchAll(/(\d+)\^([^~^]+)\^([^~^]+)/g)
-    for (const m of matches) {
-      const type = m[1]
-      const code = m[2]
-      const name = m[3]
-      if (!code || !name) continue
-      const isHK = type === '3' || code.length <= 5
+// Local search against STATIC_STOCKS — always available, no network
+export function searchStocksLocal(keyword: string): SearchResult[] {
+  const kw = keyword.toLowerCase()
+  return (STATIC_STOCKS || [])
+    .filter(s => s.name.includes(keyword) || s.code.toLowerCase().startsWith(kw))
+    .slice(0, 6)
+    .map(s => ({
+      name: s.name,
+      code: s.isHK
+        ? String(s.code).replace(/^0+/, '').padStart(4, '0')
+        : String(s.code).padStart(6, '0'),
+      isHK: !!s.isHK,
+    }))
+}
+
+// Tencent smartbox
+async function searchViaTencent(keyword: string): Promise<SearchResult[]> {
+  const res = await fetch(
+    `/api/stock-search-tx?v=2&type=S&count=8&q=${encodeURIComponent(keyword)}`
+  )
+  const text = await res.text()
+  const match = text.match(/="([^"]+)"/)
+  if (!match || !match[1]) return []
+  return parseCloudResults(match[1], 'tencent')
+}
+
+// East money suggest
+async function searchViaEastMoney(keyword: string): Promise<SearchResult[]> {
+  const res = await fetch(
+    `/api/stock-search-em?input=${encodeURIComponent(keyword)}&type=14&token=D43BF722C8E33BDC906FB84D85E32628&count=8`
+  )
+  const json = await res.json()
+  const list: Array<{ Code: string; Name: string; Classify: string }> =
+    json?.QuotationCodeTable?.Data || []
+  return list
+    .filter(item => item.Classify === 'AStock' || item.Classify === 'HK')
+    .slice(0, 8)
+    .map(item => ({
+      name: item.Name,
+      code: item.Classify === 'HK'
+        ? item.Code.replace(/^0+/, '').padStart(4, '0')
+        : item.Code.padStart(6, '0'),
+      isHK: item.Classify === 'HK',
+    }))
+}
+
+// Sina (original)
+async function searchViaSina(keyword: string): Promise<SearchResult[]> {
+  const res = await fetch(`/api/stock-search?key=${encodeURIComponent(keyword)}`)
+  const buf = await res.arrayBuffer()
+  const text = new TextDecoder('gbk').decode(buf)
+  const match = text.match(/suggestvalue="([^"]*)"/)
+  if (!match || !match[1] || match[1] === 'N') return []
+  return parseCloudResults(match[1], 'sina')
+}
+
+function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResult[] {
+  const results: SearchResult[] = []
+  const entries = source === 'tencent' ? raw.split('^') : raw.split(';')
+  for (const entry of entries) {
+    if (!entry) continue
+    const fields = entry.split('_')
+    if (source === 'tencent') {
+      // tencent: name_code_marketcode or name^... format
+      const name = fields[0]
+      const rawCode = fields[1] || ''
+      const marketCode = fields[2] || ''
+      if (!name || !rawCode) continue
+      const isHK = marketCode.startsWith('hk') || rawCode.length <= 4
+      results.push({
+        name,
+        code: isHK ? rawCode.replace(/^0+/, '').padStart(4, '0') : rawCode.padStart(6, '0'),
+        isHK,
+      })
+    } else {
+      // sina: name,type,code,...
+      const [name, type, code] = fields
+      if (!name || !code) continue
+      const isHK = type === '31'
+      const isA = ['11', '12', '13', '14', '15'].includes(type)
+      if (!isHK && !isA) continue
       results.push({ name, code: isHK ? code.replace(/^0+/, '').padStart(4, '0') : code.padStart(6, '0'), isHK })
-      if (results.length >= 8) break
     }
-    return results
+    if (results.length >= 8) break
+  }
+  return results
+}
+
+// Three-level fallback: local → Tencent → EastMoney → Sina
+export async function searchStocks(keyword: string, forceCloud = false): Promise<SearchResult[]> {
+  if (!forceCloud) {
+    const local = searchStocksLocal(keyword)
+    if (local.length > 0) return local
+  }
+  try {
+    const tx = await searchViaTencent(keyword)
+    if (tx.length > 0) return tx
+  } catch { /* fall through */ }
+  try {
+    const em = await searchViaEastMoney(keyword)
+    if (em.length > 0) return em
+  } catch { /* fall through */ }
+  try {
+    return await searchViaSina(keyword)
   } catch {
     return []
   }

@@ -37,7 +37,9 @@ function buildAchievements(annualDiv: number, monthlyIncome: number, yieldRate: 
 
 export default function Portfolio() {
   const { watchlist, exchangeRate } = useStore()
-  const [chartMode, setChartMode] = useState<'sector' | 'stock'>('sector')
+  const [chartType, setChartType] = useState<'div' | 'cost'>('div')
+  const [chartGroup, setChartGroup] = useState<'sector' | 'stock'>('sector')
+  const chartMode = chartType === 'div' ? chartGroup : `cost-${chartGroup}` as 'cost-sector' | 'cost-stock'
   const [showAll, setShowAll] = useState(false)
 
   const metrics = useMemo(() => {
@@ -75,24 +77,38 @@ export default function Portfolio() {
   }, [watchlist, exchangeRate])
 
   const chartData = useMemo(() => {
-    if (chartMode === 'sector') {
-      const byS: Record<string, number> = {}
-      watchlist.forEach(s => {
-        if (!s.shares) return
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
-        const ann = afterTax(divCny * Number(s.shares), s)
-        byS[s.sector] = (byS[s.sector] || 0) + ann
-      })
-      return Object.entries(byS).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) })).filter(d => d.value > 0)
-    } else {
-      return watchlist
+    if (chartMode === 'sector' || chartMode === 'stock') {
+      const bySector: Record<string, number> = {}
+      const byStock = watchlist
         .filter(s => s.shares)
         .map(s => {
           const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
           const ann = afterTax(divCny * Number(s.shares), s)
+          bySector[s.sector] = (bySector[s.sector] || 0) + ann
           return { name: s.name, value: parseFloat(ann.toFixed(2)) }
         })
         .filter(d => d.value > 0)
+      if (chartMode === 'sector') {
+        return Object.entries(bySector).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) })).filter(d => d.value > 0)
+      }
+      return byStock
+    } else {
+      const bySector: Record<string, number> = {}
+      const byStock = watchlist
+        .filter(s => s.shares)
+        .map(s => {
+          const shares = Number(s.shares) || 0
+          const costPrice = Number(s.costPrice) || 0
+          const priceCny = s.isHK ? s.price * exchangeRate : s.price
+          const cost = (costPrice > 0 ? costPrice : priceCny) * shares
+          bySector[s.sector] = (bySector[s.sector] || 0) + cost
+          return { name: s.name, value: parseFloat(cost.toFixed(2)) }
+        })
+        .filter(d => d.value > 0)
+      if (chartMode === 'cost-sector') {
+        return Object.entries(bySector).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) })).filter(d => d.value > 0)
+      }
+      return byStock
     }
   }, [watchlist, exchangeRate, chartMode])
 
@@ -146,21 +162,24 @@ export default function Portfolio() {
       {chartData.length > 0 && (
         <div className="px-4 mb-4">
           <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-800">红利分布</span>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-gray-800">
+                {chartType === 'cost' ? '成本分布' : '红利分布'}
+              </span>
               <div className="flex gap-1">
-                <button
-                  onClick={() => setChartMode('sector')}
-                  className={`text-xs px-3 py-1 rounded-full border ${chartMode === 'sector' ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-500'}`}
-                >
-                  板块
-                </button>
-                <button
-                  onClick={() => setChartMode('stock')}
-                  className={`text-xs px-3 py-1 rounded-full border ${chartMode === 'stock' ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-500'}`}
-                >
-                  个股
-                </button>
+                {(['div', 'cost'] as const).map(t => (
+                  <button key={t} onClick={() => setChartType(t)}
+                    className={`text-xs px-3 py-1 rounded-full border ${chartType === t ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-500'}`}>
+                    {t === 'div' ? '红利' : '成本'}
+                  </button>
+                ))}
+                <div className="w-px bg-gray-200 mx-0.5" />
+                {(['sector', 'stock'] as const).map(g => (
+                  <button key={g} onClick={() => setChartGroup(g)}
+                    className={`text-xs px-3 py-1 rounded-full border ${chartGroup === g ? 'bg-gray-700 text-white border-gray-700' : 'border-gray-200 text-gray-500'}`}>
+                    {g === 'sector' ? '板块' : '个股'}
+                  </button>
+                ))}
               </div>
             </div>
             <div style={{ height: 220 }}>
@@ -180,20 +199,36 @@ export default function Portfolio() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number) => [`¥${value.toFixed(2)}`, '年红利']}
+                    formatter={(value: number) => {
+                      const total = chartData.reduce((s, d) => s + d.value, 0)
+                      const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0'
+                      const label = chartMode.startsWith('cost') ? '持仓成本' : '年红利'
+                      return [`¥${value.toFixed(2)} (${pct}%)`, label]
+                    }}
                     contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              {chartData.map((d, i) => (
-                <div key={d.name} className="flex items-center gap-1 text-xs text-gray-600">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
-                  <span>{d.name}</span>
-                  <span className="text-gray-400">¥{d.value.toFixed(0)}</span>
-                </div>
-              ))}
+              {(() => {
+                const total = chartData.reduce((s, d) => s + d.value, 0)
+                return [...chartData]
+                  .sort((a, b) => b.value - a.value)
+                  .map((d) => {
+                    const origIdx = chartData.indexOf(d)
+                    return (
+                      <div key={d.name} className="flex items-center gap-1 text-xs text-gray-600">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: COLORS[origIdx % COLORS.length] }} />
+                        <span>{d.name}</span>
+                        <span className="text-gray-400">¥{d.value.toFixed(0)}</span>
+                        <span className="font-medium" style={{ color: COLORS[origIdx % COLORS.length] }}>
+                          {total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%
+                        </span>
+                      </div>
+                    )
+                  })
+              })()}
             </div>
           </div>
         </div>
