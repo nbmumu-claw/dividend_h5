@@ -8,7 +8,7 @@ import type { Stock } from '../types'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
 
-const CHART_COLORS = ['#10B981','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
+const CHART_COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
 
 function YieldBadge({ rate }: { rate: number }) {
   const cls = rate >= 5 ? 'tag-green' : rate >= 4 ? 'tag-yellow' : 'tag-gray'
@@ -23,7 +23,7 @@ interface ContextMenu {
 
 export default function Discovery() {
   const { customSectors, watchlist, manualStocks, staticEdits, hiddenStocks,
-    addToWatchlist, addManualStock, removeManualStock, updateManualStock,
+    addToWatchlist, removeFromWatchlist, addManualStock, removeManualStock, updateManualStock,
     updateStaticEdit, hideStock, addSector, renameSector, deleteSector, setCustomSectors, exchangeRate } = useStore()
 
   const [activeSector, setActiveSector] = useState(customSectors[0] || '')
@@ -98,7 +98,8 @@ export default function Discovery() {
 
   const handleAddToWatchlist = (stock: Stock) => {
     if (watchlist.find(w => w.code === stock.code)) {
-      showToast('已在自选中')
+      removeFromWatchlist(stock.code)
+      showToast('已移出自选')
       return
     }
     addToWatchlist(stock)
@@ -229,8 +230,8 @@ export default function Discovery() {
   return (
     <div className="page-content">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-12 pb-3">
-        <h1 className="text-xl font-bold text-gray-900">发现</h1>
+      <div className="relative flex items-center justify-between px-4 pt-12 pb-3">
+        <h1 className="absolute inset-x-0 text-center text-xl font-bold text-gray-900 pointer-events-none">发现</h1>
         <div className="flex gap-2">
           <button onClick={handleRefresh} className="p-2 text-gray-500">
             <svg className={`w-5 h-5 ${loading ? 'spinner' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
@@ -238,7 +239,7 @@ export default function Discovery() {
               <path d="M20 4v4h-4M4 20v-4h4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-          <button onClick={openAddForm} className="p-2 text-primary">
+          <button onClick={openAddForm} className="p-2 text-red-600">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="9"/>
               <path d="M12 8v8M8 12h8" strokeLinecap="round"/>
@@ -283,7 +284,7 @@ export default function Discovery() {
                 <path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8" strokeLinecap="round"/>
               </svg>
               <p className="text-sm">该板块暂无股票</p>
-              <button onClick={openAddForm} className="mt-3 text-primary text-sm font-medium">+ 添加股票</button>
+              <button onClick={openAddForm} className="mt-3 text-red-600 text-sm font-medium">+ 添加股票</button>
             </div>
           ) : (
             displayStocks.map((stock, idx) => {
@@ -325,7 +326,7 @@ export default function Discovery() {
                   <button
                     onClick={() => handleAddToWatchlist(stock)}
                     className={`ml-3 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                      inWatchlist ? 'bg-primary-light text-primary' : 'bg-gray-100 text-gray-400'
+                      inWatchlist ? 'bg-red-600 text-white' : 'bg-red-50 text-red-300'
                     }`}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill={inWatchlist ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
@@ -405,9 +406,9 @@ export default function Discovery() {
             <label htmlFor="confirmed" className="text-sm text-gray-700">股息已确认（取消勾选为预估）</label>
           </div>
           {form.price && form.dividendPerShare && (
-            <div className="bg-green-50 rounded-lg p-3 text-sm">
+            <div className="bg-red-50 rounded-lg p-3 text-sm">
               <span className="text-gray-500">预计股息率：</span>
-              <span className="text-primary font-semibold ml-1">
+              <span className="text-red-600 font-semibold ml-1">
                 {(() => {
                   const p = parseFloat(form.price)
                   const d = parseFloat(form.dividendPerShare)

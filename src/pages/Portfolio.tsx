@@ -5,7 +5,7 @@ import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
 import type { WatchlistStock } from '../types'
 
-const COLORS = ['#10B981','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
+const COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
 
 interface Achievement {
   id: string
@@ -120,7 +120,7 @@ export default function Portfolio() {
   return (
     <div className="page-content">
       <div className="px-4 pt-12 pb-3">
-        <h1 className="text-xl font-bold text-gray-900">收益</h1>
+        <h1 className="text-xl font-bold text-gray-900 text-center">收益</h1>
       </div>
 
       {/* Summary cards */}
@@ -130,7 +130,7 @@ export default function Portfolio() {
           <div className="flex justify-between items-start">
             <div>
               <div className="text-xs text-gray-400 mb-1">年度红利（税后）</div>
-              <div className="text-3xl font-bold text-primary">¥{metrics.annualDiv.toFixed(0)}</div>
+              <div className="text-3xl font-bold text-red-600">¥{metrics.annualDiv.toFixed(0)}</div>
             </div>
             {metrics.hasHoldings ? (
               <div className="text-right">
@@ -145,7 +145,7 @@ export default function Portfolio() {
             ) : (
               <div className="text-right">
                 <div className="text-xs text-gray-400 mb-1">月均收入</div>
-                <div className="text-3xl font-bold text-gray-800">¥{metrics.monthlyIncome.toFixed(0)}</div>
+                <div className="text-3xl font-bold text-red-600">¥{metrics.monthlyIncome.toFixed(0)}</div>
               </div>
             )}
           </div>
@@ -155,19 +155,19 @@ export default function Portfolio() {
             <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-y-3 gap-x-6">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">月均收入</span>
-                <span className="font-medium text-gray-800">¥{metrics.monthlyIncome.toFixed(0)}</span>
+                <span className="font-medium text-red-600">¥{metrics.monthlyIncome.toFixed(0)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">整体股息率</span>
-                <span className="font-medium text-gray-800">{metrics.overallYield.toFixed(2)}%</span>
+                <span className="font-medium text-red-600">{metrics.overallYield.toFixed(2)}%</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">持仓市值</span>
-                <span className="font-medium text-gray-800">¥{metrics.totalMarket.toFixed(0)}</span>
+                <span className="font-medium text-red-600">¥{metrics.totalMarket.toFixed(0)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">成本金额</span>
-                <span className="font-medium text-gray-800">¥{metrics.totalCost.toFixed(0)}</span>
+                <span className="font-medium text-red-600">¥{metrics.totalCost.toFixed(0)}</span>
               </div>
             </div>
           )}
@@ -185,7 +185,7 @@ export default function Portfolio() {
               <div className="flex gap-1">
                 {(['div', 'cost'] as const).map(t => (
                   <button key={t} onClick={() => setChartType(t)}
-                    className={`text-xs px-3 py-1 rounded-full border ${chartType === t ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-500'}`}>
+                    className={`text-xs px-3 py-1 rounded-full border ${chartType === t ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-500'}`}>
                     {t === 'div' ? '红利' : '成本'}
                   </button>
                 ))}

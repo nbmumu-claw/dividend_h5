@@ -27,13 +27,13 @@ export default function Matrix() {
   return (
     <div className="page-content">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-12 pb-4">
+      <div className="relative flex items-center px-4 pt-12 pb-4">
         <button onClick={() => navigate(-1)} className="p-1.5 text-gray-500">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <div>
+        <div className="absolute inset-x-0 text-center pointer-events-none">
           <h1 className="text-base font-bold text-gray-900">{name} 决策矩阵</h1>
           <p className="text-xs text-gray-400">代码 {code} · 每股红利 ¥{dividend} {isHK ? '(HKD)' : ''}</p>
         </div>
@@ -48,7 +48,7 @@ export default function Matrix() {
               <div className="text-xs text-gray-400">当前价格</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-primary">{currentYield.toFixed(2)}%</div>
+              <div className="text-lg font-bold text-red-600">{currentYield.toFixed(2)}%</div>
               <div className="text-xs text-gray-400">当前股息率</div>
             </div>
             <div>
@@ -76,7 +76,7 @@ export default function Matrix() {
                     <td className="font-medium">{row.rate.toFixed(1)}%</td>
                     <td className="font-semibold">
                       ¥{row.targetPrice.toFixed(2)}
-                      {isCurrent && <span className="ml-1 text-xs text-primary">← 当前</span>}
+                      {isCurrent && <span className="ml-1 text-xs text-red-600">← 当前</span>}
                     </td>
                     <td className={row.diff > 0 ? 'text-red-500' : 'text-green-600'}>
                       {currentPrice > 0 ? (

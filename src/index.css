@@ -5,9 +5,9 @@
 :root {
   --tab-bar-height: 56px;
   --nav-bar-height: 44px;
-  --bg: #FAF8F0;
-  --primary: #10B981;
-  --primary-dark: #059669;
+  --bg: #F5F5F5;
+  --primary: #E03025;
+  --primary-dark: #C62828;
   --text: #111827;
   --text-secondary: #6B7280;
   --border: #E5E7EB;
@@ -124,7 +124,7 @@ body {
   font-weight: 500;
 }
 
-.tag-green { background: #D1FAE5; color: #065F46; }
+.tag-green { background: #FEF2F2; color: #B71C1C; }
 .tag-blue { background: #DBEAFE; color: #1E40AF; }
 .tag-gray { background: #F3F4F6; color: #6B7280; }
 .tag-red { background: #FEE2E2; color: #991B1B; }
@@ -210,7 +210,7 @@ body {
 }
 
 /* Yield badge colors by rate */
-.yield-high { color: #059669; }
+.yield-high { color: #E03025; }
 .yield-mid { color: #D97706; }
 .yield-low { color: var(--text-secondary); }
 
@@ -254,8 +254,8 @@ body {
 }
 
 .achievement.unlocked {
-  background: #ECFDF5;
-  color: #065F46;
+  background: #FEF2F2;
+  color: #B71C1C;
 }
 
 .achievement.locked {
@@ -311,7 +311,6 @@ body {
 .stat-number {
   font-size: 28px;
   font-weight: 700;
-  color: var(--text);
   line-height: 1;
 }
 
@@ -391,7 +390,7 @@ body {
 }
 
 .matrix-table tr.current-row td {
-  background: #ECFDF5;
+  background: #FEF2F2;
   font-weight: 700;
   color: var(--primary-dark);
 }

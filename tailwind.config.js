@@ -4,10 +4,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        cream: '#FAF8F0',
-        primary: '#10B981',
-        'primary-dark': '#059669',
-        'primary-light': '#D1FAE5',
+        cream: '#F5F5F5',
+        primary: '#E03025',
+        'primary-dark': '#C62828',
+        'primary-light': '#FEF2F2',
       },
       fontFamily: {
         sans: ['-apple-system', 'BlinkMacSystemFont', 'PingFang SC', 'Helvetica Neue', 'sans-serif'],

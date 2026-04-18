@@ -113,7 +113,7 @@ export default function Settings() {
   return (
     <div className="page-content">
       <div className="px-4 pt-12 pb-3">
-        <h1 className="text-xl font-bold text-gray-900">我的</h1>
+        <h1 className="text-xl font-bold text-gray-900 text-center">我的</h1>
       </div>
 
       {/* Stats */}
@@ -128,7 +128,7 @@ export default function Settings() {
             <div className="text-xs text-gray-400 mt-0.5">持仓股票</div>
           </div>
           <div>
-            <div className="text-xl font-bold text-primary">¥{stats.totalAnnual.toFixed(0)}</div>
+            <div className="text-xl font-bold text-red-600">¥{stats.totalAnnual.toFixed(0)}</div>
             <div className="text-xs text-gray-400 mt-0.5">年度红利</div>
           </div>
         </div>
@@ -146,7 +146,7 @@ export default function Settings() {
             </div>
             <button
               onClick={handleRefreshRate}
-              className="text-xs text-primary border border-primary rounded-full px-3 py-1"
+              className="text-xs text-red-600 border border-red-600 rounded-full px-3 py-1"
               disabled={loadingRate}
             >
               {loadingRate ? '更新中...' : '刷新'}
@@ -169,7 +169,7 @@ export default function Settings() {
             <div className="flex-1">
               <span className="text-sm text-gray-800">服务与隐私协议</span>
             </div>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${agreementAccepted ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${agreementAccepted ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-600'}`}>
               {agreementAccepted ? '已确认' : '点击查看'}
             </span>
             <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
