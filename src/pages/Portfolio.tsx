@@ -33,6 +33,16 @@ function buildAchievements(annualDiv: number, monthlyIncome: number, yieldRate: 
     { id: 'annual_1k', label: '年入千元', description: '年红利收入超过¥1000', unlocked: annualDiv >= 1000, icon: '💰' },
     { id: 'annual_5k', label: '年入5千', description: '年红利收入超过¥5000', unlocked: annualDiv >= 5000, icon: '💎' },
     { id: 'annual_10k', label: '年入万元', description: '年红利收入超过¥10000', unlocked: annualDiv >= 10000, icon: '🏅' },
+    { id: 'daily_latte', label: '拿铁自由', description: '月收入覆盖30杯拿铁', unlocked: monthlyIncome >= 30 * 38, icon: '☕' },
+    { id: 'daily_boba', label: '奶茶自由', description: '月收入覆盖60杯奶茶', unlocked: monthlyIncome >= 60 * 20, icon: '🧋' },
+    { id: 'rent_cover', label: '房租刺客', description: '年红利超过¥36000', unlocked: annualDiv >= 36000, icon: '🏠' },
+    { id: 'yield_8', label: '高息猎手', description: '整体股息率达到8%', unlocked: yieldRate >= 8, icon: '🦅' },
+    { id: 'stocks_20', label: '散户之王', description: '持有20只以上股票', unlocked: stockCount >= 20, icon: '🃏' },
+    { id: 'annual_100k', label: '年入十万', description: '年红利收入超过¥100000', unlocked: annualDiv >= 100000, icon: '🌊' },
+    { id: 'monthly_salary', label: '工资替代', description: '月红利超过¥8000', unlocked: monthlyIncome >= 8000, icon: '😤' },
+    { id: 'income_500_daily', label: '日入500', description: '日均红利超过¥500', unlocked: annualDiv >= 500 * 365, icon: '🌅' },
+    { id: 'hk_investor', label: '南下资金', description: '持有港股股票', unlocked: stockCount >= 1 && annualDiv > 0, icon: '🦁' },
+    { id: 'zen_investor', label: '躺平投资', description: '年红利超过¥60000', unlocked: annualDiv >= 60000, icon: '🧘' },
   ]
 }
 
@@ -115,7 +125,8 @@ export default function Portfolio() {
 
   const achievements = buildAchievements(metrics.annualDiv, metrics.monthlyIncome, metrics.overallYield, metrics.stockCount, metrics.hasHoldings)
   const unlockedCount = achievements.filter(a => a.unlocked).length
-  const displayedAchievements = showAll ? achievements : achievements.slice(0, 8)
+  const sortedAchievements = [...achievements].sort((a, b) => (b.unlocked ? 1 : 0) - (a.unlocked ? 1 : 0))
+  const displayedAchievements = showAll ? sortedAchievements : sortedAchievements.slice(0, 12)
 
   return (
     <div className="page-content">
@@ -260,23 +271,24 @@ export default function Portfolio() {
           <div className="progress-bar mb-3">
             <div className="progress-fill" style={{ width: `${(unlockedCount / achievements.length) * 100}%` }} />
           </div>
-          <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
             {displayedAchievements.map(a => (
-              <div key={a.id} className={`achievement ${a.unlocked ? 'unlocked' : 'locked'}`}>
-                <span className="text-lg">{a.unlocked ? a.icon : '🔒'}</span>
-                <div>
-                  <div className="font-medium text-xs">{a.label}</div>
-                  <div className="text-xs opacity-70">{a.description}</div>
-                </div>
+              <div
+                key={a.id}
+                className={`rounded-xl p-2.5 flex flex-col items-center text-center gap-1 ${a.unlocked ? 'bg-red-50' : 'bg-gray-50'}`}
+              >
+                <span className="text-2xl">{a.unlocked ? a.icon : '🔒'}</span>
+                <div className={`text-xs font-semibold leading-tight ${a.unlocked ? 'text-red-700' : 'text-gray-400'}`}>{a.label}</div>
+                <div className={`text-[10px] leading-tight ${a.unlocked ? 'text-red-400' : 'text-gray-300'}`}>{a.description}</div>
               </div>
             ))}
           </div>
-          {achievements.length > 8 && (
+          {sortedAchievements.length > 12 && (
             <button
               className="w-full mt-3 text-xs text-gray-400 py-2"
               onClick={() => setShowAll(!showAll)}
             >
-              {showAll ? '收起' : `查看全部 ${achievements.length} 个成就`}
+              {showAll ? '收起' : `查看全部 ${sortedAchievements.length} 个成就`}
             </button>
           )}
         </div>
