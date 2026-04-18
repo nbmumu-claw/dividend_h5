@@ -57,7 +57,7 @@ export default function Portfolio() {
 
       totalAnnual += annualDiv
       totalMarket += priceCny * shares
-      totalCost += costPrice > 0 ? costPrice * shares : priceCny * shares
+      totalCost += (s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '') ? costPrice * shares : priceCny * shares
     })
 
     const overallYield = totalCost > 0 ? (totalAnnual / totalCost) * 100 : 0
@@ -98,9 +98,9 @@ export default function Portfolio() {
         .filter(s => s.shares)
         .map(s => {
           const shares = Number(s.shares) || 0
-          const costPrice = Number(s.costPrice) || 0
           const priceCny = s.isHK ? s.price * exchangeRate : s.price
-          const cost = (costPrice > 0 ? costPrice : priceCny) * shares
+          const hasCostPrice = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== ''
+          const cost = (hasCostPrice ? Number(s.costPrice) : priceCny) * shares
           bySector[s.sector] = (bySector[s.sector] || 0) + cost
           return { name: s.name, value: parseFloat(cost.toFixed(2)) }
         })

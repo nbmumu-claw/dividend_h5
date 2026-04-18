@@ -178,6 +178,7 @@ export default function Watchlist() {
                         <input
                           className="input-field text-sm"
                           type="number"
+                          min="0"
                           placeholder="0"
                           value={stock.shares || ''}
                           onChange={e => updateWatchlistStock(stock.code, { shares: Number(e.target.value) || undefined })}
@@ -188,6 +189,7 @@ export default function Watchlist() {
                         <input
                           className="input-field text-sm"
                           type="number"
+                          min="0"
                           placeholder="0.00"
                           value={stock.costPrice || ''}
                           onChange={e => updateWatchlistStock(stock.code, { costPrice: e.target.value })}

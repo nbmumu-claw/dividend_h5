@@ -117,13 +117,18 @@ export const useStore = create<AppState>()(
           discoveryStaticEdits?: Record<string, Partial<Stock>>
           discoveryHiddenStocks?: string[]
           discoveryCustomSectors?: string[]
+          // 旧版格式兼容
+          manualStocks?: Stock[]
+          staticEdits?: Record<string, Partial<Stock>>
+          hiddenStocks?: string[]
+          customSectors?: string[]
         }
         set({
           watchlist: d.watchlist || [],
-          manualStocks: d.discoveryManualStocks || [],
-          staticEdits: d.discoveryStaticEdits || {},
-          hiddenStocks: d.discoveryHiddenStocks || [],
-          customSectors: d.discoveryCustomSectors || [...DEFAULT_SECTORS],
+          manualStocks: d.discoveryManualStocks || d.manualStocks || [],
+          staticEdits: d.discoveryStaticEdits || d.staticEdits || {},
+          hiddenStocks: d.discoveryHiddenStocks || d.hiddenStocks || [],
+          customSectors: d.discoveryCustomSectors || d.customSectors || [...DEFAULT_SECTORS],
         })
       },
     }),
