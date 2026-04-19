@@ -63,7 +63,12 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ]
 
 export default function Watchlist() {
-  const { watchlist, customSectors, removeFromWatchlist, updateWatchlistStock, batchUpdateWatchlist, exchangeRate } = useStore()
+  const watchlist = useStore(s => s.watchlist)
+  const customSectors = useStore(s => s.customSectors)
+  const exchangeRate = useStore(s => s.exchangeRate)
+  const removeFromWatchlist = useStore(s => s.removeFromWatchlist)
+  const updateWatchlistStock = useStore(s => s.updateWatchlistStock)
+  const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
   const [activeSector, setActiveSector] = useState('全部')
   const [loading, setLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(() => watchlist.every(s => s.price > 0))

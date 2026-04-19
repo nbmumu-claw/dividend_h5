@@ -47,7 +47,8 @@ function buildAchievements(annualDiv: number, monthlyIncome: number, yieldRate: 
 }
 
 export default function Portfolio() {
-  const { watchlist, exchangeRate } = useStore()
+  const watchlist = useStore(s => s.watchlist)
+  const exchangeRate = useStore(s => s.exchangeRate)
   const [chartType, setChartType] = useState<'div' | 'cost'>('div')
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock'>('sector')
   const chartMode = chartType === 'div' ? chartGroup : `cost-${chartGroup}` as 'cost-sector' | 'cost-stock'

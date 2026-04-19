@@ -9,8 +9,13 @@ import Modal from '../components/Modal'
 import { afterTax } from '../utils/tax'
 
 export default function Settings() {
-  const store = useStore()
-  const { watchlist, exchangeRate, setExchangeRate, setWatchlist, importBackup, agreementAccepted, setAgreementAccepted } = store
+  const watchlist = useStore(s => s.watchlist)
+  const exchangeRate = useStore(s => s.exchangeRate)
+  const setExchangeRate = useStore(s => s.setExchangeRate)
+  const setWatchlist = useStore(s => s.setWatchlist)
+  const importBackup = useStore(s => s.importBackup)
+  const agreementAccepted = useStore(s => s.agreementAccepted)
+  const setAgreementAccepted = useStore(s => s.setAgreementAccepted)
   const navigate = useNavigate()
   const [loadingRate, setLoadingRate] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -44,11 +49,11 @@ export default function Settings() {
       version: '2.0',
       exportedAt: new Date().toISOString(),
       data: {
-        watchlist: store.watchlist,
-        discoveryManualStocks: store.manualStocks,
-        discoveryStaticEdits: store.staticEdits,
-        discoveryHiddenStocks: store.hiddenStocks,
-        discoveryCustomSectors: store.customSectors,
+        watchlist: useStore.getState().watchlist,
+        discoveryManualStocks: useStore.getState().manualStocks,
+        discoveryStaticEdits: useStore.getState().staticEdits,
+        discoveryHiddenStocks: useStore.getState().hiddenStocks,
+        discoveryCustomSectors: useStore.getState().customSectors,
       },
     }
     const text = JSON.stringify(backup, null, 2)

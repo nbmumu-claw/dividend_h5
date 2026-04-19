@@ -22,9 +22,23 @@ interface ContextMenu {
 }
 
 export default function Discovery() {
-  const { customSectors, watchlist, manualStocks, staticEdits, hiddenStocks,
-    addToWatchlist, removeFromWatchlist, addManualStock, removeManualStock, updateManualStock,
-    updateStaticEdit, hideStock, addSector, renameSector, deleteSector, setCustomSectors, exchangeRate } = useStore()
+  const customSectors = useStore(s => s.customSectors)
+  const watchlist = useStore(s => s.watchlist)
+  const manualStocks = useStore(s => s.manualStocks)
+  const staticEdits = useStore(s => s.staticEdits)
+  const hiddenStocks = useStore(s => s.hiddenStocks)
+  const exchangeRate = useStore(s => s.exchangeRate)
+  const addToWatchlist = useStore(s => s.addToWatchlist)
+  const removeFromWatchlist = useStore(s => s.removeFromWatchlist)
+  const addManualStock = useStore(s => s.addManualStock)
+  const removeManualStock = useStore(s => s.removeManualStock)
+  const updateManualStock = useStore(s => s.updateManualStock)
+  const updateStaticEdit = useStore(s => s.updateStaticEdit)
+  const hideStock = useStore(s => s.hideStock)
+  const addSector = useStore(s => s.addSector)
+  const renameSector = useStore(s => s.renameSector)
+  const deleteSector = useStore(s => s.deleteSector)
+  const setCustomSectors = useStore(s => s.setCustomSectors)
 
   const [activeSector, setActiveSector] = useState(customSectors[0] || '')
   const [stocks, setStocks] = useState<Stock[]>([])
