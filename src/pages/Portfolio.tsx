@@ -68,7 +68,7 @@ export default function Portfolio() {
 
       totalAnnual += annualDiv
       totalMarket += priceCny * shares
-      const costPriceCny = (s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '')
+      const costPriceCny = (s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '' && costPrice > 0)
         ? (s.isHK ? costPrice * exchangeRate : costPrice)
         : priceCny
       totalCost += costPriceCny * shares
@@ -98,7 +98,8 @@ export default function Portfolio() {
         .map(s => {
           const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
           const ann = afterTax(divCny * Number(s.shares), s)
-          bySector[s.sector] = (bySector[s.sector] || 0) + ann
+          const sector = (s.sector || '').trim()
+          bySector[sector] = (bySector[sector] || 0) + ann
           return { name: s.name, value: parseFloat(ann.toFixed(2)) }
         })
         .filter(d => d.value > 0)
@@ -113,9 +114,11 @@ export default function Portfolio() {
         .map(s => {
           const shares = Number(s.shares) || 0
           const priceCny = s.isHK ? s.price * exchangeRate : s.price
-          const hasCostPrice = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== ''
-          const cost = (hasCostPrice ? Number(s.costPrice) : priceCny) * shares
-          bySector[s.sector] = (bySector[s.sector] || 0) + cost
+          const costVal = Number(s.costPrice)
+          const hasCostPrice = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '' && costVal > 0
+          const cost = (hasCostPrice ? costVal : priceCny) * shares
+          const sector = (s.sector || '').trim()
+          bySector[sector] = (bySector[sector] || 0) + cost
           return { name: s.name, value: parseFloat(cost.toFixed(2)) }
         })
         .filter(d => d.value > 0)

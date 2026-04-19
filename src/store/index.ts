@@ -74,10 +74,12 @@ export const useStore = create<AppState>()(
       updateManualStock: (code, updates) =>
         set(s => ({
           manualStocks: s.manualStocks.map(m => m.code === code ? { ...m, ...updates } : m),
+          watchlist: s.watchlist.map(w => w.code === code ? { ...w, ...updates } : w),
         })),
       updateStaticEdit: (code, updates) =>
         set(s => ({
           staticEdits: { ...s.staticEdits, [code]: { ...s.staticEdits[code], ...updates } },
+          watchlist: s.watchlist.map(w => w.code === code ? { ...w, ...updates } : w),
         })),
       hideStock: (code) =>
         set(s => ({ hiddenStocks: s.hiddenStocks.includes(code) ? s.hiddenStocks : [...s.hiddenStocks, code] })),
