@@ -68,7 +68,8 @@ export default function Portfolio() {
 
       totalAnnual += annualDiv
       totalMarket += priceCny * shares
-      const costPriceCny = (s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '' && costPrice > 0)
+      const hasCost = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== ''
+      const costPriceCny = hasCost
         ? (s.isHK ? costPrice * exchangeRate : costPrice)
         : priceCny
       totalCost += costPriceCny * shares
@@ -91,16 +92,23 @@ export default function Portfolio() {
   }, [watchlist, exchangeRate])
 
   const chartData = useMemo(() => {
+    const holdings = watchlist.filter(s => s.shares)
+    const nameCounts = holdings.reduce<Record<string, number>>((acc, s) => {
+      acc[s.name] = (acc[s.name] || 0) + 1
+      return acc
+    }, {})
+    const displayName = (s: typeof holdings[0]) =>
+      nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : 'A'})` : s.name
+
     if (chartMode === 'sector' || chartMode === 'stock') {
       const bySector: Record<string, number> = {}
-      const byStock = watchlist
-        .filter(s => s.shares)
+      const byStock = holdings
         .map(s => {
           const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
           const ann = afterTax(divCny * Number(s.shares), s)
           const sector = (s.sector || '').trim()
           bySector[sector] = (bySector[sector] || 0) + ann
-          return { name: s.name, value: parseFloat(ann.toFixed(2)) }
+          return { name: displayName(s), value: parseFloat(ann.toFixed(2)) }
         })
         .filter(d => d.value > 0)
       if (chartMode === 'sector') {
@@ -109,17 +117,14 @@ export default function Portfolio() {
       return byStock
     } else {
       const bySector: Record<string, number> = {}
-      const byStock = watchlist
-        .filter(s => s.shares)
+      const byStock = holdings
         .map(s => {
           const shares = Number(s.shares) || 0
           const priceCny = s.isHK ? s.price * exchangeRate : s.price
-          const costVal = Number(s.costPrice)
-          const hasCostPrice = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '' && costVal > 0
-          const cost = (hasCostPrice ? costVal : priceCny) * shares
+          const market = priceCny * shares
           const sector = (s.sector || '').trim()
-          bySector[sector] = (bySector[sector] || 0) + cost
-          return { name: s.name, value: parseFloat(cost.toFixed(2)) }
+          bySector[sector] = (bySector[sector] || 0) + market
+          return { name: displayName(s), value: parseFloat(market.toFixed(2)) }
         })
         .filter(d => d.value > 0)
       if (chartMode === 'cost-sector') {
@@ -197,13 +202,13 @@ export default function Portfolio() {
           <div className="card p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-gray-800">
-                {chartType === 'cost' ? '成本分布' : '红利分布'}
+                {chartType === 'cost' ? '市值分布' : '红利分布'}
               </span>
               <div className="flex gap-1">
                 {(['div', 'cost'] as const).map(t => (
                   <button key={t} onClick={() => setChartType(t)}
                     className={`text-xs px-3 py-1 rounded-full border ${chartType === t ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-500'}`}>
-                    {t === 'div' ? '红利' : '成本'}
+                    {t === 'div' ? '红利' : '市值'}
                   </button>
                 ))}
                 <div className="w-px bg-gray-200 mx-0.5" />
@@ -235,7 +240,7 @@ export default function Portfolio() {
                     formatter={(value: number) => {
                       const total = chartData.reduce((s, d) => s + d.value, 0)
                       const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0'
-                      const label = chartMode.startsWith('cost') ? '持仓成本' : '年红利'
+                      const label = chartMode.startsWith('cost') ? '持仓市值' : '年红利'
                       return [`¥${value.toFixed(2)} (${pct}%)`, label]
                     }}
                     contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}

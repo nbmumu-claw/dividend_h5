@@ -171,7 +171,7 @@ export default function Discovery() {
     const priceCny = form.isHK ? price * exchangeRate : price
     const divCny = form.isHK ? div * exchangeRate : div
     const yieldRate = priceCny > 0 ? (divCny / priceCny) * 100 : 0
-    const code = form.isHK ? form.code.padStart(4, '0') : form.code.padStart(6, '0')
+    const code = form.isHK ? form.code.replace(/^0+/, '').padStart(4, '0') : form.code.padStart(6, '0')
 
     if (editStock) {
       const isManualStock = manualStocks.find(m => m.code === editStock.code)
