@@ -66,7 +66,7 @@ export default function Watchlist() {
   const { watchlist, customSectors, removeFromWatchlist, updateWatchlistStock, exchangeRate } = useStore()
   const [activeSector, setActiveSector] = useState('全部')
   const [loading, setLoading] = useState(false)
-  const [pricesLoaded, setPricesLoaded] = useState(false)
+  const [pricesLoaded, setPricesLoaded] = useState(() => watchlist.every(s => s.price > 0))
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('default')
   const { message, showToast } = useToast()
