@@ -121,7 +121,7 @@ export default function Discovery() {
   }
 
   const openAddForm = () => {
-    setForm({ name: '', code: '', sector: customSectors[0] || '', price: '', dividendPerShare: '', isHK: false, confirmed: false })
+    setForm({ name: '', code: '', sector: activeSector || customSectors[0] || '', price: '', dividendPerShare: '', isHK: false, confirmed: false })
     setEditStock(null)
     setShowAdd(true)
   }
