@@ -63,7 +63,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ]
 
 export default function Watchlist() {
-  const { watchlist, customSectors, removeFromWatchlist, updateWatchlistStock, exchangeRate } = useStore()
+  const { watchlist, customSectors, removeFromWatchlist, updateWatchlistStock, batchUpdateWatchlist, exchangeRate } = useStore()
   const [activeSector, setActiveSector] = useState('全部')
   const [loading, setLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(() => watchlist.every(s => s.price > 0))
@@ -86,11 +86,12 @@ export default function Watchlist() {
     if (!watchlist.length) { setPricesLoaded(true); return }
     const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK }))
     fetchStockPrices(inputs, false).then(priceMap => {
+      const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
-        if (!pd) return
-        updateWatchlistStock(s.code, { price: pd.price, pctChg: pd.pctChg })
+        if (pd) updates[s.code] = { price: pd.price, pctChg: pd.pctChg }
       })
+      if (Object.keys(updates).length) batchUpdateWatchlist(updates)
       setPricesLoaded(true)
     }).catch(() => setPricesLoaded(true))
   }, [])
@@ -124,19 +125,21 @@ export default function Watchlist() {
     try {
       const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK }))
       const priceMap = await fetchStockPrices(inputs, true)
+      const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
         const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
         const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
-        updateWatchlistStock(s.code, {
+        updates[s.code] = {
           price: pd.price,
           priceCny,
           yieldRate: rawYield > 30 ? s.yieldRate : rawYield,
           pctChg: pd.pctChg,
-        })
+        }
       })
+      if (Object.keys(updates).length) batchUpdateWatchlist(updates)
       showToast('价格已更新')
     } catch {
       showToast('更新失败')

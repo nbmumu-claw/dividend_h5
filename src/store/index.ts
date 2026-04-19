@@ -9,6 +9,7 @@ interface AppState {
   addToWatchlist: (stock: Stock) => void
   removeFromWatchlist: (code: string) => void
   updateWatchlistStock: (code: string, updates: Partial<WatchlistStock>) => void
+  batchUpdateWatchlist: (updates: Record<string, Partial<WatchlistStock>>) => void
   setWatchlist: (list: WatchlistStock[]) => void
 
   // Discovery
@@ -56,6 +57,10 @@ export const useStore = create<AppState>()(
       updateWatchlistStock: (code, updates) =>
         set(s => ({
           watchlist: s.watchlist.map(w => w.code === code ? { ...w, ...updates } : w),
+        })),
+      batchUpdateWatchlist: (updates) =>
+        set(s => ({
+          watchlist: s.watchlist.map(w => w.code in updates ? { ...w, ...updates[w.code] } : w),
         })),
       setWatchlist: (list) => set({ watchlist: list }),
 
