@@ -53,12 +53,22 @@ function SkeletonCard() {
 
 const PULL_THRESHOLD = 65
 
+type SortKey = 'default' | 'yield' | 'annual' | 'pnl'
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'default', label: '默认' },
+  { key: 'yield', label: '股息率' },
+  { key: 'annual', label: '年红利' },
+  { key: 'pnl', label: '盈亏%' },
+]
+
 export default function Watchlist() {
   const { watchlist, customSectors, removeFromWatchlist, updateWatchlistStock, exchangeRate } = useStore()
   const [activeSector, setActiveSector] = useState('全部')
   const [loading, setLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>('default')
   const { message, showToast } = useToast()
   const navigate = useNavigate()
 
@@ -144,6 +154,39 @@ export default function Watchlist() {
     return afterTax(divCny * shares, stock)
   }
 
+  const getLiveYield = (s: WatchlistStock) =>
+    s.price > 0 ? (s.dividendPerShare / s.price) * 100 : 0
+
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    if (sortKey === 'yield') return getLiveYield(b) - getLiveYield(a)
+    if (sortKey === 'annual') return getAnnualDividend(b) - getAnnualDividend(a)
+    if (sortKey === 'pnl') {
+      const getCostCny = (s: WatchlistStock) => {
+        const cost = Number(s.costPrice)
+        if (!cost) return null
+        return s.isHK ? cost * exchangeRate : cost
+      }
+      const costA = getCostCny(a), costB = getCostCny(b)
+      const negA = costA !== null && costA < 0
+      const negB = costB !== null && costB < 0
+      // 负成本置顶，越负越前
+      if (negA && negB) return (costA ?? 0) - (costB ?? 0)
+      if (negA) return -1
+      if (negB) return 1
+      // 无成本排最后
+      if (costA === null && costB === null) return 0
+      if (costA === null) return 1
+      if (costB === null) return -1
+      // 正成本按盈亏%降序
+      const priceCnyA = a.isHK ? a.price * exchangeRate : a.price
+      const priceCnyB = b.isHK ? b.price * exchangeRate : b.price
+      const pnlA = (priceCnyA - costA) / costA * 100
+      const pnlB = (priceCnyB - costB) / costB * 100
+      return pnlB - pnlA
+    }
+    return 0
+  })
+
   const totalAnnual = filtered.reduce((sum, s) => sum + getAnnualDividend(s), 0)
   const totalMonthly = totalAnnual / 12
 
@@ -181,14 +224,25 @@ export default function Watchlist() {
       </div>
 
       {/* Header */}
-      <div className="relative flex items-center justify-between px-4 pt-12 pb-2">
-        <h1 className="absolute inset-x-0 text-center text-xl font-bold text-gray-900 pointer-events-none">自选</h1>
-        <button onClick={handleRefresh} className="p-2 text-gray-500">
-          <svg className={`w-5 h-5 ${loading ? 'spinner' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-            <path d="M4 12a8 8 0 0 1 14.93-4M20 12a8 8 0 0 1-14.93 4" strokeLinecap="round"/>
-            <path d="M20 4v4h-4M4 20v-4h4" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+      <div className="px-4 pt-12 pb-2">
+        <div className="flex items-center justify-center mb-2">
+          <h1 className="text-xl font-bold text-gray-900">自选</h1>
+        </div>
+        <div className="flex items-center justify-center gap-1">
+          {SORT_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => setSortKey(opt.key)}
+              className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                sortKey === opt.key
+                  ? 'bg-red-600 text-white'
+                  : 'text-gray-400'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Income summary */}
@@ -235,9 +289,15 @@ export default function Watchlist() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filtered.map(stock => {
+            {sortedFiltered.map(stock => {
               const annualDiv = getAnnualDividend(stock)
               const priceCny = stock.isHK ? stock.price * exchangeRate : stock.price
+              const costPriceCny = stock.costPrice && Number(stock.costPrice) > 0
+                ? (stock.isHK ? Number(stock.costPrice) * exchangeRate : Number(stock.costPrice))
+                : null
+              const shares = Number(stock.shares) || 0
+              const unrealized = costPriceCny && shares ? (priceCny - costPriceCny) * shares : null
+              const unrealizedPct = costPriceCny ? ((priceCny - costPriceCny) / costPriceCny) * 100 : null
               return (
                 <div key={stock.code} className="card overflow-hidden">
                   {/* Main row */}
@@ -315,21 +375,26 @@ export default function Watchlist() {
                       </div>
                     </div>
 
-                    {annualDiv > 0 && (
-                      <div className="mt-3 bg-red-50 rounded-lg p-2.5 flex gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500 text-xs">年红利</span>
-                          <div className="font-semibold text-red-600">¥{annualDiv.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 text-xs">月均</span>
-                          <div className="font-semibold text-red-600">¥{(annualDiv / 12).toFixed(2)}</div>
-                        </div>
-                        {stock.costPrice && Number(stock.costPrice) > 0 && stock.shares && (
+                    {(annualDiv > 0 || unrealized != null) && (
+                      <div className="mt-3 bg-red-50 rounded-lg p-2.5 flex justify-around text-sm">
+                        {annualDiv > 0 && (
+                          <>
+                            <div>
+                              <span className="text-gray-500 text-xs">年红利</span>
+                              <div className="font-semibold text-red-600">¥{annualDiv.toFixed(2)}</div>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 text-xs">月均</span>
+                              <div className="font-semibold text-red-600">¥{(annualDiv / 12).toFixed(2)}</div>
+                            </div>
+                          </>
+                        )}
+                        {unrealized != null && unrealizedPct != null && (
                           <div>
-                            <span className="text-gray-500 text-xs">成本收益率</span>
-                            <div className="font-semibold text-red-600">
-                              {((annualDiv / (Number(stock.costPrice) * Number(stock.shares))) * 100).toFixed(2)}%
+                            <span className="text-gray-500 text-xs">持仓盈亏</span>
+                            <div className={`font-semibold ${unrealized >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                              {unrealized >= 0 ? '+' : ''}¥{Math.abs(unrealized).toFixed(0)}
+                              <span className="text-xs ml-1">({unrealizedPct >= 0 ? '+' : ''}{unrealizedPct.toFixed(2)}%)</span>
                             </div>
                           </div>
                         )}

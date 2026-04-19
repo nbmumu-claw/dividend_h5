@@ -68,7 +68,10 @@ export default function Portfolio() {
 
       totalAnnual += annualDiv
       totalMarket += priceCny * shares
-      totalCost += (s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '') ? costPrice * shares : priceCny * shares
+      const costPriceCny = (s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== '')
+        ? (s.isHK ? costPrice * exchangeRate : costPrice)
+        : priceCny
+      totalCost += costPriceCny * shares
     })
 
     const overallYield = totalCost > 0 ? (totalAnnual / totalCost) * 100 : 0
