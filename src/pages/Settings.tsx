@@ -228,6 +228,16 @@ export default function Settings() {
         <div className="section-header px-0">关于</div>
         <div className="card">
           <SettingRow
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            label="分享给朋友"
+            value="复制链接"
+            onClick={() => {
+              navigator.clipboard.writeText('www.manmanbianfu.top')
+                .then(() => showToast('链接已复制'))
+                .catch(() => showToast('复制失败'))
+            }}
+          />
+          <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" strokeLinecap="round" strokeLinejoin="round"/></svg>}
             label="更新日志"
             value="v1.0"
