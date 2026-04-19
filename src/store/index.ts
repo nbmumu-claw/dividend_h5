@@ -112,7 +112,7 @@ export const useStore = create<AppState>()(
         })),
 
       // Settings
-      exchangeRate: 0.92,
+      exchangeRate: 0.88,
       setExchangeRate: (rate) => set({ exchangeRate: rate }),
       agreementAccepted: false,
       setAgreementAccepted: (v) => set({ agreementAccepted: v }),

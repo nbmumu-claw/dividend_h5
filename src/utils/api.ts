@@ -102,7 +102,7 @@ export async function fetchExchangeRate(forceRefresh = false): Promise<number> {
   } catch {
     // fall through
   }
-  return 0.92
+  return 0.88
 }
 
 export interface SearchResult {

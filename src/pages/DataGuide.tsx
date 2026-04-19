@@ -68,14 +68,14 @@ export default function DataGuide() {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="tag tag-green text-xs">优先</span>
-              <span className="text-sm text-gray-600">实时/延时行情价（缓存 5 分钟）</span>
+              <span className="text-sm text-gray-600">实时/延时行情价（缓存 5 分钟，存于本地）</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="tag tag-gray text-xs">降级</span>
               <span className="text-sm text-gray-600">本地静态数据（标注昨收）</span>
             </div>
           </div>
-          <Note>手动点击「刷新股价」可强制绕过缓存，立即拉取最新价格。</Note>
+          <Note>缓存保存在本地存储（localStorage），刷新页面后仍有效。手动点击「刷新股价」可强制绕过缓存，立即拉取最新价格。</Note>
         </Card>
 
         <Card icon="🗓️" title="年预计分红">
@@ -143,8 +143,8 @@ export default function DataGuide() {
         </Card>
 
         <Card icon="💱" title="港元汇率（HKD/CNY）">
-          <p className="text-sm text-gray-600">用于港股分红和股价换算为人民币。每 6 小时自动更新，默认值 0.92。</p>
-          <Tip>在「我的」页可手动点击「刷新」强制更新汇率。所有涉及港股的金额均按当前汇率实时换算。</Tip>
+          <p className="text-sm text-gray-600">用于港股分红和股价换算为人民币。每 6 小时自动更新，缓存存于本地，默认值 0.88。</p>
+          <Tip>在「设置」页可手动点击「刷新」强制更新汇率。所有涉及港股的金额均按当前汇率实时换算。</Tip>
         </Card>
 
         <div className="text-center text-xs text-gray-400 mt-4 pb-2 leading-relaxed">
