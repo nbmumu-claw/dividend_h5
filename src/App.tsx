@@ -6,6 +6,8 @@ import Portfolio from './pages/Portfolio'
 import Matrix from './pages/Matrix'
 import Settings from './pages/Settings'
 import DataGuide from './pages/DataGuide'
+import Support from './pages/Support'
+import Changelog from './pages/Changelog'
 
 export default function App() {
   return (
@@ -18,6 +20,8 @@ export default function App() {
         <Route path="/matrix" element={<Matrix />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/data-guide" element={<DataGuide />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/changelog" element={<Changelog />} />
       </Routes>
       <TabBar />
     </div>

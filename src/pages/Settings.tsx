@@ -228,14 +228,20 @@ export default function Settings() {
         <div className="section-header px-0">关于</div>
         <div className="card">
           <SettingRow
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01" strokeLinecap="round"/></svg>}
-            label="版本"
-            value="v1.0.0"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            label="更新日志"
+            value="v1.0"
+            onClick={() => navigate('/changelog')}
           />
           <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10z"/><path d="M12 8h.01M11 12h1v4h1" strokeLinecap="round"/></svg>}
             label="数据说明"
             onClick={() => navigate('/data-guide')}
+          />
+          <SettingRow
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            label="支持与联系"
+            onClick={() => navigate('/support')}
           />
           <div className="px-4 py-3 text-xs text-gray-400 leading-relaxed">
             本应用提供的数据仅供参考，不构成投资建议。股市有风险，投资需谨慎。股息数据可能存在延迟，请以实际公告为准。
