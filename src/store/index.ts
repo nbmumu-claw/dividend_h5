@@ -141,6 +141,18 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
+      version: 1,
+      migrate: (persisted) => {
+        const s = persisted as { customSectors?: string[] }
+        if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
+          const sectors = [...s.customSectors]
+          const othersIdx = sectors.indexOf('其他')
+          if (othersIdx >= 0) sectors.splice(othersIdx, 0, '红利ETF')
+          else sectors.push('红利ETF')
+          s.customSectors = sectors
+        }
+        return s
+      },
     }
   )
 )

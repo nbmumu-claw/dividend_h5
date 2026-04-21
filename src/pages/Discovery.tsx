@@ -121,7 +121,8 @@ export default function Discovery() {
   }
 
   const openAddForm = () => {
-    setForm({ name: '', code: '', sector: activeSector || customSectors[0] || '', price: '', dividendPerShare: '', isHK: false, isETF: false, confirmed: false })
+    const sector = activeSector || customSectors[0] || ''
+    setForm({ name: '', code: '', sector, price: '', dividendPerShare: '', isHK: false, isETF: sector === '红利ETF', confirmed: false })
     setEditStock(null)
     setShowAdd(true)
   }
@@ -322,7 +323,7 @@ export default function Discovery() {
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-500">
                       <span>{stock.code}</span>
-                      <span>每股红利 ¥{stock.dividendPerShare.toFixed(3)}</span>
+                      <span>{stock.isETF ? '每份红利' : '每股红利'} ¥{stock.dividendPerShare.toFixed(3)}</span>
                       {stock.pctChg != null && (
                         <span className={stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}>
                           {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
@@ -407,7 +408,7 @@ export default function Discovery() {
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">所属板块</label>
-            <select className="input-field" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value }))}>
+            <select className="input-field" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value, isETF: e.target.value === '红利ETF' ? true : f.isETF }))}>
               {customSectors.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>

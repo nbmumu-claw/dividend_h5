@@ -315,10 +315,11 @@ export default function Watchlist() {
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900">{stock.name}</span>
                           <span className="text-xs text-gray-400">{stock.code}</span>
+                          {stock.isETF && <span className="tag tag-blue">ETF</span>}
                           {stock.isHK && <span className="tag tag-yellow">港股</span>}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          每股红利 ¥{stock.dividendPerShare.toFixed(3)}
+                          {stock.isETF ? '每份红利' : '每股红利'} ¥{stock.dividendPerShare.toFixed(3)}
                           {stock.isHK && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * exchangeRate).toFixed(3)} CNY)</span>}
                         </div>
                       </div>
