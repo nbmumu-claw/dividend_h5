@@ -54,7 +54,7 @@ export default function Discovery() {
   const { message, showToast } = useToast()
   const longPressTimer = useRef<number | null>(null)
 
-  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, confirmed: false })
+  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, isETF: false, confirmed: false })
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -121,7 +121,7 @@ export default function Discovery() {
   }
 
   const openAddForm = () => {
-    setForm({ name: '', code: '', sector: activeSector || customSectors[0] || '', price: '', dividendPerShare: '', isHK: false, confirmed: false })
+    setForm({ name: '', code: '', sector: activeSector || customSectors[0] || '', price: '', dividendPerShare: '', isHK: false, isETF: false, confirmed: false })
     setEditStock(null)
     setShowAdd(true)
   }
@@ -135,6 +135,7 @@ export default function Discovery() {
       price: String(stock.price),
       dividendPerShare: String(stock.dividendPerShare),
       isHK: stock.isHK || false,
+      isETF: stock.isETF || false,
       confirmed: stock.confirmed,
     })
     setContextMenu(null)
@@ -147,18 +148,16 @@ export default function Discovery() {
     if (!q.trim()) { setSearchResults([]); setSearching(false); return }
     const local = searchStocksLocal(q)
     setSearchResults(local.slice(0, 6))
-    setSearching(local.length < 3)
-    if (local.length < 3) {
-      searchTimer.current = window.setTimeout(async () => {
-        const results = await searchStocks(q, true)
-        setSearchResults(prev => {
-          const existing = new Set(prev.map(r => r.code))
-          const newOnes = results.filter(r => !existing.has(r.code))
-          return [...prev, ...newOnes].slice(0, 6)
-        })
-        setSearching(false)
-      }, 350)
-    }
+    setSearching(true)
+    searchTimer.current = window.setTimeout(async () => {
+      const results = await searchStocks(q, true)
+      setSearchResults(prev => {
+        const existing = new Set(prev.map(r => r.code))
+        const newOnes = results.filter(r => !existing.has(r.code))
+        return [...prev, ...newOnes].slice(0, 6)
+      })
+      setSearching(false)
+    }, 350)
   }
 
   const selectSearchResult = (r: SearchResult) => {
@@ -190,13 +189,13 @@ export default function Discovery() {
     if (editStock) {
       const isManualStock = manualStocks.find(m => m.code === editStock.code)
       if (isManualStock) {
-        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, yieldRate, confirmed: form.confirmed })
+        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, isETF: form.isETF, yieldRate, confirmed: form.confirmed })
       } else {
-        updateStaticEdit(editStock.code, { name: form.name, price, dividendPerShare: div, yieldRate, sector: form.sector, confirmed: form.confirmed })
+        updateStaticEdit(editStock.code, { name: form.name, price, dividendPerShare: div, yieldRate, sector: form.sector, isETF: form.isETF, confirmed: form.confirmed })
       }
       showToast('已保存')
     } else {
-      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: form.confirmed, isHK: form.isHK, isManual: true })
+      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: form.confirmed, isHK: form.isHK, isETF: form.isETF, isManual: true })
       showToast('已添加')
     }
     setShowAdd(false)
@@ -318,6 +317,7 @@ export default function Discovery() {
                       <span className="text-sm font-semibold text-gray-900">{stock.name}</span>
                       {stock.confirmed ? <span className="tag tag-blue">确认</span> : <span className="tag tag-gray">预估</span>}
                       {isManual && <span className="tag tag-gray">手动</span>}
+                      {stock.isETF && <span className="tag tag-blue">ETF</span>}
                       {stock.isHK && <span className="tag tag-yellow">港股</span>}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -414,6 +414,10 @@ export default function Discovery() {
           <div className="flex items-center gap-2">
             <input type="checkbox" id="isHK" checked={form.isHK} onChange={e => setForm(f => ({ ...f, isHK: e.target.checked }))} />
             <label htmlFor="isHK" className="text-sm text-gray-700">港股（价格单位：HKD）</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="isETF" checked={form.isETF} onChange={e => setForm(f => ({ ...f, isETF: e.target.checked }))} />
+            <label htmlFor="isETF" className="text-sm text-gray-700">ETF 基金</label>
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="confirmed" checked={form.confirmed} onChange={e => setForm(f => ({ ...f, confirmed: e.target.checked }))} />

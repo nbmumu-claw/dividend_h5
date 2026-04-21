@@ -15,6 +15,8 @@ function toTxCode(code: string, isHK?: boolean): string {
   if (first === '6') return `sh${str}`
   if (first === '0' || first === '3') return `sz${str}`
   if (first === '8' || first === '4') return `bj${str}`
+  if (first === '5') return `sh${str}` // 5xxxxx ETF → 腾讯均用 sh 前缀
+  if (first === '1') return `sz${str}` // 159xxx 深交所ETF
   return `sh${str}`
 }
 
@@ -146,7 +148,7 @@ async function searchViaEastMoney(keyword: string): Promise<SearchResult[]> {
   const list: Array<{ Code: string; Name: string; Classify: string }> =
     json?.QuotationCodeTable?.Data || []
   return list
-    .filter(item => item.Classify === 'AStock' || item.Classify === 'HK')
+    .filter(item => item.Classify === 'AStock' || item.Classify === 'HK' || item.Classify === 'Fund')
     .slice(0, 8)
     .map(item => ({
       name: item.Name,

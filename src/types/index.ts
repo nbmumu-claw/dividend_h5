@@ -11,6 +11,7 @@ export interface Stock {
   price2026?: number
   change2026?: number
   isHK?: boolean
+  isETF?: boolean
   isManual?: boolean
   priceCny?: number
   priceLabel?: string

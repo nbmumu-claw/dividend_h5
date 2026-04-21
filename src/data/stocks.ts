@@ -1,6 +1,6 @@
 import type { Stock } from '../types'
 
-export const DEFAULT_SECTORS = ['电力', '银行', '保险', '白酒', '通讯', '白色家电', '中药', '运输', '能源', '其他']
+export const DEFAULT_SECTORS = ['电力', '银行', '保险', '白酒', '通讯', '白色家电', '中药', '运输', '能源', '红利ETF', '其他']
 
 export const STATIC_STOCKS: Stock[] = [
   { sector: '电力', name: '中国广核', code: '003816', price: 4.48, dividendPerShare: 0.086, yieldRate: 1.92, confirmed: true, targetYield: 4.0, targetPrice: 2.15, price2026: 3.77, change2026: 18.83 },
@@ -48,7 +48,7 @@ export const STATIC_STOCKS: Stock[] = [
   { sector: '能源', name: '中国海洋石油', code: '0883', isHK: true, price: 15.5, dividendPerShare: 1.28, yieldRate: 8.26, confirmed: true, targetYield: 6.0, targetPrice: 21.33 },
   { sector: '能源', name: '中国石化', code: '600028', price: 5.81, dividendPerShare: 0.2, yieldRate: 3.44, confirmed: true, targetYield: 5.0, targetPrice: 5.0, price2026: 6.09, change2026: -4.6 },
   { sector: '能源', name: '中国石油', code: '601857', price: 11.99, dividendPerShare: 0.47, yieldRate: 3.92, confirmed: true, targetYield: 5.0, targetPrice: 9.0, price2026: 10.07, change2026: 19.07 },
-  { sector: '其他', name: '分众传媒', code: '002027', price: 6.47, dividendPerShare: 0.35, yieldRate: 5.41, confirmed: false, targetYield: 5.0, targetPrice: 7.0, price2026: 7.24, change2026: -10.64 },
+{ sector: '其他', name: '分众传媒', code: '002027', price: 6.47, dividendPerShare: 0.35, yieldRate: 5.41, confirmed: false, targetYield: 5.0, targetPrice: 7.0, price2026: 7.24, change2026: -10.64 },
   { sector: '其他', name: '伊利股份', code: '600887', price: 26.14, dividendPerShare: 1.35, yieldRate: 5.16, confirmed: false, targetYield: 5.0, targetPrice: 27.0, price2026: 28.61, change2026: -8.63 },
 ]
 
