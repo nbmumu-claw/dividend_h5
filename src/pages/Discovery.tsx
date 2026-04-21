@@ -320,7 +320,7 @@ export default function Discovery() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-sm font-semibold text-gray-900">{stock.name}</span>
                       {stock.confirmed ? <span className="tag tag-blue">确认</span> : <span className="tag tag-gray">预估</span>}
-                      {isManual && <span className="tag tag-gray">手动</span>}
+                      {isManual && !stock.isETF && <span className="tag tag-gray">手动</span>}
                       {stock.isETF && <span className="tag tag-blue">ETF</span>}
                       {stock.isHK && <span className="tag tag-yellow">港股</span>}
                     </div>
