@@ -136,12 +136,7 @@ async function searchViaTencent(keyword: string): Promise<SearchResult[]> {
   const text = await res.text()
   const match = text.match(/="([^"]+)"/)
   if (!match || !match[1]) return []
-  const results = parseCloudResults(match[1], 'tencent')
-  // 纯数字代码搜索时，过滤掉代码或名称不匹配的结果（防止 Tencent 返回热门股替代）
-  if (/^\d+$/.test(keyword)) {
-    return results.filter(r => r.code.startsWith(keyword) || r.name.includes(keyword))
-  }
-  return results
+  return parseCloudResults(match[1], 'tencent')
 }
 
 // East money suggest
@@ -206,23 +201,39 @@ function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResul
   return results
 }
 
-// Three-level fallback: local → Tencent → EastMoney → Sina
+// 纯数字代码搜索时，只保留代码包含关键词的结果
+function filterByCode(results: SearchResult[], keyword: string): SearchResult[] {
+  if (!/^\d+$/.test(keyword)) return results
+  return results.filter(r => r.code.includes(keyword) || r.name.includes(keyword))
+}
+
+// Three-level fallback: local → Tencent → EastMoney → Sina → direct price check
 export async function searchStocks(keyword: string, forceCloud = false): Promise<SearchResult[]> {
   if (!forceCloud) {
     const local = searchStocksLocal(keyword)
     if (local.length > 0) return local
   }
   try {
-    const tx = await searchViaTencent(keyword)
+    const tx = filterByCode(await searchViaTencent(keyword), keyword)
     if (tx.length > 0) return tx
   } catch { /* fall through */ }
   try {
-    const em = await searchViaEastMoney(keyword)
+    const em = filterByCode(await searchViaEastMoney(keyword), keyword)
     if (em.length > 0) return em
   } catch { /* fall through */ }
   try {
-    return await searchViaSina(keyword)
-  } catch {
-    return []
+    const sina = filterByCode(await searchViaSina(keyword), keyword)
+    if (sina.length > 0) return sina
+  } catch { /* fall through */ }
+  // 兜底：直接拉价格验证6位代码是否存在
+  if (/^\d{5,6}$/.test(keyword)) {
+    try {
+      const code = keyword.padStart(6, '0')
+      const priceMap = await fetchStockPrices([{ code }], true)
+      if (priceMap[code]?.price) {
+        return [{ name: code, code, isHK: false }]
+      }
+    } catch { /* ignore */ }
   }
+  return []
 }
