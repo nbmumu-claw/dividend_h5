@@ -136,7 +136,12 @@ async function searchViaTencent(keyword: string): Promise<SearchResult[]> {
   const text = await res.text()
   const match = text.match(/="([^"]+)"/)
   if (!match || !match[1]) return []
-  return parseCloudResults(match[1], 'tencent')
+  const results = parseCloudResults(match[1], 'tencent')
+  // 纯数字代码搜索时，过滤掉代码或名称不匹配的结果（防止 Tencent 返回热门股替代）
+  if (/^\d+$/.test(keyword)) {
+    return results.filter(r => r.code.startsWith(keyword) || r.name.includes(keyword))
+  }
+  return results
 }
 
 // East money suggest
