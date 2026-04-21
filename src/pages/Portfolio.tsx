@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useStore } from '../store'
 import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
+import { fetchStockPrices } from '../utils/api'
 import type { WatchlistStock } from '../types'
 
 const COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
@@ -49,8 +50,30 @@ function buildAchievements(annualDiv: number, monthlyIncome: number, yieldRate: 
 export default function Portfolio() {
   const watchlist = useStore(s => s.watchlist)
   const exchangeRate = useStore(s => s.exchangeRate)
+  const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
   const [chartType, setChartType] = useState<'div' | 'cost'>('div')
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock'>('sector')
+
+  useEffect(() => {
+    if (!watchlist.length) return
+    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK }))
+    fetchStockPrices(inputs, false).then(priceMap => {
+      const updates: Record<string, Partial<WatchlistStock>> = {}
+      watchlist.forEach(s => {
+        const pd = priceMap[s.code]
+        if (!pd) return
+        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
+        updates[s.code] = {
+          price: pd.price,
+          pctChg: pd.pctChg,
+          yieldRate: rawYield > 30 ? s.yieldRate : rawYield,
+        }
+      })
+      if (Object.keys(updates).length) batchUpdateWatchlist(updates)
+    })
+  }, [])
   const chartMode = chartType === 'div' ? chartGroup : `cost-${chartGroup}` as 'cost-sector' | 'cost-stock'
   const [showAll, setShowAll] = useState(false)
 
