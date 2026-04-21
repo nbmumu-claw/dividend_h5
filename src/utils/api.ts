@@ -204,7 +204,7 @@ function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResul
 // 纯数字代码搜索时，只保留代码包含关键词的结果
 function filterByCode(results: SearchResult[], keyword: string): SearchResult[] {
   if (!/^\d+$/.test(keyword)) return results
-  return results.filter(r => r.code.includes(keyword) || r.name.includes(keyword))
+  return results.filter(r => r.code.startsWith(keyword) || r.name.includes(keyword))
 }
 
 // Three-level fallback: local → Tencent → EastMoney → Sina → direct price check
