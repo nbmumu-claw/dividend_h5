@@ -77,7 +77,11 @@ export default function Discovery() {
       displayStocks.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const patch = { price: pd.price, pctChg: pd.pctChg }
+        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
+        const yieldRate = rawYield > 30 ? s.yieldRate : rawYield
+        const patch = { price: pd.price, pctChg: pd.pctChg, yieldRate }
         if (s.isManual) updateManualStock(s.code, patch)
         else updateStaticEdit(s.code, patch)
       })

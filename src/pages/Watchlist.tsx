@@ -94,7 +94,15 @@ export default function Watchlist() {
       const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
-        if (pd) updates[s.code] = { price: pd.price, pctChg: pd.pctChg }
+        if (!pd) return
+        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
+        updates[s.code] = {
+          price: pd.price,
+          pctChg: pd.pctChg,
+          yieldRate: rawYield > 30 ? s.yieldRate : rawYield,
+        }
       })
       if (Object.keys(updates).length) batchUpdateWatchlist(updates)
       setPricesLoaded(true)
