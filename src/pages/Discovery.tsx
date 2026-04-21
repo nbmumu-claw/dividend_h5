@@ -59,6 +59,7 @@ export default function Discovery() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const searchTimer = useRef<number | null>(null)
+  const activeQuery = useRef('')
 
   const displayStocks = useMemo(() => {
     const staticForSector = STATIC_STOCKS
@@ -145,6 +146,7 @@ export default function Discovery() {
 
   const handleSearchInput = (q: string) => {
     setSearchQuery(q)
+    activeQuery.current = q
     if (searchTimer.current) clearTimeout(searchTimer.current)
     if (!q.trim()) { setSearchResults([]); setSearching(false); return }
     const local = searchStocksLocal(q)
@@ -152,6 +154,7 @@ export default function Discovery() {
     setSearching(true)
     searchTimer.current = window.setTimeout(async () => {
       const results = await searchStocks(q, true)
+      if (activeQuery.current !== q) return // 查询已变，丢弃过期结果
       setSearchResults(prev => {
         const existing = new Set(prev.map(r => r.code))
         const newOnes = results.filter(r => !existing.has(r.code))
