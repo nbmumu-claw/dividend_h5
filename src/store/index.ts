@@ -101,11 +101,18 @@ export const useStore = create<AppState>()(
           return { customSectors: sectors }
         }),
       renameSector: (oldName, newName) =>
-        set(s => ({
-          customSectors: s.customSectors.map(sec => sec === oldName ? newName : sec),
-          manualStocks: s.manualStocks.map(st => st.sector === oldName ? { ...st, sector: newName } : st),
-          watchlist: s.watchlist.map(st => st.sector === oldName ? { ...st, sector: newName } : st),
-        })),
+        set(s => {
+          const extraEdits: Record<string, Partial<Stock>> = {}
+          STATIC_STOCKS.filter(st => st.sector === oldName).forEach(st => {
+            extraEdits[st.code] = { ...(s.staticEdits[st.code] || {}), sector: newName }
+          })
+          return {
+            customSectors: s.customSectors.map(sec => sec === oldName ? newName : sec),
+            manualStocks: s.manualStocks.map(st => st.sector === oldName ? { ...st, sector: newName } : st),
+            watchlist: s.watchlist.map(st => st.sector === oldName ? { ...st, sector: newName } : st),
+            staticEdits: { ...s.staticEdits, ...extraEdits },
+          }
+        }),
       deleteSector: (name) =>
         set(s => ({
           customSectors: s.customSectors.filter(sec => sec !== name),
