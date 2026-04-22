@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import TabBar from './components/TabBar'
 import Discovery from './pages/Discovery'
 import Watchlist from './pages/Watchlist'
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/changelog" element={<Changelog />} />
       </Routes>
       <TabBar />
+      <Analytics />
     </div>
   )
 }
