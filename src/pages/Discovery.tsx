@@ -64,8 +64,9 @@ export default function Discovery() {
 
   const displayStocks = useMemo(() => {
     const staticForSector = STATIC_STOCKS
-      .filter(s => s.sector === activeSector && !hiddenStocks.includes(s.code))
-      .map(s => ({ ...s, ...staticEdits[s.code] }))
+      .filter(s => !hiddenStocks.includes(s.code))
+      .map(s => ({ ...s, ...(staticEdits[s.code] || {}) }))
+      .filter(s => s.sector === activeSector)
     const manualForSector = manualStocks.filter(s => s.sector === activeSector)
     return [...staticForSector, ...manualForSector]
   }, [activeSector, manualStocks, staticEdits, hiddenStocks])

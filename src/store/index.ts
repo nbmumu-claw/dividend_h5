@@ -169,8 +169,9 @@ export function getDiscoveryStocks(sector: string): Stock[] {
   const { staticEdits, hiddenStocks, manualStocks } = useStore.getState()
 
   const staticForSector = STATIC_STOCKS
-    .filter(s => s.sector === sector && !hiddenStocks.includes(s.code))
+    .filter(s => !hiddenStocks.includes(s.code))
     .map(s => ({ ...s, ...(staticEdits[s.code] || {}) }))
+    .filter(s => s.sector === sector)
 
   const manualForSector = manualStocks.filter(s => s.sector === sector)
 
