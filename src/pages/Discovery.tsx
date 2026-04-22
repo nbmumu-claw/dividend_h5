@@ -55,6 +55,7 @@ export default function Discovery() {
   const longPressTimer = useRef<number | null>(null)
 
   const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, isETF: false, confirmed: false })
+  const [formErrors, setFormErrors] = useState<{ name?: boolean; code?: boolean; price?: boolean; dividendPerShare?: boolean }>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -185,10 +186,17 @@ export default function Discovery() {
   const submitForm = () => {
     const price = parseFloat(form.price)
     const div = parseFloat(form.dividendPerShare)
-    if (!form.name || !form.code || isNaN(price) || isNaN(div)) {
-      showToast('请填写完整信息')
+    const errors = {
+      name: !form.name,
+      code: !form.code,
+      price: isNaN(price) || !form.price,
+      dividendPerShare: isNaN(div) || !form.dividendPerShare,
+    }
+    if (errors.name || errors.code || errors.price || errors.dividendPerShare) {
+      setFormErrors(errors)
       return
     }
+    setFormErrors({})
     const priceCny = form.isHK ? price * exchangeRate : price
     const divCny = form.isHK ? div * exchangeRate : div
     const yieldRate = priceCny > 0 ? (divCny / priceCny) * 100 : 0
@@ -363,7 +371,7 @@ export default function Discovery() {
       </div>
 
       {/* Add/Edit Stock Modal */}
-      <Modal open={showAdd} onClose={() => { setShowAdd(false); setSearchQuery(''); setSearchResults([]) }} title={editStock ? '编辑股票' : '添加股票'}>
+      <Modal open={showAdd} onClose={() => { setShowAdd(false); setSearchQuery(''); setSearchResults([]); setFormErrors({}) }} title={editStock ? '编辑股票' : '添加股票'}>
         <div className="space-y-3">
           {!editStock && (
             <div className="relative">
@@ -397,20 +405,24 @@ export default function Discovery() {
           )}
           <div>
             <label className="text-xs text-gray-500 mb-1 block">股票名称</label>
-            <input className="input-field" placeholder="如：招商银行" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            <input className={`input-field ${formErrors.name ? 'border-red-400 bg-red-50' : ''}`} placeholder="如：招商银行" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setFormErrors(fe => ({ ...fe, name: false })) }} />
+            {formErrors.name && <p className="text-xs text-red-500 mt-1">请输入股票名称</p>}
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">股票代码</label>
-            <input className="input-field" placeholder="如：600036" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} disabled={!!editStock} />
+            <input className={`input-field ${formErrors.code ? 'border-red-400 bg-red-50' : ''}`} placeholder="如：600036" value={form.code} onChange={e => { setForm(f => ({ ...f, code: e.target.value })); setFormErrors(fe => ({ ...fe, code: false })) }} disabled={!!editStock} />
+            {formErrors.code && <p className="text-xs text-red-500 mt-1">请输入股票代码</p>}
           </div>
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="text-xs text-gray-500 mb-1 block">当前价格</label>
-              <input className="input-field" type="number" placeholder="0.00" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+              <input className={`input-field ${formErrors.price ? 'border-red-400 bg-red-50' : ''}`} type="number" placeholder="0.00" value={form.price} onChange={e => { setForm(f => ({ ...f, price: e.target.value })); setFormErrors(fe => ({ ...fe, price: false })) }} />
+              {formErrors.price && <p className="text-xs text-red-500 mt-1">请输入价格</p>}
             </div>
             <div className="flex-1">
               <label className="text-xs text-gray-500 mb-1 block">每股红利</label>
-              <input className="input-field" type="number" placeholder="0.000" value={form.dividendPerShare} onChange={e => setForm(f => ({ ...f, dividendPerShare: e.target.value }))} />
+              <input className={`input-field ${formErrors.dividendPerShare ? 'border-red-400 bg-red-50' : ''}`} type="number" placeholder="0.000" value={form.dividendPerShare} onChange={e => { setForm(f => ({ ...f, dividendPerShare: e.target.value })); setFormErrors(fe => ({ ...fe, dividendPerShare: false })) }} />
+              {formErrors.dividendPerShare && <p className="text-xs text-red-500 mt-1">请输入红利</p>}
             </div>
           </div>
           <div>
