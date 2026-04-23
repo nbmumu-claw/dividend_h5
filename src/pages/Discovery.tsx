@@ -15,12 +15,6 @@ function YieldBadge({ rate }: { rate: number }) {
   return <span className={`tag ${cls}`}>{rate.toFixed(2)}%</span>
 }
 
-interface ContextMenu {
-  x: number; y: number
-  stock: Stock
-  isManual: boolean
-}
-
 export default function Discovery() {
   const customSectors = useStore(s => s.customSectors)
   const watchlist = useStore(s => s.watchlist)
@@ -46,13 +40,18 @@ export default function Discovery() {
   const [showAdd, setShowAdd] = useState(false)
   const [showSectorModal, setShowSectorModal] = useState(false)
   const [editStock, setEditStock] = useState<Stock | null>(null)
-  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
+  const [swipeOpenCode, setSwipeOpenCode] = useState<string | null>(null)
+  const [stockContextMenu, setStockContextMenu] = useState<{ x: number; y: number; stock: Stock; isManual: boolean } | null>(null)
   const [sectorContextMenu, setSectorContextMenu] = useState<string | null>(null)
   const sectorLongPressTimer = useRef<number | null>(null)
   const [sectorInput, setSectorInput] = useState('')
   const [renamingSector, setRenamingSector] = useState<string | null>(null)
   const { message, showToast } = useToast()
-  const longPressTimer = useRef<number | null>(null)
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+  const dragInner = useRef<HTMLElement | null>(null)
+  const dragActions = useRef<HTMLElement | null>(null)
+  const dragLocked = useRef<'h' | 'v' | null>(null)
 
   const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, isETF: false, confirmed: false })
   const [formErrors, setFormErrors] = useState<{ name?: boolean; code?: boolean; price?: boolean; dividendPerShare?: boolean }>({})
@@ -146,7 +145,6 @@ export default function Discovery() {
       isETF: stock.isETF || false,
       confirmed: stock.confirmed,
     })
-    setContextMenu(null)
     setShowAdd(true)
   }
 
@@ -221,28 +219,58 @@ export default function Discovery() {
   const handleDeleteStock = (stock: Stock, isManual: boolean) => {
     if (isManual) removeManualStock(stock.code)
     else hideStock(stock.code)
-    setContextMenu(null)
     showToast('已删除')
   }
 
-  const handleLongPress = (e: React.MouseEvent | React.TouchEvent, stock: Stock) => {
+  const handleStockRightClick = (e: React.MouseEvent, stock: Stock) => {
+    e.preventDefault()
     const isManual = !!manualStocks.find(m => m.code === stock.code)
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setContextMenu({ x: rect.left, y: rect.bottom + 4, stock, isManual })
+    setStockContextMenu({ x: e.clientX, y: e.clientY, stock, isManual })
   }
 
-  const startLongPress = (stock: Stock) => {
-    longPressTimer.current = window.setTimeout(() => {
-      const isManual = !!manualStocks.find(m => m.code === stock.code)
-      setContextMenu({ x: 16, y: 200, stock, isManual })
-    }, 500)
+  const handleStockTouchStart = (e: React.TouchEvent, code: string) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    dragLocked.current = null
+    dragInner.current = e.currentTarget as HTMLElement
+    dragActions.current = e.currentTarget.nextElementSibling as HTMLElement
+    if (swipeOpenCode && swipeOpenCode !== code) setSwipeOpenCode(null)
   }
 
-  const cancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
+  const handleStockTouchMove = (e: React.TouchEvent, code: string) => {
+    const dx = e.touches[0].clientX - touchStartX.current
+    const dy = Math.abs(e.touches[0].clientY - touchStartY.current)
+    if (!dragLocked.current) {
+      dragLocked.current = dy > Math.abs(dx) ? 'v' : 'h'
     }
+    if (dragLocked.current === 'v') return
+    const base = swipeOpenCode === code ? -130 : 0
+    const offset = Math.max(-130, Math.min(0, base + dx))
+    if (dragInner.current) {
+      dragInner.current.style.transform = `translateX(${offset}px)`
+      dragInner.current.classList.add('dragging')
+    }
+    if (dragActions.current) {
+      dragActions.current.style.transform = `translateX(${100 + (offset / 130) * 100}%)`
+      dragActions.current.classList.add('dragging')
+    }
+  }
+
+  const handleStockTouchEnd = (e: React.TouchEvent, code: string) => {
+    if (dragInner.current) {
+      dragInner.current.style.transform = ''
+      dragInner.current.classList.remove('dragging')
+    }
+    if (dragActions.current) {
+      dragActions.current.style.transform = ''
+      dragActions.current.classList.remove('dragging')
+    }
+    if (dragLocked.current === 'v') return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    const base = swipeOpenCode === code ? -130 : 0
+    const finalOffset = base + dx
+    if (finalOffset < -50) setSwipeOpenCode(code)
+    else setSwipeOpenCode(null)
   }
 
   const submitSector = () => {
@@ -317,53 +345,60 @@ export default function Discovery() {
               <button onClick={openAddForm} className="mt-3 text-red-600 text-sm font-medium">+ 添加股票</button>
             </div>
           ) : (
-            displayStocks.map((stock, idx) => {
+            displayStocks.map((stock) => {
               const inWatchlist = !!watchlist.find(w => w.code === stock.code)
               const isManual = !!manualStocks.find(m => m.code === stock.code)
+              const isOpen = swipeOpenCode === stock.code
               return (
-                <div
-                  key={stock.code}
-                  className="stock-item"
-                  onContextMenu={e => { e.preventDefault(); handleLongPress(e, stock) }}
-                  onTouchStart={() => startLongPress(stock)}
-                  onTouchEnd={cancelLongPress}
-                  onTouchMove={cancelLongPress}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-semibold text-gray-900">{stock.name}</span>
-                      {stock.confirmed ? <span className="tag tag-blue">确认</span> : <span className="tag tag-gray">预估</span>}
-                      {isManual && !stock.isETF && <span className="tag tag-gray">手动</span>}
-                      {stock.isETF && <span className="tag tag-blue">ETF</span>}
-                      {stock.isHK && <span className="tag tag-yellow">港股</span>}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span>{stock.code}</span>
-                      <span>{stock.isETF ? '每份红利' : '每股红利'} ¥{stock.dividendPerShare.toFixed(3)}</span>
-                      {stock.pctChg != null && (
-                        <span className={stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}>
-                          {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 ml-3">
-                    <span className="text-sm font-semibold text-gray-900">
-                      ¥{stock.isHK ? stock.price.toFixed(3) : stock.price.toFixed(2)}
-                      {stock.isHK && <span className="text-xs text-gray-400 ml-1">HKD</span>}
-                    </span>
-                    <YieldBadge rate={stock.yieldRate} />
-                  </div>
-                  <button
-                    onClick={() => handleAddToWatchlist(stock)}
-                    className={`ml-3 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                      inWatchlist ? 'bg-red-600 text-white' : 'bg-red-50 text-red-300'
-                    }`}
+                <div key={stock.code} className="stock-item-wrapper">
+                  <div
+                    className={`stock-item-inner ${isOpen ? 'swiped' : ''}`}
+                    onContextMenu={e => handleStockRightClick(e, stock)}
+                    onTouchStart={e => handleStockTouchStart(e, stock.code)}
+                    onTouchMove={e => handleStockTouchMove(e, stock.code)}
+                    onTouchEnd={e => handleStockTouchEnd(e, stock.code)}
+                    onClick={() => isOpen && setSwipeOpenCode(null)}
                   >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill={inWatchlist ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                    </svg>
-                  </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-semibold text-gray-900">{stock.name}</span>
+                        {stock.confirmed ? <span className="tag tag-blue">确认</span> : <span className="tag tag-gray">预估</span>}
+                        {isManual && !stock.isETF && <span className="tag tag-gray">手动</span>}
+                        {stock.isETF && <span className="tag tag-blue">ETF</span>}
+                        {stock.isHK && <span className="tag tag-yellow">港股</span>}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>{stock.code}</span>
+                        <span>{stock.isETF ? '每份红利' : '每股红利'} ¥{stock.dividendPerShare.toFixed(3)}</span>
+                        {stock.pctChg != null && (
+                          <span className={stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}>
+                            {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 ml-3">
+                      <span className="text-sm font-semibold text-gray-900">
+                        ¥{stock.isHK ? stock.price.toFixed(3) : stock.price.toFixed(2)}
+                        {stock.isHK && <span className="text-xs text-gray-400 ml-1">HKD</span>}
+                      </span>
+                      <YieldBadge rate={stock.yieldRate} />
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleAddToWatchlist(stock) }}
+                      className={`ml-3 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                        inWatchlist ? 'bg-red-600 text-white' : 'bg-red-50 text-red-300'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill={inWatchlist ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <div className={`stock-swipe-actions ${isOpen ? 'visible' : ''}`}>
+                    <button className="swipe-action-edit" onClick={() => { openEditModal(stock, isManual); setSwipeOpenCode(null) }}>编辑</button>
+                    <button className="swipe-action-delete" onClick={() => { handleDeleteStock(stock, isManual); setSwipeOpenCode(null) }}>删除</button>
+                  </div>
                 </div>
               )
             })
@@ -479,26 +514,16 @@ export default function Discovery() {
         </div>
       </Modal>
 
-      {/* Context menu */}
-      {contextMenu && (
+      {/* Stock right-click context menu (PC) */}
+      {stockContextMenu && (
         <>
-          <div className="fixed inset-0 z-[200]" onClick={() => setContextMenu(null)} />
+          <div className="fixed inset-0 z-[200]" onClick={() => setStockContextMenu(null)} />
           <div
             className="context-menu"
-            style={{ left: Math.min(contextMenu.x, window.innerWidth - 160), top: contextMenu.y, position: 'fixed', zIndex: 300 }}
+            style={{ left: Math.min(stockContextMenu.x, window.innerWidth - 160), top: stockContextMenu.y, position: 'fixed', zIndex: 300 }}
           >
-            <div className="context-menu-item" onClick={() => openEditModal(contextMenu.stock, contextMenu.isManual)}>
-              编辑
-            </div>
-            <div
-              className="context-menu-item"
-              onClick={() => { setSectorInput(''); setRenamingSector(activeSector); setShowSectorModal(true); setContextMenu(null) }}
-            >
-              重命名板块
-            </div>
-            <div className="context-menu-item danger" onClick={() => handleDeleteStock(contextMenu.stock, contextMenu.isManual)}>
-              删除
-            </div>
+            <div className="context-menu-item" onClick={() => { openEditModal(stockContextMenu.stock, stockContextMenu.isManual); setStockContextMenu(null) }}>编辑</div>
+            <div className="context-menu-item danger" onClick={() => { handleDeleteStock(stockContextMenu.stock, stockContextMenu.isManual); setStockContextMenu(null) }}>删除</div>
           </div>
         </>
       )}
