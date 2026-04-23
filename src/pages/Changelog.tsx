@@ -2,6 +2,14 @@ import { useNavigate } from 'react-router-dom'
 
 const VERSIONS = [
   {
+    version: 'v1.2',
+    date: '2026-04',
+    items: [
+      '发现页股票条目支持左滑显示编辑/删除操作，实时跟手动画',
+      'PC 端改为右键菜单触发编辑/删除',
+    ],
+  },
+  {
     version: 'v1.1',
     date: '2026-04',
     items: [
