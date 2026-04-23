@@ -35,7 +35,6 @@ export default function Discovery() {
   const setCustomSectors = useStore(s => s.setCustomSectors)
 
   const [activeSector, setActiveSector] = useState(customSectors[0] || '')
-  const [stocks, setStocks] = useState<Stock[]>([])
   const [loading, setLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [showSectorModal, setShowSectorModal] = useState(false)

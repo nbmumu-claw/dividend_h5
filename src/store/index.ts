@@ -38,10 +38,6 @@ interface AppState {
   importBackup: (data: AppState['watchlist'] extends unknown ? Record<string, unknown> : never) => void
 }
 
-function mergeWatchlistWithPrices(watchlist: WatchlistStock[]): WatchlistStock[] {
-  return watchlist
-}
-
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
