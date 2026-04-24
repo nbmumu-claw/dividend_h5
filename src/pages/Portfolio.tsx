@@ -77,8 +77,21 @@ export default function Portfolio() {
   const chartMode = chartType === 'div' ? chartGroup : `cost-${chartGroup}` as 'cost-sector' | 'cost-stock'
   const [showAll, setShowAll] = useState(false)
 
+  const holdings = useMemo(
+    () => watchlist.filter(s => s.shares && Number(s.shares) > 0),
+    [watchlist]
+  )
+
+  const holdingsWithDisplay = useMemo(() => {
+    const nameCounts: Record<string, number> = {}
+    for (const s of holdings) nameCounts[s.name] = (nameCounts[s.name] || 0) + 1
+    return holdings.map(s => ({
+      stock: s,
+      displayName: nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : 'A'})` : s.name,
+    }))
+  }, [holdings])
+
   const metrics = useMemo(() => {
-    const holdings = watchlist.filter(s => s.shares && s.shares > 0)
     let totalAnnual = 0
     let totalCost = 0
     let totalMarket = 0
@@ -113,26 +126,18 @@ export default function Portfolio() {
       stockCount: watchlist.length,
       hasHoldings: holdings.length > 0,
     }
-  }, [watchlist, exchangeRate])
+  }, [holdings, watchlist.length, exchangeRate])
 
   const chartData = useMemo(() => {
-    const holdings = watchlist.filter(s => s.shares)
-    const nameCounts = holdings.reduce<Record<string, number>>((acc, s) => {
-      acc[s.name] = (acc[s.name] || 0) + 1
-      return acc
-    }, {})
-    const displayName = (s: typeof holdings[0]) =>
-      nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : 'A'})` : s.name
-
     if (chartMode === 'sector' || chartMode === 'stock') {
       const bySector: Record<string, number> = {}
-      const byStock = holdings
-        .map(s => {
+      const byStock = holdingsWithDisplay
+        .map(({ stock: s, displayName }) => {
           const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
           const ann = afterTax(divCny * Number(s.shares), s)
           const sector = (s.sector || '').trim()
           bySector[sector] = (bySector[sector] || 0) + ann
-          return { name: displayName(s), value: parseFloat(ann.toFixed(2)) }
+          return { name: displayName, value: parseFloat(ann.toFixed(2)) }
         })
         .filter(d => d.value > 0)
       if (chartMode === 'sector') {
@@ -141,14 +146,14 @@ export default function Portfolio() {
       return byStock
     } else {
       const bySector: Record<string, number> = {}
-      const byStock = holdings
-        .map(s => {
+      const byStock = holdingsWithDisplay
+        .map(({ stock: s, displayName }) => {
           const shares = Number(s.shares) || 0
           const priceCny = s.isHK ? s.price * exchangeRate : s.price
           const market = priceCny * shares
           const sector = (s.sector || '').trim()
           bySector[sector] = (bySector[sector] || 0) + market
-          return { name: displayName(s), value: parseFloat(market.toFixed(2)) }
+          return { name: displayName, value: parseFloat(market.toFixed(2)) }
         })
         .filter(d => d.value > 0)
       if (chartMode === 'cost-sector') {
@@ -156,12 +161,24 @@ export default function Portfolio() {
       }
       return byStock
     }
-  }, [watchlist, exchangeRate, chartMode])
+  }, [holdingsWithDisplay, exchangeRate, chartMode])
 
-  const achievements = buildAchievements(metrics.annualDiv, metrics.monthlyIncome, metrics.overallYield, metrics.stockCount, metrics.hasHoldings)
-  const unlockedCount = achievements.filter(a => a.unlocked).length
-  const sortedAchievements = [...achievements].sort((a, b) => (b.unlocked ? 1 : 0) - (a.unlocked ? 1 : 0))
-  const displayedAchievements = showAll ? sortedAchievements : sortedAchievements.slice(0, 12)
+  const achievements = useMemo(
+    () => buildAchievements(metrics.annualDiv, metrics.monthlyIncome, metrics.overallYield, metrics.stockCount, metrics.hasHoldings),
+    [metrics.annualDiv, metrics.monthlyIncome, metrics.overallYield, metrics.stockCount, metrics.hasHoldings]
+  )
+  const unlockedCount = useMemo(
+    () => achievements.filter(a => a.unlocked).length,
+    [achievements]
+  )
+  const sortedAchievements = useMemo(
+    () => [...achievements].sort((a, b) => (b.unlocked ? 1 : 0) - (a.unlocked ? 1 : 0)),
+    [achievements]
+  )
+  const displayedAchievements = useMemo(
+    () => showAll ? sortedAchievements : sortedAchievements.slice(0, 12),
+    [showAll, sortedAchievements]
+  )
 
   return (
     <div className="page-content">

@@ -61,12 +61,17 @@ export default function Discovery() {
   const activeQuery = useRef('')
 
   const displayStocks = useMemo(() => {
-    const staticForSector = STATIC_STOCKS
-      .filter(s => !hiddenStocks.includes(s.code))
-      .map(s => ({ ...s, ...(staticEdits[s.code] || {}) }))
-      .filter(s => s.sector === activeSector)
-    const manualForSector = manualStocks.filter(s => s.sector === activeSector)
-    return [...staticForSector, ...manualForSector]
+    const hidden = new Set(hiddenStocks)
+    const result: Stock[] = []
+    for (const s of STATIC_STOCKS) {
+      if (hidden.has(s.code)) continue
+      const merged = { ...s, ...(staticEdits[s.code] || {}) }
+      if (merged.sector === activeSector) result.push(merged)
+    }
+    for (const s of manualStocks) {
+      if (s.sector === activeSector) result.push(s)
+    }
+    return result
   }, [activeSector, manualStocks, staticEdits, hiddenStocks])
 
   // 首次加载静默拉价格（含涨跌）
