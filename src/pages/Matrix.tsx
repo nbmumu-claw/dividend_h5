@@ -72,7 +72,7 @@ export default function Matrix() {
         </button>
         <div className="absolute inset-x-0 text-center pointer-events-none">
           <h1 className="text-base font-bold text-gray-900">{name} 决策矩阵</h1>
-          <p className="text-xs text-gray-400">代码 {code} · 每股红利 ¥{dividend} {isHK ? '(HKD)' : ''}</p>
+          <p className="text-xs text-gray-400">代码 {code} · 每股红利 {isHK ? 'HK$' : '¥'}{dividend}</p>
         </div>
       </div>
 
@@ -89,7 +89,7 @@ export default function Matrix() {
               <div className="text-xs text-gray-400">当前股息率</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-gray-900">¥{dividend}</div>
+              <div className="text-lg font-bold text-gray-900">{isHK ? 'HK$' : '¥'}{dividend}</div>
               <div className="text-xs text-gray-400">每股红利</div>
             </div>
           </div>
