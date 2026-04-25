@@ -144,7 +144,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 1,
+      version: 2,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[] }
         if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
