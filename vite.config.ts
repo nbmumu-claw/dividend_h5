@@ -35,6 +35,11 @@ export default defineConfig({
           return `/suggest/type=11,12,13,14,15,31&key=${encodeURIComponent(key)}&_=${Date.now()}`
         },
       },
+      '/api/dividend-history': {
+        target: 'https://datacenter-web.eastmoney.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace('/api/dividend-history', '/api/data/v1/get'),
+      },
     },
   },
 })

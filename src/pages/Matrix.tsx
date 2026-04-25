@@ -1,6 +1,8 @@
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import Disclaimer from '../components/Disclaimer'
+import { fetchDividendHistory } from '../utils/dividendHistory'
+import type { DividendHistory } from '../utils/dividendHistory'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
 
@@ -23,6 +25,24 @@ export default function Matrix() {
   }, [dividend, currentPrice])
 
   const currentYield = currentPrice > 0 ? (dividend / currentPrice) * 100 : 0
+
+  const [divHistory, setDivHistory] = useState<DividendHistory | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  useEffect(() => {
+    if (!code || isHK) return
+    setHistoryLoading(true)
+    fetchDividendHistory(code).then(h => {
+      setDivHistory(h)
+      setHistoryLoading(false)
+    })
+  }, [code, isHK])
+
+  const avgDps = useMemo(() => {
+    if (!divHistory?.records.length) return 0
+    const sum = divHistory.records.reduce((s, r) => s + r.perShare, 0)
+    return sum / divHistory.records.length
+  }, [divHistory])
 
   return (
     <div className="page-content">
@@ -95,6 +115,66 @@ export default function Matrix() {
         <p className="text-xs text-gray-400 mt-3 px-1">
           表格展示不同股息率目标下的对应买入价。若目标股息率为5%，应在目标价格附近买入。
         </p>
+
+        {/* 历史分红 */}
+        {!isHK && (
+          <div className="card p-4 mt-4">
+            <div className="text-sm font-semibold text-gray-800 mb-3">历史分红</div>
+            {historyLoading ? (
+              <div className="text-xs text-gray-400 text-center py-4">加载中…</div>
+            ) : !divHistory || divHistory.records.length === 0 ? (
+              <div className="text-xs text-gray-400 text-center py-4">暂无历史分红数据</div>
+            ) : (
+              <>
+                {/* 摘要指标 */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold text-red-600">{divHistory.consecutiveYears}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">连续派息年数</div>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 text-center">
+                    <div className="text-xl font-bold text-gray-900">¥{avgDps.toFixed(3)}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">近{divHistory.records.length}年均每股派息</div>
+                  </div>
+                </div>
+
+                {/* 逐年明细 */}
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-1.5 font-medium text-gray-500 text-xs">年份</th>
+                      <th className="text-right py-1.5 font-medium text-gray-500 text-xs">每股派息</th>
+                      <th className="text-right py-1.5 font-medium text-gray-500 text-xs">同比</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {divHistory.records.map((r, i) => {
+                      const prev = divHistory.records[i + 1]
+                      const yoy = prev && prev.perShare > 0
+                        ? ((r.perShare - prev.perShare) / prev.perShare) * 100
+                        : null
+                      return (
+                        <tr key={r.year} className="border-b border-gray-50 last:border-0">
+                          <td className="py-2 text-gray-700">{r.year}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">¥{r.perShare.toFixed(3)}</td>
+                          <td className="py-2 text-right text-xs">
+                            {yoy === null ? (
+                              <span className="text-gray-300">—</span>
+                            ) : (
+                              <span className={yoy >= 0 ? 'text-red-500' : 'text-green-600'}>
+                                {yoy >= 0 ? '+' : ''}{yoy.toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        )}
       </div>
       <Disclaimer />
     </div>
