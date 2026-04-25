@@ -69,7 +69,13 @@ export default function Watchlist() {
   const removeFromWatchlist = useStore(s => s.removeFromWatchlist)
   const updateWatchlistStock = useStore(s => s.updateWatchlistStock)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
-  const [activeSector, setActiveSector] = useState('全部')
+  const [activeSector, setActiveSector] = useState(
+    () => sessionStorage.getItem('watchlist-sector') || '全部'
+  )
+  const handleSetActiveSector = (s: string) => {
+    sessionStorage.setItem('watchlist-sector', s)
+    setActiveSector(s)
+  }
   const [loading, setLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(() => watchlist.every(s => s.price > 0))
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
@@ -282,7 +288,7 @@ export default function Watchlist() {
       {sectors.length > 1 && (
         <div className="sector-tabs">
           {sectors.map(s => (
-            <button key={s} className={`sector-tab ${activeSector === s ? 'active' : ''}`} onClick={() => setActiveSector(s)}>
+            <button key={s} className={`sector-tab ${activeSector === s ? 'active' : ''}`} onClick={() => handleSetActiveSector(s)}>
               {s}
             </button>
           ))}
