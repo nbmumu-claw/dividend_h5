@@ -1,6 +1,7 @@
 import { cacheGet, cacheSet } from './cache'
 
-const TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
+const TTL_HISTORY = 30 * 24 * 60 * 60 * 1000 // 30 days for past years
+const TTL_CURRENT  =      24 * 60 * 60 * 1000 // 1 day  for current year
 
 export interface DividendYearRecord {
   year: number
@@ -80,7 +81,11 @@ export async function fetchDividendHistory(code: string): Promise<DividendHistor
     }
 
     const history: DividendHistory = { records, consecutiveYears }
-    if (records.length > 0) cacheSet(key, history, TTL)
+    if (records.length > 0) {
+      const prevYear = new Date().getFullYear() - 1
+      const ttl = records.some(r => r.year >= prevYear) ? TTL_CURRENT : TTL_HISTORY
+      cacheSet(key, history, ttl)
+    }
     return history
   } catch {
     return null

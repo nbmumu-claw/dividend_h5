@@ -3,6 +3,7 @@ import { useMemo, useState, useEffect } from 'react'
 import Disclaimer from '../components/Disclaimer'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import type { DividendHistory } from '../utils/dividendHistory'
+import { fetchListingYear } from '../utils/listingDate'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
 
@@ -28,20 +29,26 @@ export default function Matrix() {
 
   const [divHistory, setDivHistory] = useState<DividendHistory | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [listingYear, setListingYear] = useState<number | null>(null)
 
   useEffect(() => {
     if (!code || isHK) return
     setHistoryLoading(true)
-    fetchDividendHistory(code).then(h => {
+    Promise.all([
+      fetchDividendHistory(code),
+      fetchListingYear(code),
+    ]).then(([h, y]) => {
       setDivHistory(h)
+      setListingYear(y)
       setHistoryLoading(false)
     })
   }, [code, isHK])
 
   const avgDps = useMemo(() => {
-    if (!divHistory?.records.length) return 0
-    const sum = divHistory.records.reduce((s, r) => s + r.perShare, 0)
-    return sum / divHistory.records.length
+    if (!divHistory?.consecutiveYears) return 0
+    const consecutive = divHistory.records.slice(0, divHistory.consecutiveYears)
+    const sum = consecutive.reduce((s, r) => s + r.perShare, 0)
+    return sum / consecutive.length
   }, [divHistory])
 
   return (
@@ -119,7 +126,10 @@ export default function Matrix() {
         {/* 历史分红 */}
         {!isHK && (
           <div className="card p-4 mt-4">
-            <div className="text-sm font-semibold text-gray-800 mb-3">历史分红</div>
+            <div className="mb-3">
+              <div className="text-sm font-semibold text-gray-800">历史分红</div>
+              <div className="text-xs text-gray-400 mt-0.5">仅展示近10年已实施分配记录，每股派息为税前金额</div>
+            </div>
             {historyLoading ? (
               <div className="text-xs text-gray-400 text-center py-4">加载中…</div>
             ) : !divHistory || divHistory.records.length === 0 ? (
@@ -130,11 +140,16 @@ export default function Matrix() {
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-gray-50 rounded-xl p-3 text-center">
                     <div className="text-xl font-bold text-red-600">{divHistory.consecutiveYears}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">连续派息年数</div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      连续派息年数
+                      {listingYear && (
+                        <span className="ml-1 text-gray-300">/ {listingYear}年上市</span>
+                      )}
+                    </div>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3 text-center">
                     <div className="text-xl font-bold text-gray-900">¥{avgDps.toFixed(3)}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">近{divHistory.records.length}年均每股派息</div>
+                    <div className="text-xs text-gray-400 mt-0.5">近{divHistory.consecutiveYears}年均每股派息</div>
                   </div>
                 </div>
 

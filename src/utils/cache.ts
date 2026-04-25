@@ -29,6 +29,10 @@ export function cacheSet<T>(key: string, data: T, ttlMs: number): void {
   }
 }
 
+export function cacheSetPermanent<T>(key: string, data: T): void {
+  cacheSet(key, data, Number.MAX_SAFE_INTEGER)
+}
+
 export function cacheClear(): void {
   Object.keys(localStorage)
     .filter(k => k.startsWith(PREFIX))
