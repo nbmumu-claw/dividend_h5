@@ -1,5 +1,5 @@
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import Disclaimer from '../components/Disclaimer'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import type { DividendHistory } from '../utils/dividendHistory'
@@ -26,6 +26,16 @@ export default function Matrix() {
   }, [dividend, currentPrice])
 
   const currentYield = currentPrice > 0 ? (dividend / currentPrice) * 100 : 0
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const currentColRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const container = scrollRef.current
+    const el = currentColRef.current
+    if (container && el) {
+      container.scrollLeft = el.offsetLeft - container.clientWidth / 2 + el.clientWidth / 2
+    }
+  }, [rows])
 
   const [divHistory, setDivHistory] = useState<DividendHistory | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -85,42 +95,71 @@ export default function Matrix() {
           </div>
         </div>
 
-        {/* Matrix table */}
-        <div className="card overflow-hidden">
-          <table className="matrix-table">
-            <thead>
-              <tr>
-                <th>目标股息率</th>
-                <th>目标价格</th>
-                <th>与现价差距</th>
-              </tr>
-            </thead>
-            <tbody>
+        {/* Matrix timeline */}
+        <div className="card">
+          <div ref={scrollRef} className="matrix-scroll">
+            <div style={{ display: 'flex', width: 'max-content', alignItems: 'flex-end', padding: '16px 8px 0' }}>
               {rows.map(row => {
                 const isCurrent = Math.abs(row.rate - currentYield) < 0.25
+                const gapText = isCurrent
+                  ? '← 此处'
+                  : currentPrice > 0
+                    ? `${row.diff > 0 ? '高' : '低'} ${Math.abs(row.diff).toFixed(1)}%`
+                    : '—'
                 return (
-                  <tr key={row.rate} className={isCurrent ? 'current-row' : ''}>
-                    <td className="font-medium">{row.rate.toFixed(1)}%</td>
-                    <td className="font-semibold">
-                      ¥{row.targetPrice.toFixed(2)}
-                      {isCurrent && <span className="ml-1 text-xs text-red-600">← 当前</span>}
-                    </td>
-                    <td className={row.diff > 0 ? 'text-red-500' : 'text-green-600'}>
-                      {currentPrice > 0 ? (
-                        <>
-                          {row.diff > 0 ? '高' : '低'} {Math.abs(row.diff).toFixed(1)}%
-                        </>
-                      ) : '-'}
-                    </td>
-                  </tr>
+                  <div
+                    key={row.rate}
+                    ref={isCurrent ? currentColRef : undefined}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 64 }}
+                  >
+                    {/* card */}
+                    <div style={{
+                      width: 56, height: 72, borderRadius: 10,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      background: isCurrent ? 'var(--primary)' : '#fff',
+                      boxShadow: isCurrent ? '0 4px 16px rgba(224,48,37,.3)' : '0 1px 3px rgba(0,0,0,.06)',
+                      transform: isCurrent ? 'translateY(-6px)' : undefined,
+                      flexShrink: 0,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: isCurrent ? '#fff' : '#333' }}>
+                        {row.rate.toFixed(1)}%
+                      </div>
+                      <div style={{ fontSize: 10, color: isCurrent ? 'rgba(255,255,255,.75)' : '#999', margin: '3px 0 2px' }}>
+                        ¥{row.targetPrice.toFixed(2)}
+                      </div>
+                      <div style={{
+                        fontSize: isCurrent ? 9 : 10, fontWeight: 700,
+                        color: isCurrent ? '#fff' : row.diff > 0 ? '#e53935' : '#43a047',
+                        background: isCurrent ? 'rgba(255,255,255,.2)' : undefined,
+                        borderRadius: isCurrent ? 3 : undefined,
+                        padding: isCurrent ? '1px 4px' : undefined,
+                      }}>
+                        {gapText}
+                      </div>
+                    </div>
+                    {/* connector line */}
+                    <div style={{ width: '100%', height: 2, background: isCurrent ? 'var(--primary)' : '#e8e8e8' }} />
+                    {/* dot */}
+                    <div
+                      className={isCurrent ? 'matrix-dot-current' : undefined}
+                      style={{
+                        width: 8, height: 8, borderRadius: '50%', marginTop: 2,
+                        background: isCurrent ? 'var(--primary)' : '#ddd',
+                        border: '2px solid #f5f5f5',
+                        flexShrink: 0,
+                      }}
+                    />
+                    {/* bottom padding */}
+                    <div style={{ height: 12 }} />
+                  </div>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+          </div>
         </div>
 
         <p className="text-xs text-gray-400 mt-3 px-1">
-          表格展示不同股息率目标下的对应买入价。若目标股息率为5%，应在目标价格附近买入。
+          左右滑动查看不同股息率目标下的买入价参考，当前价格对应的股息率已高亮标注。
         </p>
 
         {/* 历史分红 */}

@@ -416,30 +416,21 @@ body {
   transition: width 0.3s ease;
 }
 
-/* Matrix table */
-.matrix-table {
-  width: 100%;
-  border-collapse: collapse;
+/* Matrix timeline */
+.matrix-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
+.matrix-scroll::-webkit-scrollbar { display: none; }
 
-.matrix-table th, .matrix-table td {
-  padding: 10px 12px;
-  text-align: center;
-  border-bottom: 1px solid #F3F4F6;
-  font-size: 14px;
+@keyframes matrix-ripple {
+  0%   { box-shadow: 0 0 0 2px rgba(224,48,37,.4); }
+  100% { box-shadow: 0 0 0 8px rgba(224,48,37,0); }
 }
-
-.matrix-table th {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 600;
-  background: #FAFAFA;
-}
-
-.matrix-table tr.current-row td {
-  background: #FEF2F2;
-  font-weight: 700;
-  color: var(--primary-dark);
+.matrix-dot-current {
+  animation: matrix-ripple 1.5s infinite;
 }
 
 /* Long press menu */
