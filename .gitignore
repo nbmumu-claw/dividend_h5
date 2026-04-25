@@ -1,5 +1,6 @@
 node_modules/
 dist/
+marketing/
 .DS_Store
 *.local
-.DS_Store
+playground-*.html
