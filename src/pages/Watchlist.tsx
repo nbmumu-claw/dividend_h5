@@ -429,7 +429,7 @@ export default function Watchlist() {
                   <div className="flex border-t border-gray-50">
                     <button
                       className="flex-1 py-2.5 text-xs text-gray-500 flex items-center justify-center gap-1"
-                      onClick={() => navigate(`/matrix?code=${stock.code}&name=${stock.name}&dividend=${stock.dividendPerShare}&price=${priceCny.toFixed(2)}&isHK=${stock.isHK || false}`)}
+                      onClick={() => navigate(`/matrix?code=${stock.code}&name=${stock.name}&dividend=${stock.dividendPerShare}&price=${stock.price.toFixed(2)}&isHK=${stock.isHK || false}`)}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                         <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" strokeLinecap="round"/>
