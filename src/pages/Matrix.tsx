@@ -163,11 +163,13 @@ export default function Matrix() {
         </p>
 
         {/* 历史分红 */}
-        {!isHK && (
+        {(
           <div className="card p-4 mt-4">
             <div className="mb-3">
               <div className="text-sm font-semibold text-gray-800">历史分红</div>
-              <div className="text-xs text-gray-400 mt-0.5">仅展示近10年已实施分配记录，每股派息为税前金额</div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                {isHK ? '近10年历史派息记录（HKD，税前）' : '仅展示近10年已实施分配记录，每股派息为税前金额'}
+              </div>
             </div>
             {historyLoading ? (
               <div className="text-xs text-gray-400 text-center py-4">加载中…</div>
@@ -210,7 +212,7 @@ export default function Matrix() {
                       return (
                         <tr key={r.year} className="border-b border-gray-50 last:border-0">
                           <td className="py-2 text-gray-700">{r.year}</td>
-                          <td className="py-2 text-right font-semibold text-gray-900">¥{r.perShare.toFixed(3)}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">{isHK ? 'HK$' : '¥'}{r.perShare.toFixed(3)}</td>
                           <td className="py-2 text-right text-xs">
                             {yoy === null ? (
                               <span className="text-gray-300">—</span>
