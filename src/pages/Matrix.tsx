@@ -189,7 +189,7 @@ export default function Matrix() {
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-gray-900">¥{avgDps.toFixed(3)}</div>
+                    <div className="text-xl font-bold text-gray-900">{isHK ? 'HK$' : '¥'}{avgDps.toFixed(3)}</div>
                     <div className="text-xs text-gray-400 mt-0.5">近{divHistory.consecutiveYears}年均每股派息</div>
                   </div>
                 </div>
