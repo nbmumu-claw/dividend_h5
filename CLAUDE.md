@@ -36,7 +36,7 @@ No test runner is configured.
 - HK stocks: `isHK: true`, codes are 4–5 digit numeric strings
 - `toTxCode()` in `api.ts` converts internal codes to Tencent's `shXXXXXX`/`szXXXXXX`/`hkXXXXX` format for API calls
 
-**Production API proxy:** In production (non-dev), `/api/*` routes must be handled by a reverse proxy — they are not bundled.
+**Production API proxy:** In production, `/api/*` routes are handled by **Vercel Serverless Functions** in the `api/` directory (e.g., `api/stock-price.js`). Each function proxies to the corresponding external API. Vite's `server.proxy` only works in dev. When adding a new `/api/*` route, always add a corresponding `api/<name>.js` file — do NOT use `vercel.json` rewrites for this purpose.
 
 # CLAUDE.md
 
