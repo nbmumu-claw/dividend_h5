@@ -28,7 +28,7 @@ export async function fetchDividendHistory(code: string): Promise<DividendHistor
     const filter = `(SECURITY_CODE="${code.padStart(6, '0')}")`
     const params = new URLSearchParams({
       reportName: 'RPT_SHAREBONUS_DET',
-      columns: 'REPORT_DATE,ASSIGN_PROGRESS,IMPL_PLAN_PROFILE,PAY_CASH_AFTERTAX',
+      columns: 'ALL',
       filter,
       pageNumber: '1',
       pageSize: '50',
@@ -42,23 +42,23 @@ export async function fetchDividendHistory(code: string): Promise<DividendHistor
       REPORT_DATE?: string
       ASSIGN_PROGRESS?: string
       IMPL_PLAN_PROFILE?: string
-      PAY_CASH_AFTERTAX?: number
+      PRETAX_BONUS_RMB?: number  // 每10股派息（税前）
     }> = json?.result?.data || []
 
     // 按报告期（自然年）聚合，同年可能有中期+末期两次派息
     const byYear: Record<number, number> = {}
     for (const r of rows) {
       const progress = r.ASSIGN_PROGRESS || ''
-      // 只统计已实施
-      if (!['实施', '完成', '已实施'].some(s => progress.includes(s))) continue
+      // 纳入已实施或董事会已决议（有确定金额）
+      if (!['实施分配', '董事会决议通过'].some(s => progress.includes(s))) continue
       const year = r.REPORT_DATE ? parseInt(r.REPORT_DATE.slice(0, 4)) : 0
       if (!year) continue
 
       let dps = 0
-      // 优先从文案解析
+      // 优先从文案解析（更精确）
       if (r.IMPL_PLAN_PROFILE) dps = parseDpsFromPlan(r.IMPL_PLAN_PROFILE)
       // 回退到数值字段（单位：每10股派X元）
-      if (!dps && r.PAY_CASH_AFTERTAX) dps = Number(r.PAY_CASH_AFTERTAX) / 10
+      if (!dps && r.PRETAX_BONUS_RMB) dps = Number(r.PRETAX_BONUS_RMB) / 10
       if (dps <= 0) continue
 
       byYear[year] = (byYear[year] || 0) + parseFloat(dps.toFixed(4))
