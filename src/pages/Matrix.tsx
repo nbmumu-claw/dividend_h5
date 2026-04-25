@@ -42,11 +42,11 @@ export default function Matrix() {
   const [listingYear, setListingYear] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!code || isHK) return
+    if (!code) return
     setHistoryLoading(true)
     Promise.all([
-      fetchDividendHistory(code),
-      fetchListingYear(code),
+      fetchDividendHistory(code, isHK),
+      isHK ? Promise.resolve(null) : fetchListingYear(code),
     ]).then(([h, y]) => {
       setDivHistory(h)
       setListingYear(y)

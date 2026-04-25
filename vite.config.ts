@@ -40,6 +40,15 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace('/api/dividend-history', '/api/data/v1/get'),
       },
+      '/api/hk-dividend': {
+        target: 'https://query1.finance.yahoo.com',
+        changeOrigin: true,
+        rewrite: (path) => {
+          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+          const ticker = new URLSearchParams(qs).get('ticker') || ''
+          return `/v8/finance/chart/${ticker}?interval=1d&range=10y&events=div`
+        },
+      },
     },
   },
 })

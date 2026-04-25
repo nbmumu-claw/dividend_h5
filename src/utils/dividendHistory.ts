@@ -19,71 +19,98 @@ function parseDpsFromPlan(plan: string): number {
   return m ? parseFloat(m[1]) / 10 : 0
 }
 
-export async function fetchDividendHistory(code: string): Promise<DividendHistory | null> {
+// 港股内部代码（如 "00700"）→ Yahoo ticker（如 "0700.HK"）
+function toYahooTicker(code: string): string {
+  return parseInt(code, 10).toString().padStart(4, '0') + '.HK'
+}
+
+async function fetchHKDividendHistory(code: string): Promise<DividendHistory | null> {
+  const ticker = toYahooTicker(code)
+  const res = await fetch(`/api/hk-dividend?ticker=${ticker}`)
+  const json = await res.json()
+
+  const divs: Record<string, { date: number; amount: number }> =
+    json?.chart?.result?.[0]?.events?.dividends || {}
+
+  const byYear: Record<number, number> = {}
+  for (const v of Object.values(divs)) {
+    const year = new Date(v.date * 1000).getFullYear()
+    byYear[year] = parseFloat(((byYear[year] || 0) + v.amount).toFixed(4))
+  }
+
+  return buildHistory(byYear)
+}
+
+async function fetchAShareDividendHistory(code: string): Promise<DividendHistory | null> {
+  const filter = `(SECURITY_CODE="${code.padStart(6, '0')}")`
+  const params = new URLSearchParams({
+    reportName: 'RPT_SHAREBONUS_DET',
+    columns: 'ALL',
+    filter,
+    pageNumber: '1',
+    pageSize: '50',
+    sortColumns: 'REPORT_DATE',
+    sortTypes: '-1',
+  })
+  const res = await fetch(`/api/dividend-history?${params}`)
+  const json = await res.json()
+
+  const rows: Array<{
+    REPORT_DATE?: string
+    ASSIGN_PROGRESS?: string
+    IMPL_PLAN_PROFILE?: string
+    PRETAX_BONUS_RMB?: number
+  }> = json?.result?.data || []
+
+  const byYear: Record<number, number> = {}
+  for (const r of rows) {
+    const progress = r.ASSIGN_PROGRESS || ''
+    if (!['实施分配', '董事会决议通过'].some(s => progress.includes(s))) continue
+    const year = r.REPORT_DATE ? parseInt(r.REPORT_DATE.slice(0, 4)) : 0
+    if (!year) continue
+
+    let dps = 0
+    if (r.IMPL_PLAN_PROFILE) dps = parseDpsFromPlan(r.IMPL_PLAN_PROFILE)
+    if (!dps && r.PRETAX_BONUS_RMB) dps = Number(r.PRETAX_BONUS_RMB) / 10
+    if (dps <= 0) continue
+
+    byYear[year] = (byYear[year] || 0) + parseFloat(dps.toFixed(4))
+  }
+
+  return buildHistory(byYear)
+}
+
+function buildHistory(byYear: Record<number, number>): DividendHistory {
+  const records = Object.entries(byYear)
+    .map(([y, v]) => ({ year: parseInt(y), perShare: parseFloat(v.toFixed(4)) }))
+    .sort((a, b) => b.year - a.year)
+    .slice(0, 10)
+
+  let consecutiveYears = 0
+  for (let i = 0; i < records.length; i++) {
+    if (i === 0 || records[i].year === records[i - 1].year - 1) {
+      consecutiveYears++
+    } else {
+      break
+    }
+  }
+
+  return { records, consecutiveYears }
+}
+
+export async function fetchDividendHistory(code: string, isHK = false): Promise<DividendHistory | null> {
   const key = `dividendHistory:${code}`
   const cached = cacheGet<DividendHistory>(key)
   if (cached) return cached
 
   try {
-    // 东财分红历史接口，A股代码6位纯数字
-    const filter = `(SECURITY_CODE="${code.padStart(6, '0')}")`
-    const params = new URLSearchParams({
-      reportName: 'RPT_SHAREBONUS_DET',
-      columns: 'ALL',
-      filter,
-      pageNumber: '1',
-      pageSize: '50',
-      sortColumns: 'REPORT_DATE',
-      sortTypes: '-1',
-    })
-    const res = await fetch(`/api/dividend-history?${params}`)
-    const json = await res.json()
+    const history = isHK
+      ? await fetchHKDividendHistory(code)
+      : await fetchAShareDividendHistory(code)
 
-    const rows: Array<{
-      REPORT_DATE?: string
-      ASSIGN_PROGRESS?: string
-      IMPL_PLAN_PROFILE?: string
-      PRETAX_BONUS_RMB?: number  // 每10股派息（税前）
-    }> = json?.result?.data || []
-
-    // 按报告期（自然年）聚合，同年可能有中期+末期两次派息
-    const byYear: Record<number, number> = {}
-    for (const r of rows) {
-      const progress = r.ASSIGN_PROGRESS || ''
-      // 纳入已实施或董事会已决议（有确定金额）
-      if (!['实施分配', '董事会决议通过'].some(s => progress.includes(s))) continue
-      const year = r.REPORT_DATE ? parseInt(r.REPORT_DATE.slice(0, 4)) : 0
-      if (!year) continue
-
-      let dps = 0
-      // 优先从文案解析（更精确）
-      if (r.IMPL_PLAN_PROFILE) dps = parseDpsFromPlan(r.IMPL_PLAN_PROFILE)
-      // 回退到数值字段（单位：每10股派X元）
-      if (!dps && r.PRETAX_BONUS_RMB) dps = Number(r.PRETAX_BONUS_RMB) / 10
-      if (dps <= 0) continue
-
-      byYear[year] = (byYear[year] || 0) + parseFloat(dps.toFixed(4))
-    }
-
-    const records = Object.entries(byYear)
-      .map(([y, v]) => ({ year: parseInt(y), perShare: parseFloat(v.toFixed(4)) }))
-      .sort((a, b) => b.year - a.year)
-      .slice(0, 10)
-
-    // 连续年数：从最近有记录的年份往前，不断检查是否有上一年
-    let consecutiveYears = 0
-    for (let i = 0; i < records.length; i++) {
-      if (i === 0 || records[i].year === records[i - 1].year - 1) {
-        consecutiveYears++
-      } else {
-        break
-      }
-    }
-
-    const history: DividendHistory = { records, consecutiveYears }
-    if (records.length > 0) {
+    if (history && history.records.length > 0) {
       const prevYear = new Date().getFullYear() - 1
-      const ttl = records.some(r => r.year >= prevYear) ? TTL_CURRENT : TTL_HISTORY
+      const ttl = history.records.some(r => r.year >= prevYear) ? TTL_CURRENT : TTL_HISTORY
       cacheSet(key, history, ttl)
     }
     return history
