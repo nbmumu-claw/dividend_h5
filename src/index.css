@@ -193,12 +193,27 @@ body {
   max-width: 430px;
   background: #fff;
   border-radius: 16px 16px 0 0;
-  padding: 20px 16px 32px;
   max-height: 80vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.modal-sheet::-webkit-scrollbar { display: none; }
+.modal-sheet-body {
+  padding: 20px 16px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-sheet-body::-webkit-scrollbar { display: none; }
+
+.modal-sheet-footer {
+  padding: 12px 16px 32px;
+  border-top: 1px solid #f3f3f3;
+}
+
+.modal-sheet-footer-none {
+  padding: 0 16px 32px;
+}
 
 /* Input */
 .input-field {

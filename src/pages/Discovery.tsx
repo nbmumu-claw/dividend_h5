@@ -7,8 +7,33 @@ import { STATIC_STOCKS } from '../data/stocks'
 import type { Stock } from '../types'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 const CHART_COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
+
+function SortableSectorItem({ sector, onRename, onDelete }: { sector: string; onRename: (s: string) => void; onDelete: (s: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sector })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="flex items-center gap-3 py-3 px-1 border-b border-gray-100 last:border-0 bg-white"
+    >
+      <span {...attributes} {...listeners} className="text-gray-300 cursor-grab touch-none text-lg px-1 select-none">⠿</span>
+      <span className="flex-1 text-sm text-gray-800">{sector}</span>
+      <button className="text-xs text-blue-500 px-2 py-1" onClick={() => onRename(sector)}>重命名</button>
+      <button className="text-xs text-red-500 px-2 py-1" onClick={() => onDelete(sector)}>删除</button>
+    </div>
+  )
+}
 
 function YieldBadge({ rate }: { rate: number }) {
   const cls = rate >= 5 ? 'tag-green' : rate >= 4 ? 'tag-yellow' : 'tag-gray'
@@ -38,6 +63,22 @@ export default function Discovery() {
   const [loading, setLoading] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [showSectorModal, setShowSectorModal] = useState(false)
+  const [showManage, setShowManage] = useState(false)
+  const [inlineAddName, setInlineAddName] = useState('')
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      const oldIndex = customSectors.indexOf(active.id as string)
+      const newIndex = customSectors.indexOf(over.id as string)
+      setCustomSectors(arrayMove(customSectors, oldIndex, newIndex))
+    }
+  }
   const [editStock, setEditStock] = useState<Stock | null>(null)
   const [swipeOpenCode, setSwipeOpenCode] = useState<string | null>(null)
   const [stockContextMenu, setStockContextMenu] = useState<{ x: number; y: number; stock: Stock; isManual: boolean } | null>(null)
@@ -301,6 +342,11 @@ export default function Discovery() {
               <path d="M20 4v4h-4M4 20v-4h4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
+          <button onClick={() => setShowManage(true)} className="p-2 text-gray-500">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round"/>
+            </svg>
+          </button>
           <button onClick={openAddForm} className="p-2 text-red-600">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <circle cx="12" cy="12" r="9"/>
@@ -329,12 +375,6 @@ export default function Discovery() {
             {sector}
           </button>
         ))}
-        <button
-          className="sector-tab"
-          onClick={() => { setSectorInput(''); setRenamingSector(null); setShowSectorModal(true) }}
-        >
-          + 板块
-        </button>
       </div>
 
       {/* Stocks list */}
@@ -503,6 +543,70 @@ export default function Discovery() {
         </div>
       </Modal>
 
+      {/* Manage Sectors Modal */}
+      <Modal
+        open={showManage}
+        onClose={() => { setShowManage(false); setInlineAddName('') }}
+        title="管理板块"
+        footer={
+          <div className="flex gap-2">
+            <input
+              className="input-field flex-1"
+              placeholder="添加板块…"
+              value={inlineAddName}
+              onChange={e => setInlineAddName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && inlineAddName.trim()) {
+                  addSector(inlineAddName.trim())
+                  setInlineAddName('')
+                }
+              }}
+            />
+            <button
+              className="btn-primary px-4"
+              style={{ width: 'auto', flexShrink: 0 }}
+              disabled={!inlineAddName.trim()}
+              onClick={() => {
+                if (!inlineAddName.trim()) return
+                addSector(inlineAddName.trim())
+                setInlineAddName('')
+              }}
+            >
+              添加
+            </button>
+          </div>
+        }
+      >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={customSectors} strategy={verticalListSortingStrategy}>
+            <div className="pb-2">
+              {customSectors.map(s => (
+                <SortableSectorItem
+                  key={s}
+                  sector={s}
+                  onRename={sec => {
+                    setSectorInput(sec)
+                    setRenamingSector(sec)
+                    setShowManage(false)
+                    setShowSectorModal(true)
+                  }}
+                  onDelete={sec => {
+                    const stocksInSector = manualStocks.filter(m => m.sector === sec)
+                    if (stocksInSector.length > 0) {
+                      const target = customSectors.find(s => s !== sec && s === '其他') || customSectors.find(s => s !== sec) || '其他'
+                      stocksInSector.forEach(s => updateManualStock(s.code, { sector: target }))
+                    }
+                    if (activeSector === sec) setActiveSector(customSectors.find(s => s !== sec) || '')
+                    deleteSector(sec)
+                    showToast('已删除板块')
+                  }}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      </Modal>
+
       {/* Add Sector Modal */}
       <Modal open={showSectorModal} onClose={() => setShowSectorModal(false)} title={renamingSector ? '重命名板块' : '添加板块'}>
         <div className="space-y-3">
@@ -552,10 +656,10 @@ export default function Discovery() {
               const sec = sectorContextMenu
               const stocksInSector = manualStocks.filter(m => m.sector === sec)
               if (stocksInSector.length > 0) {
-                const target = customSectors.find(s => s !== sec) || '其他'
+                const target = customSectors.find(s => s !== sec && s === '其他') || customSectors.find(s => s !== sec) || '其他'
                 stocksInSector.forEach(s => updateManualStock(s.code, { sector: target }))
               }
-              if (activeSector === sec) setActiveSector(customSectors.find(s => s !== sec) || '其他')
+              if (activeSector === sec) setActiveSector(customSectors.find(s => s !== sec) || '')
               deleteSector(sec)
               setSectorContextMenu(null)
               showToast('已删除板块')
