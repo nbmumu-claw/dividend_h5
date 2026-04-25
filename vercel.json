@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/dividend-history", "destination": "https://datacenter-web.eastmoney.com/api/data/v1/get" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
