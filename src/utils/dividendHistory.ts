@@ -65,7 +65,7 @@ async function fetchAShareDividendHistory(code: string): Promise<DividendHistory
   const byYear: Record<number, number> = {}
   for (const r of rows) {
     const progress = r.ASSIGN_PROGRESS || ''
-    if (!['实施分配', '董事会决议通过'].some(s => progress.includes(s))) continue
+    if (!['实施分配', '董事会决议通过', '特别分配'].some(s => progress.includes(s))) continue
     const year = r.REPORT_DATE ? parseInt(r.REPORT_DATE.slice(0, 4)) : 0
     if (!year) continue
 
