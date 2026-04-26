@@ -196,9 +196,9 @@ export default function Calendar() {
     <div className="page-content">
       {/* Header */}
       <div className="px-4 pt-12 pb-2">
-        <div className="flex items-center justify-between">
+        <div className="relative flex items-center justify-center">
           <h1 className="text-lg font-bold text-gray-900">分红日历</h1>
-          {loading && <span className="text-xs text-gray-400">加载中…</span>}
+          {loading && <span className="absolute right-0 text-xs text-gray-400">加载中…</span>}
         </div>
       </div>
 
