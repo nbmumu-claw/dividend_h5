@@ -3,4 +3,4 @@ dist/
 marketing/
 .DS_Store
 *.local
-playground-*.html
+playground/

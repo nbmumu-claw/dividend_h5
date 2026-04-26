@@ -60,6 +60,7 @@ export default function Calendar() {
   const [allEvents, setAllEvents] = useState<DividendEvent[]>(_cachedEvents)
   const [loading, setLoading] = useState(false)
   const [privacyMode, setPrivacyMode] = useState(false)
+  const [showYearOverview, setShowYearOverview] = useState(false)
   const loadedCodes = useRef<Set<string>>(_cachedLoadedCodes)
 
   // 增量加载：只拉新增的股票，移除已删除股票的事件
@@ -111,6 +112,22 @@ export default function Calendar() {
 
   // 当月有事件的日期集合
   const eventDates = useMemo(() => new Set(monthEvents.map(e => e.recordDate)), [monthEvents])
+
+  // 全年各月到手（CNY，税后）
+  const monthlyTotals = useMemo(() => {
+    const months = Array(12).fill(0) as number[]
+    for (const e of allEvents) {
+      if (parseInt(e.recordDate.slice(0, 4)) !== year) continue
+      const evMonth = parseInt(e.recordDate.slice(5, 7)) - 1
+      const stock = watchlist.find(s => s.code === e.code)
+      if (!stock?.shares) continue
+      const gross = e.perShare * stock.shares
+      const net = afterTax(gross, stock)
+      const cny = e.isHK ? toCNY(net, exchangeRate) : net
+      months[evMonth] += cny
+    }
+    return months
+  }, [allEvents, year, watchlist, exchangeRate])
 
   // 本月总到手（CNY，税后）
   const monthTotal = useMemo(() => {
@@ -176,6 +193,7 @@ export default function Calendar() {
   const todayStr = toDateStr(today.getFullYear(), today.getMonth() + 1, today.getDate())
   const firstDay = firstDayOfWeek(year, month)
   const totalDays = daysInMonth(year, month)
+  const maxMonthVal = Math.max(...monthlyTotals, 1)
 
   if (watchlist.length === 0) {
     return (
@@ -242,6 +260,67 @@ export default function Calendar() {
               </button>
             </div>
           </div>
+
+          {/* Monthly overview toggle */}
+          <button
+            onClick={() => setShowYearOverview(v => !v)}
+            className="w-full flex items-center justify-between py-1.5 mb-2 border-t border-gray-100"
+          >
+            <span className="text-xs text-gray-500">月度分红概览</span>
+            <svg
+              className="w-3.5 h-3.5 text-gray-400"
+              style={{ transform: showYearOverview ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+            >
+              <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+
+          {/* Expandable bar chart */}
+          {showYearOverview && (
+            <div className="flex mb-3">
+              {monthlyTotals.map((val, i) => {
+                const m = i + 1
+                const isCur = m === month
+                const BAR_MAX_H = 32
+                const h = val > 0 ? Math.max(3, Math.round((val / maxMonthVal) * BAR_MAX_H)) : 2
+                const amtLabel = val >= 10000
+                  ? `${(val / 10000).toFixed(1)}w`
+                  : val >= 1000 ? `${(val / 1000).toFixed(1)}k`
+                  : val > 0 ? val.toFixed(1) : ''
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setMonth(m)}
+                    className="flex flex-col items-center flex-1"
+                  >
+                    {/* 每月金额 */}
+                    <div style={{ height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {val > 0 && (
+                        <span style={{ fontSize: 8, color: isCur ? 'var(--primary)' : '#bbb', fontWeight: isCur ? 700 : 400, whiteSpace: 'nowrap' }}>
+                          {privacyMode ? '**' : `¥${amtLabel}`}
+                        </span>
+                      )}
+                    </div>
+                    <div className="w-full flex items-end justify-center" style={{ height: BAR_MAX_H }}>
+                      <div style={{
+                        width: '65%',
+                        height: h,
+                        borderRadius: 2,
+                        background: isCur ? 'var(--primary)' : val > 0 ? '#93c5fd' : '#e5e7eb',
+                      }} />
+                    </div>
+                    <span style={{
+                      fontSize: 9,
+                      color: isCur ? 'var(--primary)' : '#9ca3af',
+                      fontWeight: isCur ? 700 : 400,
+                      lineHeight: 1.4,
+                    }}>{m}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
           {/* Weekday headers */}
           <div className="grid grid-cols-7 mb-1">

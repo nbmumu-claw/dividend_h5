@@ -58,14 +58,17 @@ async function fetchAShareCalendarEvents(code: string): Promise<DividendEvent[]>
     EX_DIVIDEND_DATE?: string
   }> = json?.result?.data || []
 
-  // 提取所有已实施分配的历史记录（用于估算）
-  const confirmed = rows.filter(r => (r.ASSIGN_PROGRESS || '').includes('实施分配'))
+  // 提取所有已实施分配的历史记录（用于估算），含特别分配（中期股息）和股东大会决议通过
+  const confirmed = rows.filter(r => {
+    const p = r.ASSIGN_PROGRESS || ''
+    return p.includes('实施分配') || p.includes('特别分配') || p.includes('股东大会决议通过')
+  })
 
   const events: DividendEvent[] = []
 
   for (const r of rows) {
     const progress = r.ASSIGN_PROGRESS || ''
-    const isConfirmed = progress.includes('实施分配')
+    const isConfirmed = progress.includes('实施分配') || progress.includes('特别分配') || progress.includes('股东大会决议通过')
     const isPending = progress.includes('董事会决议通过')
     if (!isConfirmed && !isPending) continue
 
@@ -89,7 +92,7 @@ async function fetchAShareCalendarEvents(code: string): Promise<DividendEvent[]>
       const reportMonth = r.REPORT_DATE ? parseInt(r.REPORT_DATE.slice(5, 7)) : 12
       const isAnnual = reportMonth >= 10 // Q4=年报, Q2=中报
 
-      const sameTermDates = confirmed
+      let sameTermDates = confirmed
         .filter(c => {
           if (!c.EQUITY_RECORD_DATE || !c.REPORT_DATE) return false
           const cm = parseInt(c.REPORT_DATE.slice(5, 7))
@@ -97,6 +100,14 @@ async function fetchAShareCalendarEvents(code: string): Promise<DividendEvent[]>
         })
         .slice(0, 3)
         .map(c => c.EQUITY_RECORD_DATE!.slice(5, 10)) // MM-DD
+
+      // 无同期历史时，退一步用全部历史记录日期做参考
+      if (sameTermDates.length === 0) {
+        sameTermDates = confirmed
+          .filter(c => c.EQUITY_RECORD_DATE)
+          .slice(0, 3)
+          .map(c => c.EQUITY_RECORD_DATE!.slice(5, 10))
+      }
 
       if (sameTermDates.length === 0) continue
 
