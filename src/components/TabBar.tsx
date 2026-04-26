@@ -35,6 +35,21 @@ const tabs = [
     ),
   },
   {
+    path: '/calendar',
+    label: '日历',
+    icon: (active: boolean) => (
+      <svg viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
+        <rect x="3" y="4" width="18" height="18" rx="3" />
+        <path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" strokeWidth="1.8" stroke={active ? '#fff' : 'currentColor'} fill="none" />
+        {active && <rect x="3" y="4" width="18" height="18" rx="3" fill="currentColor" opacity={0.9} />}
+        {active && <path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" strokeWidth="1.8" stroke="#fff" fill="none" />}
+        {active && <circle cx="8" cy="15" r="1.2" fill="#fff" />}
+        {active && <circle cx="12" cy="15" r="1.2" fill="#fff" />}
+        {active && <circle cx="16" cy="15" r="1.2" fill="#fff" />}
+      </svg>
+    ),
+  },
+  {
     path: '/settings',
     label: '我的',
     icon: (active: boolean) => (

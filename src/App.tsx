@@ -5,6 +5,7 @@ import Discovery from './pages/Discovery'
 import Watchlist from './pages/Watchlist'
 import Portfolio from './pages/Portfolio'
 import Matrix from './pages/Matrix'
+import Calendar from './pages/Calendar'
 import Settings from './pages/Settings'
 import DataGuide from './pages/DataGuide'
 import Support from './pages/Support'
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/watchlist" element={<Watchlist />} />
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/matrix" element={<Matrix />} />
+        <Route path="/calendar" element={<Calendar />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/data-guide" element={<DataGuide />} />
         <Route path="/support" element={<Support />} />
