@@ -270,13 +270,13 @@ export default function Watchlist() {
       {/* Income summary */}
       {totalAnnual > 0 && (
         <div className="mx-4 mb-3 card p-4">
-          <div className="flex gap-4">
-            <div>
+          <div className="flex items-center">
+            <div className="flex-1 text-center">
               <div className="stat-number text-red-600">¥{totalAnnual.toFixed(0)}</div>
               <div className="stat-label">年度红利（税后）</div>
             </div>
-            <div className="w-px bg-gray-100" />
-            <div>
+            <div className="w-px bg-gray-100 self-stretch" />
+            <div className="flex-1 text-center">
               <div className="stat-number text-red-600">¥{totalMonthly.toFixed(0)}</div>
               <div className="stat-label">月均收入</div>
             </div>
@@ -320,6 +320,9 @@ export default function Watchlist() {
               const shares = Number(stock.shares) || 0
               const unrealized = costPriceCny && shares ? (priceCny - costPriceCny) * shares : null
               const unrealizedPct = costPriceCny ? ((priceCny - costPriceCny) / costPriceCny) * 100 : null
+              const costYield = costPriceCny && costPriceCny > 0 && stock.dividendPerShare > 0
+                ? (stock.dividendPerShare / Number(stock.costPrice)) * 100
+                : null
               return (
                 <div key={stock.code} className="card overflow-hidden">
                   {/* Main row */}
@@ -350,26 +353,45 @@ export default function Watchlist() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 mb-3">
-                      <YieldBadge rate={stock.yieldRate} />
-                      {stock.isHK && (
-                        <div className="flex gap-1">
-                          {TAX_OPTIONS.map(opt => (
-                            <button
-                              key={opt.value}
-                              onClick={() => updateWatchlistStock(stock.code, { taxType: opt.value })}
-                              className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                                stock.taxType === opt.value
-                                  ? 'bg-red-600 text-white border-red-600'
-                                  : 'border-gray-200 text-gray-500'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <YieldBadge rate={stock.yieldRate} />
+                        {stock.isHK && (
+                          <div className="flex gap-1">
+                            {TAX_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => updateWatchlistStock(stock.code, { taxType: opt.value })}
+                                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                                  stock.taxType === opt.value
+                                    ? 'bg-red-600 text-white border-red-600'
+                                    : 'border-gray-200 text-gray-500'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {!stock.isHK && <span className="tag tag-green">免税</span>}
+                      </div>
+                      {costYield != null && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <button
+                            className="flex items-center gap-0.5 text-gray-400"
+                            onClick={() => navigate('/data-guide#cdy')}
+                          >
+                            <span>CDY</span>
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <circle cx="12" cy="12" r="10"/>
+                              <path d="M12 16v-4M12 8h.01" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                          <span className={`tag ${costYield >= 5 ? 'tag-green' : costYield >= 4 ? 'tag-yellow' : 'tag-gray'}`}>
+                            {costYield.toFixed(2)}%
+                          </span>
                         </div>
                       )}
-                      {!stock.isHK && <span className="tag tag-green">免税</span>}
                     </div>
 
                     {/* Holdings */}

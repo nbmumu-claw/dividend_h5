@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 function Card({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
@@ -35,6 +36,15 @@ function Note({ children }: { children: React.ReactNode }) {
 export default function DataGuide() {
   const navigate = useNavigate()
 
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash) {
+      setTimeout(() => {
+        document.querySelector(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [])
+
   return (
     <div className="page-content">
       {/* Header */}
@@ -57,6 +67,12 @@ export default function DataGuide() {
           <Formula>= 每股分红 ÷ 当前股价 × 100%</Formula>
           <Note>港股统一换算为人民币后再计算。股息率异常超过 30% 时停止自动计算，避免错误数据干扰决策。</Note>
         </Card>
+
+        <div id="cdy"><Card icon="🏷️" title="CDY（成本价股息率）">
+          <p className="text-sm text-gray-600">Cost Dividend Yield，基于你实际买入成本计算的股息率，反映你的真实资金回报，与当前市价无关。</p>
+          <Formula>= 每股分红 ÷ 买入成本价 × 100%</Formula>
+          <Note>CDY 高于当前股息率，说明你买得比现在便宜，实际回报优于当前入场的投资者。填写「自选」页的成本价后自动显示。</Note>
+        </Card></div>
 
         <Card icon="💰" title="每股分红">
           <p className="text-sm text-gray-600">基于上一年度（或最近一次）实际派息金额，由人工校对维护。</p>
@@ -111,6 +127,15 @@ export default function DataGuide() {
           <Note>未录入成本时，盈亏数据显示「--」。</Note>
         </Card>
 
+        <Card icon="📅" title="分红日历">
+          <p className="text-sm text-gray-600">展示自选股票的股权登记日与每股派息，帮助规划分红现金流。分红事件分两种状态：</p>
+          <div className="mt-2 space-y-1.5 text-xs text-gray-600">
+            <div><span className="font-medium text-gray-800">✅ 确认</span> — 公司已公告股权登记日，日期准确</div>
+            <div><span className="font-medium text-gray-800">🕐 预计</span> — 已宣布分红金额但未定日期，根据近几年同期规律推算，实际以公告为准</div>
+          </div>
+          <Note>填写「自选」页的持股数量后，日历会显示税后到手金额。港股分红自动按当前汇率换算为人民币。</Note>
+        </Card>
+
         <Card icon="🎯" title="决策矩阵（目标买入价）">
           <p className="text-sm text-gray-600">根据期望的目标股息率，反推出合理的买入价参考，覆盖 3.0%~7.0% 共 9 档。</p>
           <Formula>目标买入价 = 每股分红 ÷ 目标收益率</Formula>
@@ -146,6 +171,22 @@ export default function DataGuide() {
           <p className="text-sm text-gray-600">用于港股分红和股价换算为人民币。每 6 小时自动更新，缓存存于本地，默认值 0.88。</p>
           <Tip>在「设置」页可手动点击「刷新」强制更新汇率。所有涉及港股的金额均按当前汇率实时换算。</Tip>
         </Card>
+
+        <button
+          onClick={() => navigate('/support')}
+          className="w-full card p-4 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">☕</span>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-gray-800">支持与联系</div>
+              <div className="text-xs text-gray-400">如果有帮助，欢迎请我喝杯咖啡</div>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
 
         <div className="text-center text-xs text-gray-400 mt-4 pb-2 leading-relaxed">
           数据基于历史公开信息，不构成投资建议。<br />请在充分了解风险的基础上进行投资决策。

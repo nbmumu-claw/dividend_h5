@@ -2,6 +2,18 @@ import { useNavigate } from 'react-router-dom'
 
 const VERSIONS = [
   {
+    version: 'v1.3',
+    date: '2026-04',
+    items: [
+      '新增分红日历：月历宫格展示股权登记日，支持月份切换',
+      '已确认事件显示绿色标签，预估事件根据近年规律推算并标注',
+      '填写成本价后显示税后到手金额，支持隐私模式遮挡金额',
+      '当月无事件时显示最近分红月份快捷跳转',
+      '自选页新增 CDY（成本价股息率），与当前股息率同行对比展示',
+      '成就移至「我的」页，收益页更聚焦财务数据',
+    ],
+  },
+  {
     version: 'v1.2',
     date: '2026-04',
     items: [
@@ -55,6 +67,21 @@ export default function Changelog() {
       </div>
 
       <div className="px-4 pb-8 space-y-4">
+        <button
+          onClick={() => navigate('/support')}
+          className="w-full card p-4 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">☕</span>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-gray-800">支持与联系</div>
+              <div className="text-xs text-gray-400">如果有帮助，欢迎请我喝杯咖啡</div>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         {VERSIONS.map(v => (
           <div key={v.version} className="card p-4">
             <div className="flex items-center gap-2 mb-3">

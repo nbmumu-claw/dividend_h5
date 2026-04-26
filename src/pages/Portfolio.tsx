@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useStore } from '../store'
 import Disclaimer from '../components/Disclaimer'
@@ -8,46 +9,8 @@ import type { WatchlistStock } from '../types'
 
 const COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
 
-interface Achievement {
-  id: string
-  label: string
-  description: string
-  unlocked: boolean
-  icon: string
-}
-
-function buildAchievements(annualDiv: number, monthlyIncome: number, yieldRate: number, stockCount: number, hasHoldings: boolean): Achievement[] {
-  return [
-    { id: 'first_stock', label: '起步', description: '添加第一只自选股', unlocked: stockCount >= 1, icon: '🌱' },
-    { id: 'first_holding', label: '入场', description: '填入第一笔持股', unlocked: hasHoldings, icon: '💼' },
-    { id: 'income_50', label: '月入50', description: '月均红利达到 ¥50', unlocked: monthlyIncome >= 50, icon: '☕' },
-    { id: 'income_200', label: '月入200', description: '月均红利达到 ¥200', unlocked: monthlyIncome >= 200, icon: '🍜' },
-    { id: 'income_500', label: '月入500', description: '月均红利达到 ¥500', unlocked: monthlyIncome >= 500, icon: '🛒' },
-    { id: 'income_1000', label: '月入千元', description: '月均红利达到 ¥1000', unlocked: monthlyIncome >= 1000, icon: '🎯' },
-    { id: 'income_3000', label: '月入3000', description: '月均红利达到 ¥3000', unlocked: monthlyIncome >= 3000, icon: '🏆' },
-    { id: 'income_5000', label: '月入5000', description: '月均红利达到 ¥5000', unlocked: monthlyIncome >= 5000, icon: '🚀' },
-    { id: 'income_10000', label: '月入万元', description: '月均红利达到 ¥10000', unlocked: monthlyIncome >= 10000, icon: '👑' },
-    { id: 'stocks_5', label: '小组合', description: '持有5只以上股票', unlocked: stockCount >= 5, icon: '📦' },
-    { id: 'stocks_10', label: '多元化', description: '持有10只以上股票', unlocked: stockCount >= 10, icon: '🌈' },
-    { id: 'yield_5', label: '5%收益率', description: '整体股息率达到5%', unlocked: yieldRate >= 5, icon: '📈' },
-    { id: 'yield_6', label: '6%收益率', description: '整体股息率达到6%', unlocked: yieldRate >= 6, icon: '⚡' },
-    { id: 'annual_1k', label: '年入千元', description: '年红利收入超过¥1000', unlocked: annualDiv >= 1000, icon: '💰' },
-    { id: 'annual_5k', label: '年入5千', description: '年红利收入超过¥5000', unlocked: annualDiv >= 5000, icon: '💎' },
-    { id: 'annual_10k', label: '年入万元', description: '年红利收入超过¥10000', unlocked: annualDiv >= 10000, icon: '🏅' },
-    { id: 'daily_latte', label: '拿铁自由', description: '月收入覆盖30杯拿铁', unlocked: monthlyIncome >= 30 * 38, icon: '☕' },
-    { id: 'daily_boba', label: '奶茶自由', description: '月收入覆盖60杯奶茶', unlocked: monthlyIncome >= 60 * 20, icon: '🧋' },
-    { id: 'rent_cover', label: '房租刺客', description: '年红利超过¥36000', unlocked: annualDiv >= 36000, icon: '🏠' },
-    { id: 'yield_8', label: '高息猎手', description: '整体股息率达到8%', unlocked: yieldRate >= 8, icon: '🦅' },
-    { id: 'stocks_20', label: '散户之王', description: '持有20只以上股票', unlocked: stockCount >= 20, icon: '🃏' },
-    { id: 'annual_100k', label: '年入十万', description: '年红利收入超过¥100000', unlocked: annualDiv >= 100000, icon: '🌊' },
-    { id: 'monthly_salary', label: '工资替代', description: '月红利超过¥8000', unlocked: monthlyIncome >= 8000, icon: '😤' },
-    { id: 'income_500_daily', label: '日入500', description: '日均红利超过¥500', unlocked: annualDiv >= 500 * 365, icon: '🌅' },
-    { id: 'hk_investor', label: '南下资金', description: '持有港股股票', unlocked: stockCount >= 1 && annualDiv > 0, icon: '🦁' },
-    { id: 'zen_investor', label: '躺平投资', description: '年红利超过¥60000', unlocked: annualDiv >= 60000, icon: '🧘' },
-  ]
-}
-
 export default function Portfolio() {
+  const navigate = useNavigate()
   const watchlist = useStore(s => s.watchlist)
   const exchangeRate = useStore(s => s.exchangeRate)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
@@ -75,8 +38,6 @@ export default function Portfolio() {
     })
   }, [])
   const chartMode = chartType === 'div' ? chartGroup : `cost-${chartGroup}` as 'cost-sector' | 'cost-stock'
-  const [showAll, setShowAll] = useState(false)
-
   const holdings = useMemo(
     () => watchlist.filter(s => s.shares && Number(s.shares) > 0),
     [watchlist]
@@ -163,22 +124,7 @@ export default function Portfolio() {
     }
   }, [holdingsWithDisplay, exchangeRate, chartMode])
 
-  const achievements = useMemo(
-    () => buildAchievements(metrics.annualDiv, metrics.monthlyIncome, metrics.overallYield, metrics.stockCount, metrics.hasHoldings),
-    [metrics.annualDiv, metrics.monthlyIncome, metrics.overallYield, metrics.stockCount, metrics.hasHoldings]
-  )
-  const unlockedCount = useMemo(
-    () => achievements.filter(a => a.unlocked).length,
-    [achievements]
-  )
-  const sortedAchievements = useMemo(
-    () => [...achievements].sort((a, b) => (b.unlocked ? 1 : 0) - (a.unlocked ? 1 : 0)),
-    [achievements]
-  )
-  const displayedAchievements = useMemo(
-    () => showAll ? sortedAchievements : sortedAchievements.slice(0, 12),
-    [showAll, sortedAchievements]
-  )
+
 
   return (
     <div className="page-content">
@@ -313,37 +259,22 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* Achievements */}
-      <div className="px-4 mb-6">
-        <div className="card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-gray-800">成就</span>
-            <span className="text-xs text-gray-400">{unlockedCount}/{achievements.length} 已解锁</span>
+      <div className="px-4 pb-2">
+        <button
+          onClick={() => navigate('/support')}
+          className="w-full card p-4 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">☕</span>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-gray-800">支持与联系</div>
+              <div className="text-xs text-gray-400">如果有帮助，欢迎请我喝杯咖啡</div>
+            </div>
           </div>
-          <div className="progress-bar mb-3">
-            <div className="progress-fill" style={{ width: `${(unlockedCount / achievements.length) * 100}%` }} />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {displayedAchievements.map(a => (
-              <div
-                key={a.id}
-                className={`rounded-xl p-2.5 flex flex-col items-center text-center gap-1 ${a.unlocked ? 'bg-red-50' : 'bg-gray-50'}`}
-              >
-                <span className="text-2xl">{a.unlocked ? a.icon : '🔒'}</span>
-                <div className={`text-xs font-semibold leading-tight ${a.unlocked ? 'text-red-700' : 'text-gray-400'}`}>{a.label}</div>
-                <div className={`text-[10px] leading-tight ${a.unlocked ? 'text-red-400' : 'text-gray-300'}`}>{a.description}</div>
-              </div>
-            ))}
-          </div>
-          {sortedAchievements.length > 12 && (
-            <button
-              className="w-full mt-3 text-xs text-gray-400 py-2"
-              onClick={() => setShowAll(!showAll)}
-            >
-              {showAll ? '收起' : `查看全部 ${sortedAchievements.length} 个成就`}
-            </button>
-          )}
-        </div>
+          <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </div>
       <Disclaimer />
     </div>

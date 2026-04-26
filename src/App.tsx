@@ -1,6 +1,9 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import TabBar from './components/TabBar'
+import { fetchExchangeRate } from './utils/api'
+import { useStore } from './store'
 import Discovery from './pages/Discovery'
 import Watchlist from './pages/Watchlist'
 import Portfolio from './pages/Portfolio'
@@ -12,6 +15,12 @@ import Support from './pages/Support'
 import Changelog from './pages/Changelog'
 
 export default function App() {
+  const setExchangeRate = useStore(s => s.setExchangeRate)
+
+  useEffect(() => {
+    fetchExchangeRate().then(rate => setExchangeRate(rate)).catch(() => {})
+  }, [])
+
   return (
     <div className="app-shell">
       <Routes>
