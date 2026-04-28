@@ -212,6 +212,13 @@ export default function Watchlist() {
   const totalAnnual = filtered.reduce((sum, s) => sum + getAnnualDividend(s), 0)
   const totalMonthly = totalAnnual / 12
 
+  // 总市值用全部自选（不随板块筛选变化）
+  const totalMarketValue = watchlist.reduce((sum, s) => {
+    const pCny = s.isHK ? s.price * exchangeRate : s.price
+    const sh = Number(s.shares) || 0
+    return sum + (pCny > 0 && sh > 0 ? pCny * sh : 0)
+  }, 0)
+
   return (
     <div
       className="page-content"
@@ -320,6 +327,9 @@ export default function Watchlist() {
               const shares = Number(stock.shares) || 0
               const unrealized = costPriceCny && shares ? (priceCny - costPriceCny) * shares : null
               const unrealizedPct = costPriceCny ? ((priceCny - costPriceCny) / costPriceCny) * 100 : null
+              const marketValueCny = priceCny > 0 && shares > 0 ? priceCny * shares : null
+              const marketValueDisplay = stock.price > 0 && shares > 0 ? stock.price * shares : null
+              const positionPct = marketValueCny != null && totalMarketValue > 0 ? (marketValueCny / totalMarketValue) * 100 : null
               const costYield = costPriceCny && costPriceCny > 0 && stock.dividendPerShare > 0
                 ? (stock.dividendPerShare / Number(stock.costPrice)) * 100
                 : null
@@ -420,28 +430,55 @@ export default function Watchlist() {
                       </div>
                     </div>
 
-                    {(annualDiv > 0 || unrealized != null) && (
-                      <div className="mt-3 bg-red-50 rounded-lg p-2.5 flex justify-around text-sm">
-                        {annualDiv > 0 && (
+                    {(annualDiv > 0 || unrealized != null || marketValueDisplay != null) && (
+                      <div className="mt-3 bg-red-50 rounded-lg overflow-hidden text-sm">
+                        {/* 第一行：红利 / 盈亏 */}
+                        {(annualDiv > 0 || unrealized != null) && (
+                          <div className="flex justify-around p-2.5">
+                            {annualDiv > 0 && (
+                              <>
+                                <div>
+                                  <span className="text-gray-500 text-xs">年红利</span>
+                                  <div className="font-semibold text-red-600">¥{annualDiv.toFixed(2)}</div>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500 text-xs">月均</span>
+                                  <div className="font-semibold text-red-600">¥{(annualDiv / 12).toFixed(2)}</div>
+                                </div>
+                              </>
+                            )}
+                            {unrealized != null && unrealizedPct != null && (
+                              <div>
+                                <span className="text-gray-500 text-xs">持仓盈亏</span>
+                                <div className={`font-semibold ${unrealized >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                  {unrealized >= 0 ? '+' : ''}¥{Math.abs(unrealized).toFixed(0)}
+                                  <span className="text-xs ml-1">({unrealizedPct >= 0 ? '+' : ''}{unrealizedPct.toFixed(2)}%)</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* 第二行：总市值 / 仓位占比 */}
+                        {marketValueDisplay != null && (
                           <>
-                            <div>
-                              <span className="text-gray-500 text-xs">年红利</span>
-                              <div className="font-semibold text-red-600">¥{annualDiv.toFixed(2)}</div>
-                            </div>
-                            <div>
-                              <span className="text-gray-500 text-xs">月均</span>
-                              <div className="font-semibold text-red-600">¥{(annualDiv / 12).toFixed(2)}</div>
+                            {(annualDiv > 0 || unrealized != null) && (
+                              <div className="h-px bg-red-100 mx-2.5" />
+                            )}
+                            <div className="flex justify-around p-2.5">
+                              <div>
+                                <span className="text-gray-500 text-xs">总市值</span>
+                                <div className="font-semibold text-gray-700">
+                                  {stock.isHK ? 'HK$' : '¥'}{marketValueDisplay >= 10000 ? `${(marketValueDisplay / 10000).toFixed(2)}万` : marketValueDisplay.toFixed(0)}
+                                </div>
+                              </div>
+                              {positionPct != null && (
+                                <div>
+                                  <span className="text-gray-500 text-xs">仓位占比</span>
+                                  <div className="font-semibold text-gray-700">{positionPct.toFixed(1)}%</div>
+                                </div>
+                              )}
                             </div>
                           </>
-                        )}
-                        {unrealized != null && unrealizedPct != null && (
-                          <div>
-                            <span className="text-gray-500 text-xs">持仓盈亏</span>
-                            <div className={`font-semibold ${unrealized >= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                              {unrealized >= 0 ? '+' : ''}¥{Math.abs(unrealized).toFixed(0)}
-                              <span className="text-xs ml-1">({unrealizedPct >= 0 ? '+' : ''}{unrealizedPct.toFixed(2)}%)</span>
-                            </div>
-                          </div>
                         )}
                       </div>
                     )}
