@@ -3,6 +3,12 @@ import { cacheGet, cacheSet } from './cache'
 const TTL_HISTORY = 30 * 24 * 60 * 60 * 1000 // 30 days for past years
 const TTL_CURRENT  =      24 * 60 * 60 * 1000 // 1 day  for current year
 
+// 接口未能收录的历史分红，按支付年份手动补录
+const MANUAL_DIVIDEND_HISTORY: Record<string, Array<{ year: number; perShare: number }>> = {
+  // 云南白药 2024年中期分红，每10派10.19，登记日2025-09-24，东财接口未返回
+  '000538': [{ year: 2025, perShare: 1.019 }],
+}
+
 export interface DividendYearRecord {
   year: number
   perShare: number // 每股派息（税前，元）
@@ -107,6 +113,20 @@ export async function fetchDividendHistory(code: string, isHK = false): Promise<
     const history = isHK
       ? await fetchHKDividendHistory(code)
       : await fetchAShareDividendHistory(code)
+
+    // 补入手动记录（叠加到对应年份，不重新触发请求）
+    const manuals = MANUAL_DIVIDEND_HISTORY[code]
+    if (history && manuals) {
+      for (const m of manuals) {
+        const rec = history.records.find(r => r.year === m.year)
+        if (rec) {
+          rec.perShare = parseFloat((rec.perShare + m.perShare).toFixed(4))
+        } else {
+          history.records.push({ year: m.year, perShare: m.perShare })
+          history.records.sort((a, b) => b.year - a.year)
+        }
+      }
+    }
 
     if (history && history.records.length > 0) {
       const prevYear = new Date().getFullYear() - 1

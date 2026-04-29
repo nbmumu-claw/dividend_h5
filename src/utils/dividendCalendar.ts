@@ -10,6 +10,12 @@ export interface DividendEvent {
   status: 'confirmed' | 'estimated'
 }
 
+// 接口未能返回的已知分红事件，手动补录
+const MANUAL_DIVIDEND_EVENTS: DividendEvent[] = [
+  // 云南白药 2024年中期分红，每10派10.19，登记日2025-09-24
+  { code: '000538', name: '云南白药', recordDate: '2025-09-24', perShare: 1.019, status: 'confirmed' },
+]
+
 function ttlUntil4AM(): number {
   const next4AM = new Date()
   next4AM.setHours(4, 0, 0, 0)
@@ -233,6 +239,13 @@ export async function fetchCalendarEvents(
     const events = isHK
       ? await fetchHKCalendarEvents(code)
       : await fetchAShareCalendarEvents(code)
+
+    // 补入手动记录的事件（仅当该日期尚未存在时）
+    const manual = MANUAL_DIVIDEND_EVENTS.filter(m => m.code === code)
+    for (const m of manual) {
+      const exists = events.some(e => e.recordDate === m.recordDate)
+      if (!exists) events.push({ ...m, isHK })
+    }
 
     const withName = events.map(e => ({ ...e, name, isHK }))
     if (withName.length > 0) cacheSet(key, withName, ttlUntil4AM())
