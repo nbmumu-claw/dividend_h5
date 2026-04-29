@@ -5,8 +5,13 @@ const TTL_CURRENT  =      24 * 60 * 60 * 1000 // 1 day  for current year
 
 // 接口未能收录的历史分红，按支付年份手动补录
 const MANUAL_DIVIDEND_HISTORY: Record<string, Array<{ year: number; perShare: number }>> = {
-  // 云南白药 2024年中期分红，每10派10.19，登记日2025-09-24，东财接口未返回
-  '000538': [{ year: 2025, perShare: 1.019 }],
+  // 云南白药 中期分红，东财接口未返回
+  // 2023年中期（登记日2024-11-25，每10派12.13）
+  // 2024年中期（登记日2025-09-24，每10派10.19）
+  '000538': [
+    { year: 2024, perShare: 1.213 },
+    { year: 2025, perShare: 1.019 },
+  ],
 }
 
 export interface DividendYearRecord {

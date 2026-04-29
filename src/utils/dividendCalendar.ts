@@ -12,7 +12,8 @@ export interface DividendEvent {
 
 // 接口未能返回的已知分红事件，手动补录
 const MANUAL_DIVIDEND_EVENTS: DividendEvent[] = [
-  // 云南白药 2024年中期分红，每10派10.19，登记日2025-09-24
+  // 云南白药 中期分红，东财接口未收录
+  { code: '000538', name: '云南白药', recordDate: '2024-11-25', perShare: 1.213, status: 'confirmed' },
   { code: '000538', name: '云南白药', recordDate: '2025-09-24', perShare: 1.019, status: 'confirmed' },
 ]
 
