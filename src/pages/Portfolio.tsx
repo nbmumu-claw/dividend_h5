@@ -13,20 +13,21 @@ export default function Portfolio() {
   const navigate = useNavigate()
   const watchlist = useStore(s => s.watchlist)
   const exchangeRate = useStore(s => s.exchangeRate)
+  const usdRate = useStore(s => s.usdRate)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
   const [chartType, setChartType] = useState<'div' | 'cost'>('div')
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock'>('sector')
 
   useEffect(() => {
     if (!watchlist.length) return
-    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK }))
+    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
     fetchStockPrices(inputs, false).then(priceMap => {
       const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         updates[s.code] = {
           price: pd.price,
@@ -48,7 +49,7 @@ export default function Portfolio() {
     for (const s of holdings) nameCounts[s.name] = (nameCounts[s.name] || 0) + 1
     return holdings.map(s => ({
       stock: s,
-      displayName: nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : 'A'})` : s.name,
+      displayName: nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : s.isUS ? '美' : 'A'})` : s.name,
     }))
   }, [holdings])
 
@@ -60,15 +61,15 @@ export default function Portfolio() {
     holdings.forEach(s => {
       const shares = Number(s.shares) || 0
       const costPrice = Number(s.costPrice) || 0
-      const priceCny = s.isHK ? s.price * exchangeRate : s.price
-      const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+      const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
+      const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
       const annualDiv = afterTax(divCny * shares, s)
 
       totalAnnual += annualDiv
       totalMarket += priceCny * shares
       const hasCost = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== ''
       const costPriceCny = hasCost
-        ? (s.isHK ? costPrice * exchangeRate : costPrice)
+        ? (s.isHK ? costPrice * exchangeRate : s.isUS ? costPrice * usdRate : costPrice)
         : priceCny
       totalCost += costPriceCny * shares
     })
@@ -94,7 +95,7 @@ export default function Portfolio() {
       const bySector: Record<string, number> = {}
       const byStock = holdingsWithDisplay
         .map(({ stock: s, displayName }) => {
-          const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+          const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
           const ann = afterTax(divCny * Number(s.shares), s)
           const sector = (s.sector || '').trim()
           bySector[sector] = (bySector[sector] || 0) + ann
@@ -110,7 +111,7 @@ export default function Portfolio() {
       const byStock = holdingsWithDisplay
         .map(({ stock: s, displayName }) => {
           const shares = Number(s.shares) || 0
-          const priceCny = s.isHK ? s.price * exchangeRate : s.price
+          const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
           const market = priceCny * shares
           const sector = (s.sector || '').trim()
           bySector[sector] = (bySector[sector] || 0) + market

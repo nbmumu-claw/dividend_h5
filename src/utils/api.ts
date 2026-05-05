@@ -42,12 +42,11 @@ function parseTxBody(body: string): Record<string, { price: number; preClose: nu
 export interface StockInput {
   code: string
   isHK?: boolean
+  isUS?: boolean
 }
 
-export async function fetchStockPrices(stocks: StockInput[], forceRefresh = false): Promise<PriceMap> {
-  if (!stocks.length) return {}
-
-  const cacheKey = 'stockPrice:' + stocks.map(s => s.code).sort().join(',')
+async function fetchTxPrices(stocks: StockInput[], forceRefresh: boolean): Promise<PriceMap> {
+  const cacheKey = 'txPrice:' + stocks.map(s => s.code).sort().join(',')
   if (!forceRefresh) {
     const cached = cacheGet<PriceMap>(cacheKey)
     if (cached) return cached
@@ -74,7 +73,6 @@ export async function fetchStockPrices(stocks: StockInput[], forceRefresh = fals
       result[origCode] = { ...data, source: 'txzq' }
     }
 
-    // fill nulls for missing
     for (const s of stocks) {
       if (!(s.code in result)) result[s.code] = null
     }
@@ -86,13 +84,60 @@ export async function fetchStockPrices(stocks: StockInput[], forceRefresh = fals
   }
 }
 
+async function fetchYfPrices(stocks: StockInput[], forceRefresh: boolean): Promise<PriceMap> {
+  const cacheKey = 'yfPrice:' + stocks.map(s => s.code).sort().join(',')
+  if (!forceRefresh) {
+    const cached = cacheGet<PriceMap>(cacheKey)
+    if (cached) return cached
+  }
+
+  const result: PriceMap = {}
+  await Promise.all(stocks.map(async s => {
+    try {
+      const res = await fetch(`/api/stock-price-us?${new URLSearchParams({ symbol: s.code })}`)
+      const json = await res.json()
+      const meta = json?.chart?.result?.[0]?.meta
+      if (!meta?.regularMarketPrice) { result[s.code] = null; return }
+      const price = meta.regularMarketPrice as number
+      const preClose = (meta.chartPreviousClose ?? meta.previousClose ?? price) as number
+      result[s.code] = {
+        price,
+        preClose,
+        pctChg: preClose > 0 ? ((price - preClose) / preClose) * 100 : 0,
+        tradeDate: meta.regularMarketTime
+          ? new Date((meta.regularMarketTime as number) * 1000).toISOString().slice(0, 10).replace(/-/g, '')
+          : '',
+        source: 'yahoo',
+      }
+    } catch {
+      result[s.code] = null
+    }
+  }))
+
+  cacheSet(cacheKey, result, PRICE_TTL)
+  return result
+}
+
+export async function fetchStockPrices(stocks: StockInput[], forceRefresh = false): Promise<PriceMap> {
+  if (!stocks.length) return {}
+
+  const usStocks = stocks.filter(s => s.isUS)
+  const otherStocks = stocks.filter(s => !s.isUS)
+
+  const [txResult, yfResult] = await Promise.all([
+    otherStocks.length ? fetchTxPrices(otherStocks, forceRefresh) : Promise.resolve({}),
+    usStocks.length ? fetchYfPrices(usStocks, forceRefresh) : Promise.resolve({}),
+  ])
+
+  return { ...txResult, ...yfResult }
+}
+
 export async function fetchExchangeRate(forceRefresh = false): Promise<number> {
   const cacheKey = 'exchangeRate'
   if (!forceRefresh) {
     const cached = cacheGet<number>(cacheKey)
     if (cached) return cached
   }
-  // Use a CORS-friendly approach — try multiple sources
   try {
     const res = await fetch('https://api.exchangerate-api.com/v4/latest/HKD')
     const json = await res.json()
@@ -107,10 +152,31 @@ export async function fetchExchangeRate(forceRefresh = false): Promise<number> {
   return 0.88
 }
 
+export async function fetchUsdRate(forceRefresh = false): Promise<number> {
+  const cacheKey = 'usdRate'
+  if (!forceRefresh) {
+    const cached = cacheGet<number>(cacheKey)
+    if (cached) return cached
+  }
+  try {
+    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD')
+    const json = await res.json()
+    const rate = json?.rates?.CNY
+    if (rate && rate > 5.0 && rate < 10.0) {
+      cacheSet(cacheKey, rate, RATE_TTL)
+      return rate
+    }
+  } catch {
+    // fall through
+  }
+  return 7.25
+}
+
 export interface SearchResult {
   name: string
   code: string
   isHK: boolean
+  isUS?: boolean
 }
 
 // Local search against STATIC_STOCKS — always available, no network
@@ -176,7 +242,6 @@ function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResul
     if (!entry) continue
     const fields = entry.split('_')
     if (source === 'tencent') {
-      // tencent: name_code_marketcode or name^... format
       const name = fields[0]
       const rawCode = fields[1] || ''
       const marketCode = fields[2] || ''
@@ -188,7 +253,6 @@ function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResul
         isHK,
       })
     } else {
-      // sina: name,type,code,...
       const [name, type, code] = fields
       if (!name || !code) continue
       const isHK = type === '31'
@@ -201,13 +265,45 @@ function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResul
   return results
 }
 
+// US exchanges on Yahoo Finance
+const US_EXCHANGES = new Set(['NMS', 'NYQ', 'NGM', 'PCX', 'ASE', 'NasdaqGS', 'NASDAQ', 'NYSE', 'CBT', 'NYB'])
+
+// Yahoo Finance search for US stocks
+async function searchViaYahooUS(keyword: string): Promise<SearchResult[]> {
+  const res = await fetch(`/api/stock-search-us?q=${encodeURIComponent(keyword)}`)
+  const json = await res.json()
+  const quotes: Array<{
+    symbol?: string
+    shortname?: string
+    longname?: string
+    quoteType?: string
+    exchange?: string
+  }> = json?.quotes || []
+
+  return quotes
+    .filter(q =>
+      q.symbol &&
+      (q.quoteType === 'EQUITY' || q.quoteType === 'ETF') &&
+      !q.symbol.includes('=') &&
+      !q.symbol.includes('.') &&  // exclude AAPL.SW, AAPL.DE etc.
+      US_EXCHANGES.has(q.exchange || '')
+    )
+    .slice(0, 8)
+    .map(q => ({
+      name: q.shortname || q.longname || q.symbol!,
+      code: q.symbol!,
+      isHK: false,
+      isUS: true,
+    }))
+}
+
 // 纯数字代码搜索时，只保留代码包含关键词的结果
 function filterByCode(results: SearchResult[], keyword: string): SearchResult[] {
   if (!/^\d+$/.test(keyword)) return results
   return results.filter(r => r.code.startsWith(keyword) || r.name.includes(keyword))
 }
 
-// Three-level fallback: local → Tencent → EastMoney → Sina → direct price check
+// Three-level fallback: local → Tencent → EastMoney → Sina → Yahoo Finance (US) → direct price check
 export async function searchStocks(keyword: string, forceCloud = false): Promise<SearchResult[]> {
   if (!forceCloud) {
     const local = searchStocksLocal(keyword)
@@ -224,6 +320,11 @@ export async function searchStocks(keyword: string, forceCloud = false): Promise
   try {
     const sina = filterByCode(await searchViaSina(keyword), keyword)
     if (sina.length > 0) return sina
+  } catch { /* fall through */ }
+  // Try Yahoo Finance for US stocks
+  try {
+    const yf = await searchViaYahooUS(keyword)
+    if (yf.length > 0) return yf
   } catch { /* fall through */ }
   // 兜底：直接拉价格验证6位代码是否存在
   if (/^\d{5,6}$/.test(keyword)) {

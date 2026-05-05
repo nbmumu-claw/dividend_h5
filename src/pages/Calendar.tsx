@@ -51,6 +51,7 @@ export default function Calendar() {
   const navigate = useNavigate()
   const watchlist = useStore(s => s.watchlist)
   const exchangeRate = useStore(s => s.exchangeRate)
+  const usdRate = useStore(s => s.usdRate)
 
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -123,7 +124,7 @@ export default function Calendar() {
       if (!stock?.shares) continue
       const gross = e.perShare * stock.shares
       const net = afterTax(gross, stock)
-      const cny = e.isHK ? toCNY(net, exchangeRate) : net
+      const cny = e.isHK ? toCNY(net, exchangeRate) : e.isUS ? net * usdRate : net
       months[evMonth] += cny
     }
     return months
@@ -136,7 +137,7 @@ export default function Calendar() {
       if (!stock?.shares) return sum
       const gross = e.perShare * stock.shares
       const net = afterTax(gross, stock)
-      return sum + (e.isHK ? toCNY(net, exchangeRate) : net)
+      return sum + (e.isHK ? toCNY(net, exchangeRate) : e.isUS ? net * usdRate : net)
     }, 0)
   }, [monthEvents, watchlist, exchangeRate])
 
@@ -411,7 +412,7 @@ export default function Calendar() {
                       const hasShares = stock?.shares && stock.shares > 0
                       const grossTotal = hasShares ? e.perShare * stock!.shares! : 0
                       const netTotal = hasShares ? afterTax(grossTotal, stock!) : 0
-                      const netCNY = hasShares ? (e.isHK ? toCNY(netTotal, exchangeRate) : netTotal) : 0
+                      const netCNY = hasShares ? (e.isHK ? toCNY(netTotal, exchangeRate) : e.isUS ? netTotal * usdRate : netTotal) : 0
 
                       return (
                         <div key={`${e.code}-${e.recordDate}`} className="flex items-start gap-3">
@@ -440,7 +441,7 @@ export default function Calendar() {
                             <div className="text-xs text-gray-400 mt-0.5">
                               {privacyMode
                                 ? `每股 ****`
-                                : `每股 ${e.isHK ? 'HK$' : '¥'}${e.perShare.toFixed(3)}`
+                                : `每股 ${e.isHK ? 'HK$' : e.isUS ? '$' : '¥'}${e.perShare.toFixed(3)}`
                               }
                               {hasShares && (
                                 <span className="ml-1">× {stock!.shares}股</span>

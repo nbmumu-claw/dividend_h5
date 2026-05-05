@@ -45,6 +45,7 @@ function buildAchievements(annualDiv: number, monthlyIncome: number, yieldRate: 
 export default function Settings() {
   const watchlist = useStore(s => s.watchlist)
   const exchangeRate = useStore(s => s.exchangeRate)
+  const usdRate = useStore(s => s.usdRate)
   const setWatchlist = useStore(s => s.setWatchlist)
   const importBackup = useStore(s => s.importBackup)
   const agreementAccepted = useStore(s => s.agreementAccepted)
@@ -60,12 +61,12 @@ export default function Settings() {
   const stats = (() => {
     const withHoldings = watchlist.filter(s => s.shares && s.shares > 0)
     const totalAnnual = withHoldings.reduce((sum, s) => {
-      const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+      const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
       return sum + afterTax(divCny * Number(s.shares), s)
     }, 0)
     const overallYield = (() => {
       const totalCost = withHoldings.reduce((sum, s) => {
-        const cost = Number(s.costPrice) || (s.isHK ? s.price * exchangeRate : s.price)
+        const cost = Number(s.costPrice) || (s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price)
         return sum + cost * Number(s.shares)
       }, 0)
       return totalCost > 0 ? (totalAnnual / totalCost) * 100 : 0

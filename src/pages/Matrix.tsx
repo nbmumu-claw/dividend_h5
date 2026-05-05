@@ -16,6 +16,8 @@ export default function Matrix() {
   const dividend = parseFloat(params.get('dividend') || '0')
   const currentPrice = parseFloat(params.get('price') || '0')
   const isHK = params.get('isHK') === 'true'
+  const isUS = params.get('isUS') === 'true'
+  const currencySymbol = isHK ? 'HK$' : isUS ? '$' : '¥'
 
   const rows = useMemo(() => {
     return YIELD_RATES.map(rate => {
@@ -45,14 +47,14 @@ export default function Matrix() {
     if (!code) return
     setHistoryLoading(true)
     Promise.all([
-      fetchDividendHistory(code, isHK),
-      isHK ? Promise.resolve(null) : fetchListingYear(code),
+      fetchDividendHistory(code, isHK, isUS),
+      (isHK || isUS) ? Promise.resolve(null) : fetchListingYear(code),
     ]).then(([h, y]) => {
       setDivHistory(h)
       setListingYear(y)
       setHistoryLoading(false)
     })
-  }, [code, isHK])
+  }, [code, isHK, isUS])
 
   const avgDps = useMemo(() => {
     if (!divHistory?.consecutiveYears) return 0
@@ -72,7 +74,7 @@ export default function Matrix() {
         </button>
         <div className="absolute inset-x-0 text-center pointer-events-none">
           <h1 className="text-base font-bold text-gray-900">{name} 决策矩阵</h1>
-          <p className="text-xs text-gray-400">代码 {code} · 每股红利 {isHK ? 'HK$' : '¥'}{dividend}</p>
+          <p className="text-xs text-gray-400">代码 {code} · 每股红利 {currencySymbol}{dividend}</p>
         </div>
       </div>
 
@@ -81,7 +83,7 @@ export default function Matrix() {
         <div className="card p-4 mb-4">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <div className="text-lg font-bold text-gray-900">{isHK ? 'HK$' : '¥'}{currentPrice.toFixed(2)}</div>
+              <div className="text-lg font-bold text-gray-900">{currencySymbol}{currentPrice.toFixed(2)}</div>
               <div className="text-xs text-gray-400">当前价格</div>
             </div>
             <div>
@@ -89,7 +91,7 @@ export default function Matrix() {
               <div className="text-xs text-gray-400">当前股息率</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-gray-900">{isHK ? 'HK$' : '¥'}{dividend}</div>
+              <div className="text-lg font-bold text-gray-900">{currencySymbol}{dividend}</div>
               <div className="text-xs text-gray-400">每股红利</div>
             </div>
           </div>
@@ -125,7 +127,7 @@ export default function Matrix() {
                         {row.rate.toFixed(1)}%
                       </div>
                       <div style={{ fontSize: 10, color: isCurrent ? 'rgba(255,255,255,.75)' : '#999', margin: '3px 0 2px' }}>
-                        ¥{row.targetPrice.toFixed(2)}
+                        {currencySymbol}{row.targetPrice.toFixed(2)}
                       </div>
                       <div style={{
                         fontSize: isCurrent ? 9 : 10, fontWeight: 700,
@@ -168,7 +170,7 @@ export default function Matrix() {
             <div className="mb-3">
               <div className="text-sm font-semibold text-gray-800">历史分红</div>
               <div className="text-xs text-gray-400 mt-0.5">
-                {isHK ? '近10年历史派息记录（HKD，税前）' : '仅展示近10年已实施分配记录，每股派息为税前金额'}
+                {isHK ? '近10年历史派息记录（HKD，税前）' : isUS ? '近10年历史派息记录（USD，税前）' : '仅展示近10年已实施分配记录，每股派息为税前金额'}
               </div>
             </div>
             {historyLoading ? (
@@ -189,7 +191,7 @@ export default function Matrix() {
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-gray-900">{isHK ? 'HK$' : '¥'}{avgDps.toFixed(3)}</div>
+                    <div className="text-xl font-bold text-gray-900">{currencySymbol}{avgDps.toFixed(3)}</div>
                     <div className="text-xs text-gray-400 mt-0.5">近{divHistory.consecutiveYears}年均每股派息</div>
                   </div>
                 </div>
@@ -212,7 +214,7 @@ export default function Matrix() {
                       return (
                         <tr key={r.year} className="border-b border-gray-50 last:border-0">
                           <td className="py-2 text-gray-700">{r.year}</td>
-                          <td className="py-2 text-right font-semibold text-gray-900">{isHK ? 'HK$' : '¥'}{r.perShare.toFixed(3)}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">{currencySymbol}{r.perShare.toFixed(3)}</td>
                           <td className="py-2 text-right text-xs">
                             {yoy === null ? (
                               <span className="text-gray-300">—</span>

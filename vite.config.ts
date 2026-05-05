@@ -1,11 +1,40 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const YF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+}
+
+function addYfHeaders() {
+  return {
+    configure: (proxy: import('http').Server) => {
+      (proxy as any).on('proxyReq', (proxyReq: import('http').ClientRequest) => {
+        for (const [k, v] of Object.entries(YF_HEADERS)) {
+          proxyReq.setHeader(k, v)
+        }
+      })
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
     proxy: {
+      // More specific routes first — Vite uses prefix matching
+      '/api/stock-price-us': {
+        target: 'https://query1.finance.yahoo.com',
+        changeOrigin: true,
+        ...addYfHeaders(),
+        rewrite: (path) => {
+          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+          const symbol = new URLSearchParams(qs).get('symbol') || ''
+          return `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
+        },
+      },
       '/api/stock-price': {
         target: 'https://qt.gtimg.cn',
         changeOrigin: true,
@@ -25,6 +54,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace('/api/stock-search-em', '/api/suggest/get'),
       },
+      '/api/stock-search-us': {
+        target: 'https://query2.finance.yahoo.com',
+        changeOrigin: true,
+        ...addYfHeaders(),
+        rewrite: (path) => {
+          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+          const q = new URLSearchParams(qs).get('q') || ''
+          return `/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`
+        },
+      },
       '/api/stock-search': {
         target: 'https://suggest3.sinajs.cn',
         changeOrigin: true,
@@ -43,6 +82,7 @@ export default defineConfig({
       '/api/hk-dividend': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,
+        ...addYfHeaders(),
         rewrite: (path) => {
           const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
           const ticker = new URLSearchParams(qs).get('ticker') || ''

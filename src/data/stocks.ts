@@ -1,6 +1,6 @@
 import type { Stock } from '../types'
 
-export const DEFAULT_SECTORS = ['电力', '银行', '保险', '白酒', '通讯', '白色家电', '中药', '运输', '能源', '红利ETF', '其他']
+export const DEFAULT_SECTORS = ['电力', '银行', '保险', '白酒', '通讯', '白色家电', '中药', '运输', '能源', '红利ETF', '美股', '其他']
 
 export const STATIC_STOCKS: Stock[] = [
   { sector: '电力', name: '中国广核', code: '003816', price: 4.48, dividendPerShare: 0.086, yieldRate: 1.92, confirmed: true, targetYield: 4.0, targetPrice: 2.15, price2026: 3.77, change2026: 18.83 },

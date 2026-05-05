@@ -47,6 +47,7 @@ export default function Discovery() {
   const staticEdits = useStore(s => s.staticEdits)
   const hiddenStocks = useStore(s => s.hiddenStocks)
   const exchangeRate = useStore(s => s.exchangeRate)
+  const usdRate = useStore(s => s.usdRate)
   const addToWatchlist = useStore(s => s.addToWatchlist)
   const removeFromWatchlist = useStore(s => s.removeFromWatchlist)
   const addManualStock = useStore(s => s.addManualStock)
@@ -93,7 +94,7 @@ export default function Discovery() {
   const dragActions = useRef<HTMLElement | null>(null)
   const dragLocked = useRef<'h' | 'v' | null>(null)
 
-  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, isETF: false, confirmed: false })
+  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: false, confirmed: false })
   const [formErrors, setFormErrors] = useState<{ name?: boolean; code?: boolean; price?: boolean; dividendPerShare?: boolean }>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -118,13 +119,13 @@ export default function Discovery() {
   // 首次加载静默拉价格（含涨跌）
   useEffect(() => {
     if (!displayStocks.length) return
-    const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK }))
+    const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
     fetchStockPrices(stockInputs, false).then(priceMap => {
       displayStocks.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         const yieldRate = rawYield > 30 ? s.yieldRate : rawYield
         const patch = { price: pd.price, pctChg: pd.pctChg, yieldRate }
@@ -137,14 +138,14 @@ export default function Discovery() {
   const handleRefresh = async () => {
     setLoading(true)
     try {
-      const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK }))
+      const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
       const priceMap = await fetchStockPrices(stockInputs, true)
       const updated = displayStocks.map(s => {
         const pd = priceMap[s.code]
         if (!pd) return s
         const price = pd.price
-        const priceCny = s.isHK ? price * exchangeRate : price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const priceCny = s.isHK ? price * exchangeRate : s.isUS ? price * usdRate : price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         return { ...s, price, priceCny, yieldRate: rawYield > 30 ? s.yieldRate : rawYield, pctChg: pd.pctChg }
       })
@@ -173,7 +174,7 @@ export default function Discovery() {
 
   const openAddForm = () => {
     const sector = activeSector || customSectors[0] || ''
-    setForm({ name: '', code: '', sector, price: '', dividendPerShare: '', isHK: false, isETF: sector === '红利ETF', confirmed: false })
+    setForm({ name: '', code: '', sector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: sector === '红利ETF', confirmed: false })
     setEditStock(null)
     setShowAdd(true)
   }
@@ -187,6 +188,7 @@ export default function Discovery() {
       price: String(stock.price),
       dividendPerShare: String(stock.dividendPerShare),
       isHK: stock.isHK || false,
+      isUS: stock.isUS || false,
       isETF: stock.isETF || false,
       confirmed: stock.confirmed,
     })
@@ -214,12 +216,12 @@ export default function Discovery() {
   }
 
   const selectSearchResult = (r: SearchResult) => {
-    setForm(f => ({ ...f, name: r.name, code: r.code, isHK: r.isHK, price: '', dividendPerShare: '' }))
+    setForm(f => ({ ...f, name: r.name, code: r.code, isHK: r.isHK, isUS: r.isUS || false, price: '', dividendPerShare: '' }))
     setSearchQuery('')
     setSearchResults([])
 
     // fetch live price
-    fetchStockPrices([{ code: r.code, isHK: r.isHK }], true).then(priceMap => {
+    fetchStockPrices([{ code: r.code, isHK: r.isHK, isUS: r.isUS }], true).then(priceMap => {
       const pd = priceMap[r.code]
       if (pd?.price) {
         setForm(f => ({ ...f, price: String(pd.price) }))
@@ -241,21 +243,25 @@ export default function Discovery() {
       return
     }
     setFormErrors({})
-    const priceCny = form.isHK ? price * exchangeRate : price
-    const divCny = form.isHK ? div * exchangeRate : div
+    const priceCny = form.isHK ? price * exchangeRate : form.isUS ? price * usdRate : price
+    const divCny = form.isHK ? div * exchangeRate : form.isUS ? div * usdRate : div
     const yieldRate = priceCny > 0 ? (divCny / priceCny) * 100 : 0
-    const code = form.isHK ? form.code.replace(/^0+/, '').padStart(4, '0') : form.code.padStart(6, '0')
+    const code = form.isHK
+      ? form.code.replace(/^0+/, '').padStart(4, '0')
+      : form.isUS
+        ? form.code.toUpperCase()
+        : form.code.padStart(6, '0')
 
     if (editStock) {
       const isManualStock = manualStocks.find(m => m.code === editStock.code)
       if (isManualStock) {
-        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, isETF: form.isETF, yieldRate, confirmed: form.confirmed })
+        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, isUS: form.isUS, isETF: form.isETF, yieldRate, confirmed: form.confirmed })
       } else {
         updateStaticEdit(editStock.code, { name: form.name, price, dividendPerShare: div, yieldRate, sector: form.sector, isETF: form.isETF, confirmed: form.confirmed })
       }
       showToast('已保存')
     } else {
-      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: form.confirmed, isHK: form.isHK, isETF: form.isETF, isManual: true })
+      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: form.confirmed, isHK: form.isHK, isUS: form.isUS, isETF: form.isETF, isManual: true })
       showToast('已添加')
     }
     setShowAdd(false)
@@ -410,10 +416,11 @@ export default function Discovery() {
                         {isManual && !stock.isETF && <span className="tag tag-gray">手动</span>}
                         {stock.isETF && <span className="tag tag-blue">ETF</span>}
                         {stock.isHK && <span className="tag tag-yellow">港股</span>}
+                        {stock.isUS && <span className="tag tag-blue">美股</span>}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{stock.code}</span>
-                        <span>{stock.isETF ? '每份红利' : '每股红利'} ¥{stock.dividendPerShare.toFixed(3)}</span>
+                        <span>{stock.isETF ? '每份红利' : '每股红利'} {stock.isUS ? '$' : '¥'}{stock.dividendPerShare.toFixed(3)}</span>
                         {stock.pctChg != null && (
                           <span className={stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}>
                             {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
@@ -423,8 +430,9 @@ export default function Discovery() {
                     </div>
                     <div className="flex flex-col items-end gap-1 ml-3">
                       <span className="text-sm font-semibold text-gray-900">
-                        ¥{stock.isHK ? stock.price.toFixed(3) : stock.price.toFixed(2)}
+                        {stock.isUS ? '$' : '¥'}{stock.isHK ? stock.price.toFixed(3) : stock.price.toFixed(2)}
                         {stock.isHK && <span className="text-xs text-gray-400 ml-1">HKD</span>}
+                        {stock.isUS && <span className="text-xs text-gray-400 ml-1">USD</span>}
                       </span>
                       <YieldBadge rate={stock.yieldRate} />
                     </div>
@@ -476,6 +484,7 @@ export default function Discovery() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-400">{r.code}</span>
                         {r.isHK && <span className="tag tag-yellow">港股</span>}
+                        {r.isUS && <span className="tag tag-blue">美股</span>}
                       </div>
                     </button>
                   ))}
@@ -512,8 +521,12 @@ export default function Discovery() {
             </select>
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="isHK" checked={form.isHK} onChange={e => setForm(f => ({ ...f, isHK: e.target.checked }))} />
+            <input type="checkbox" id="isHK" checked={form.isHK} onChange={e => setForm(f => ({ ...f, isHK: e.target.checked, isUS: e.target.checked ? false : f.isUS }))} />
             <label htmlFor="isHK" className="text-sm text-gray-700">港股（价格单位：HKD）</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="isUS" checked={form.isUS} onChange={e => setForm(f => ({ ...f, isUS: e.target.checked, isHK: e.target.checked ? false : f.isHK }))} />
+            <label htmlFor="isUS" className="text-sm text-gray-700">美股（价格单位：USD）</label>
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="isETF" checked={form.isETF} onChange={e => setForm(f => ({ ...f, isETF: e.target.checked }))} />
@@ -530,8 +543,8 @@ export default function Discovery() {
                 {(() => {
                   const p = parseFloat(form.price)
                   const d = parseFloat(form.dividendPerShare)
-                  const pCny = form.isHK ? p * exchangeRate : p
-                  const dCny = form.isHK ? d * exchangeRate : d
+                  const pCny = form.isHK ? p * exchangeRate : form.isUS ? p * usdRate : p
+                  const dCny = form.isHK ? d * exchangeRate : form.isUS ? d * usdRate : d
                   return pCny > 0 ? ((dCny / pCny) * 100).toFixed(2) + '%' : '-'
                 })()}
               </span>

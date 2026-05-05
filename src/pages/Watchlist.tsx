@@ -66,6 +66,7 @@ export default function Watchlist() {
   const watchlist = useStore(s => s.watchlist)
   const customSectors = useStore(s => s.customSectors)
   const exchangeRate = useStore(s => s.exchangeRate)
+  const usdRate = useStore(s => s.usdRate)
   const removeFromWatchlist = useStore(s => s.removeFromWatchlist)
   const updateWatchlistStock = useStore(s => s.updateWatchlistStock)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
@@ -95,14 +96,14 @@ export default function Watchlist() {
   // 首次加载静默拉价格
   useEffect(() => {
     if (!watchlist.length) { setPricesLoaded(true); return }
-    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK }))
+    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
     fetchStockPrices(inputs, false).then(priceMap => {
       const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         updates[s.code] = {
           price: pd.price,
@@ -142,14 +143,14 @@ export default function Watchlist() {
     if (!watchlist.length) return
     setLoading(true)
     try {
-      const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK }))
+      const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
       const priceMap = await fetchStockPrices(inputs, true)
       const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.dividendPerShare
+        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
+        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         updates[s.code] = {
           price: pd.price,
@@ -172,7 +173,7 @@ export default function Watchlist() {
   const getAnnualDividend = (stock: WatchlistStock): number => {
     const shares = Number(stock.shares) || 0
     if (!shares) return 0
-    const divCny = stock.isHK ? stock.dividendPerShare * exchangeRate : stock.dividendPerShare
+    const divCny = stock.isHK ? stock.dividendPerShare * exchangeRate : stock.isUS ? stock.dividendPerShare * usdRate : stock.dividendPerShare
     return afterTax(divCny * shares, stock)
   }
 
@@ -186,7 +187,7 @@ export default function Watchlist() {
       const getCostCny = (s: WatchlistStock) => {
         const cost = Number(s.costPrice)
         if (!cost) return null
-        return s.isHK ? cost * exchangeRate : cost
+        return s.isHK ? cost * exchangeRate : s.isUS ? cost * usdRate : cost
       }
       const costA = getCostCny(a), costB = getCostCny(b)
       const negA = costA !== null && costA < 0
@@ -200,8 +201,8 @@ export default function Watchlist() {
       if (costA === null) return 1
       if (costB === null) return -1
       // 正成本按盈亏%降序
-      const priceCnyA = a.isHK ? a.price * exchangeRate : a.price
-      const priceCnyB = b.isHK ? b.price * exchangeRate : b.price
+      const priceCnyA = a.isHK ? a.price * exchangeRate : a.isUS ? a.price * usdRate : a.price
+      const priceCnyB = b.isHK ? b.price * exchangeRate : b.isUS ? b.price * usdRate : b.price
       const pnlA = (priceCnyA - costA) / costA * 100
       const pnlB = (priceCnyB - costB) / costB * 100
       return pnlB - pnlA
@@ -214,7 +215,7 @@ export default function Watchlist() {
 
   // 总市值用全部自选（不随板块筛选变化）
   const totalMarketValue = watchlist.reduce((sum, s) => {
-    const pCny = s.isHK ? s.price * exchangeRate : s.price
+    const pCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
     const sh = Number(s.shares) || 0
     return sum + (pCny > 0 && sh > 0 ? pCny * sh : 0)
   }, 0)
@@ -320,9 +321,9 @@ export default function Watchlist() {
           <div className="space-y-3">
             {sortedFiltered.map(stock => {
               const annualDiv = getAnnualDividend(stock)
-              const priceCny = stock.isHK ? stock.price * exchangeRate : stock.price
+              const priceCny = stock.isHK ? stock.price * exchangeRate : stock.isUS ? stock.price * usdRate : stock.price
               const costPriceCny = stock.costPrice && Number(stock.costPrice) > 0
-                ? (stock.isHK ? Number(stock.costPrice) * exchangeRate : Number(stock.costPrice))
+                ? (stock.isHK ? Number(stock.costPrice) * exchangeRate : stock.isUS ? Number(stock.costPrice) * usdRate : Number(stock.costPrice))
                 : null
               const shares = Number(stock.shares) || 0
               const unrealized = costPriceCny && shares ? (priceCny - costPriceCny) * shares : null
@@ -344,16 +345,19 @@ export default function Watchlist() {
                           <span className="text-xs text-gray-400">{stock.code}</span>
                           {stock.isETF && <span className="tag tag-blue">ETF</span>}
                           {stock.isHK && <span className="tag tag-yellow">港股</span>}
+                          {stock.isUS && <span className="tag tag-blue">美股</span>}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          {stock.isETF ? '每份红利' : '每股红利'} ¥{stock.dividendPerShare.toFixed(3)}
+                          {stock.isETF ? '每份红利' : '每股红利'} {stock.isUS ? '$' : '¥'}{stock.dividendPerShare.toFixed(3)}
                           {stock.isHK && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * exchangeRate).toFixed(3)} CNY)</span>}
+                          {stock.isUS && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * usdRate).toFixed(3)} CNY)</span>}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="font-semibold text-gray-900">
-                          ¥{stock.price.toFixed(2)}
+                          {stock.isUS ? '$' : '¥'}{stock.price.toFixed(2)}
                           {stock.isHK && <span className="text-xs text-gray-400 ml-1">HKD</span>}
+                          {stock.isUS && <span className="text-xs text-gray-400 ml-1">USD</span>}
                         </div>
                         {stock.pctChg != null && (
                           <div className={`text-xs ${stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}`}>
@@ -383,7 +387,7 @@ export default function Watchlist() {
                             ))}
                           </div>
                         )}
-                        {!stock.isHK && <span className="tag tag-green">免税</span>}
+                        {!stock.isHK && !stock.isUS && <span className="tag tag-green">免税</span>}
                       </div>
                       {costYield != null && (
                         <div className="flex items-center gap-1 text-xs">
@@ -468,7 +472,7 @@ export default function Watchlist() {
                               <div>
                                 <span className="text-gray-500 text-xs">总市值</span>
                                 <div className="font-semibold text-gray-700">
-                                  {stock.isHK ? 'HK$' : '¥'}{marketValueDisplay >= 10000 ? `${(marketValueDisplay / 10000).toFixed(2)}万` : marketValueDisplay.toFixed(0)}
+                                  {stock.isHK ? 'HK$' : stock.isUS ? '$' : '¥'}{marketValueDisplay >= 10000 ? `${(marketValueDisplay / 10000).toFixed(2)}万` : marketValueDisplay.toFixed(0)}
                                 </div>
                               </div>
                               {positionPct != null && (
@@ -488,7 +492,7 @@ export default function Watchlist() {
                   <div className="flex border-t border-gray-50">
                     <button
                       className="flex-1 py-2.5 text-xs text-gray-500 flex items-center justify-center gap-1"
-                      onClick={() => navigate(`/matrix?code=${stock.code}&name=${stock.name}&dividend=${stock.dividendPerShare}&price=${stock.price.toFixed(2)}&isHK=${stock.isHK || false}`)}
+                      onClick={() => navigate(`/matrix?code=${stock.code}&name=${stock.name}&dividend=${stock.dividendPerShare}&price=${stock.price.toFixed(2)}&isHK=${stock.isHK || false}&isUS=${stock.isUS || false}`)}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                         <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" strokeLinecap="round"/>

@@ -4,6 +4,7 @@ export interface DividendEvent {
   code: string
   name: string
   isHK?: boolean
+  isUS?: boolean
   recordDate: string   // YYYY-MM-DD
   exDate?: string      // YYYY-MM-DD
   perShare: number     // 税前

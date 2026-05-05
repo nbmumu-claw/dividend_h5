@@ -109,7 +109,23 @@ function buildHistory(byYear: Record<number, number>): DividendHistory {
   return { records, consecutiveYears }
 }
 
-export async function fetchDividendHistory(code: string, isHK = false): Promise<DividendHistory | null> {
+async function fetchUSDividendHistory(code: string): Promise<DividendHistory | null> {
+  const res = await fetch(`/api/hk-dividend?ticker=${encodeURIComponent(code)}`)
+  const json = await res.json()
+
+  const divs: Record<string, { date: number; amount: number }> =
+    json?.chart?.result?.[0]?.events?.dividends || {}
+
+  const byYear: Record<number, number> = {}
+  for (const v of Object.values(divs)) {
+    const year = new Date(v.date * 1000).getFullYear()
+    byYear[year] = parseFloat(((byYear[year] || 0) + v.amount).toFixed(4))
+  }
+
+  return buildHistory(byYear)
+}
+
+export async function fetchDividendHistory(code: string, isHK = false, isUS = false): Promise<DividendHistory | null> {
   const key = `dividendHistory:${code}`
   const cached = cacheGet<DividendHistory>(key)
   if (cached) return cached
@@ -117,7 +133,9 @@ export async function fetchDividendHistory(code: string, isHK = false): Promise<
   try {
     const history = isHK
       ? await fetchHKDividendHistory(code)
-      : await fetchAShareDividendHistory(code)
+      : isUS
+        ? await fetchUSDividendHistory(code)
+        : await fetchAShareDividendHistory(code)
 
     // 补入手动记录（叠加到对应年份，不重新触发请求）
     const manuals = MANUAL_DIVIDEND_HISTORY[code]

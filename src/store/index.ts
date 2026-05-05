@@ -31,6 +31,8 @@ interface AppState {
   // Settings
   exchangeRate: number
   setExchangeRate: (rate: number) => void
+  usdRate: number
+  setUsdRate: (rate: number) => void
   agreementAccepted: boolean
   setAgreementAccepted: (v: boolean) => void
 
@@ -120,6 +122,8 @@ export const useStore = create<AppState>()(
       // Settings
       exchangeRate: 0.88,
       setExchangeRate: (rate) => set({ exchangeRate: rate }),
+      usdRate: 7.25,
+      setUsdRate: (rate) => set({ usdRate: rate }),
       agreementAccepted: false,
       setAgreementAccepted: (v) => set({ agreementAccepted: v }),
 
@@ -147,7 +151,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 2,
+      version: 3,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[] }
         if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
@@ -155,6 +159,13 @@ export const useStore = create<AppState>()(
           const othersIdx = sectors.indexOf('其他')
           if (othersIdx >= 0) sectors.splice(othersIdx, 0, '红利ETF')
           else sectors.push('红利ETF')
+          s.customSectors = sectors
+        }
+        if (s?.customSectors && !s.customSectors.includes('美股')) {
+          const sectors = [...s.customSectors]
+          const othersIdx = sectors.indexOf('其他')
+          if (othersIdx >= 0) sectors.splice(othersIdx, 0, '美股')
+          else sectors.push('美股')
           s.customSectors = sectors
         }
         return s
