@@ -23,6 +23,7 @@ export interface WatchlistStock extends Stock {
   shares?: number
   costPrice?: string
   taxType?: 'h' | 'n' | 'a'
+  marketCap?: number
 }
 
 export interface PriceData {
@@ -31,6 +32,7 @@ export interface PriceData {
   pctChg?: number
   tradeDate?: string
   source?: string
+  marketCap?: number
 }
 
 export interface PriceMap {

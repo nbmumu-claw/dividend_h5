@@ -74,6 +74,17 @@ export default defineConfig({
           return `/suggest/type=11,12,13,14,15,31&key=${encodeURIComponent(key)}&_=${Date.now()}`
         },
       },
+      '/api/company-nature': {
+        target: 'https://emweb.securities.eastmoney.com',
+        changeOrigin: true,
+        rewrite: (path) => {
+          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+          const code = new URLSearchParams(qs).get('code') || ''
+          const padded = code.padStart(6, '0')
+          const prefix = padded[0] === '6' ? 'SH' : 'SZ'
+          return `/PC_HSF10/ShareholderResearch/PageAjax?code=${prefix}${padded}`
+        },
+      },
       '/api/dividend-history': {
         target: 'https://datacenter-web.eastmoney.com',
         changeOrigin: true,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { fetchStockPrices } from '../utils/api'
+import { fetchStockPrices, fetchOwnerType } from '../utils/api'
 import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
 import type { WatchlistStock } from '../types'
@@ -81,6 +81,7 @@ export default function Watchlist() {
   const [pricesLoaded, setPricesLoaded] = useState(() => watchlist.every(s => s.price > 0))
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('default')
+  const [ownerTypes, setOwnerTypes] = useState<Record<string, string>>({})
   const { message, showToast } = useToast()
   const navigate = useNavigate()
 
@@ -109,11 +110,20 @@ export default function Watchlist() {
           price: pd.price,
           pctChg: pd.pctChg,
           yieldRate: rawYield > 30 ? s.yieldRate : rawYield,
+          ...(pd.marketCap ? { marketCap: pd.marketCap } : {}),
         }
       })
       if (Object.keys(updates).length) batchUpdateWatchlist(updates)
       setPricesLoaded(true)
     }).catch(() => setPricesLoaded(true))
+  }, [])
+
+  // 首次加载企业性质（仅A股非ETF）
+  useEffect(() => {
+    const aShares = watchlist.filter(s => !s.isHK && !s.isUS && !s.isETF)
+    if (!aShares.length) return
+    Promise.all(aShares.map(s => fetchOwnerType(s.code).then(t => [s.code, t] as [string, string])))
+      .then(results => setOwnerTypes(Object.fromEntries(results)))
   }, [])
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -157,6 +167,7 @@ export default function Watchlist() {
           priceCny,
           yieldRate: rawYield > 30 ? s.yieldRate : rawYield,
           pctChg: pd.pctChg,
+          ...(pd.marketCap ? { marketCap: pd.marketCap } : {}),
         }
       })
       if (Object.keys(updates).length) batchUpdateWatchlist(updates)
@@ -346,6 +357,11 @@ export default function Watchlist() {
                           {stock.isETF && <span className="tag tag-blue">ETF</span>}
                           {stock.isHK && <span className="tag tag-yellow">港股</span>}
                           {stock.isUS && <span className="tag tag-blue">美股</span>}
+                          {!stock.isHK && !stock.isUS && !stock.isETF && ownerTypes[stock.code] && ownerTypes[stock.code] !== '未知' && (
+                            <span className={`tag ${ownerTypes[stock.code] === '央企' ? 'tag-blue' : ownerTypes[stock.code] === '地方国企' ? 'tag-yellow' : 'tag-gray'}`}>
+                              {ownerTypes[stock.code]}
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
                           {stock.isETF ? '每份红利' : '每股红利'} {stock.isUS ? '$' : '¥'}{stock.dividendPerShare.toFixed(3)}
@@ -434,25 +450,25 @@ export default function Watchlist() {
                       </div>
                     </div>
 
-                    {(annualDiv > 0 || unrealized != null || marketValueDisplay != null) && (
+                    {(annualDiv > 0 || unrealized != null || marketValueDisplay != null || stock.marketCap) && (
                       <div className="mt-3 bg-red-50 rounded-lg overflow-hidden text-sm">
                         {/* 第一行：红利 / 盈亏 */}
                         {(annualDiv > 0 || unrealized != null) && (
-                          <div className="flex justify-around p-2.5">
+                          <div className="flex justify-center gap-6 p-2.5">
                             {annualDiv > 0 && (
                               <>
-                                <div>
+                                <div className="text-center">
                                   <span className="text-gray-500 text-xs">年红利</span>
                                   <div className="font-semibold text-red-600">¥{annualDiv.toFixed(2)}</div>
                                 </div>
-                                <div>
+                                <div className="text-center">
                                   <span className="text-gray-500 text-xs">月均</span>
                                   <div className="font-semibold text-red-600">¥{(annualDiv / 12).toFixed(2)}</div>
                                 </div>
                               </>
                             )}
                             {unrealized != null && unrealizedPct != null && (
-                              <div>
+                              <div className="text-center">
                                 <span className="text-gray-500 text-xs">持仓盈亏</span>
                                 <div className={`font-semibold ${unrealized >= 0 ? 'text-red-500' : 'text-green-600'}`}>
                                   {unrealized >= 0 ? '+' : ''}¥{Math.abs(unrealized).toFixed(0)}
@@ -462,23 +478,33 @@ export default function Watchlist() {
                             )}
                           </div>
                         )}
-                        {/* 第二行：总市值 / 仓位占比 */}
-                        {marketValueDisplay != null && (
+                        {/* 第二行：持有市值 / 仓位占比 / 公司总市值 */}
+                        {(marketValueDisplay != null || stock.marketCap) && (
                           <>
                             {(annualDiv > 0 || unrealized != null) && (
                               <div className="h-px bg-red-100 mx-2.5" />
                             )}
-                            <div className="flex justify-around p-2.5">
-                              <div>
-                                <span className="text-gray-500 text-xs">总市值</span>
-                                <div className="font-semibold text-gray-700">
-                                  {stock.isHK ? 'HK$' : stock.isUS ? '$' : '¥'}{marketValueDisplay >= 10000 ? `${(marketValueDisplay / 10000).toFixed(2)}万` : marketValueDisplay.toFixed(0)}
+                            <div className="flex justify-center gap-6 p-2.5">
+                              {marketValueDisplay != null && (
+                                <div className="text-center">
+                                  <span className="text-gray-500 text-xs">持有市值</span>
+                                  <div className="font-semibold text-gray-700">
+                                    {stock.isHK ? 'HK$' : stock.isUS ? '$' : '¥'}{marketValueDisplay >= 10000 ? `${(marketValueDisplay / 10000).toFixed(2)}万` : marketValueDisplay.toFixed(0)}
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                               {positionPct != null && (
-                                <div>
+                                <div className="text-center">
                                   <span className="text-gray-500 text-xs">仓位占比</span>
                                   <div className="font-semibold text-gray-700">{positionPct.toFixed(1)}%</div>
+                                </div>
+                              )}
+                              {stock.marketCap && (
+                                <div className="text-center">
+                                  <span className="text-gray-500 text-xs">总市值</span>
+                                  <div className="font-semibold text-gray-700">
+                                    {stock.marketCap >= 10000 ? `${(stock.marketCap / 10000).toFixed(1)}万亿` : `${stock.marketCap.toFixed(0)}亿`}
+                                  </div>
                                 </div>
                               )}
                             </div>

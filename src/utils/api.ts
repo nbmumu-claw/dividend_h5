@@ -20,8 +20,8 @@ function toTxCode(code: string, isHK?: boolean): string {
   return `sh${str}`
 }
 
-function parseTxBody(body: string): Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string }> {
-  const result: Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string }> = {}
+function parseTxBody(body: string): Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; marketCap?: number }> {
+  const result: Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; marketCap?: number }> = {}
   const lines = body.split('\n')
   for (const line of lines) {
     const match = line.match(/v_[a-z]{2}(\d{5,6})="([^"]*)"/)
@@ -34,7 +34,8 @@ function parseTxBody(body: string): Record<string, { price: number; preClose: nu
     if (!price || price <= 0) continue
     const pctChg = parseFloat(fields[32]) || 0
     const tradeDate = (fields[30] || '').replace(/\D/g, '').slice(0, 8)
-    result[code] = { price, preClose, pctChg, tradeDate }
+    const marketCap = fields.length > 45 ? parseFloat(fields[45]) || undefined : undefined
+    result[code] = { price, preClose, pctChg, tradeDate, marketCap }
   }
   return result
 }
@@ -295,6 +296,71 @@ async function searchViaYahooUS(keyword: string): Promise<SearchResult[]> {
       isHK: false,
       isUS: true,
     }))
+}
+
+const OWNER_MEM_CACHE: Record<string, string> = {}
+const OWNER_LS_KEY = 'owner-type-cache'
+const OWNER_TTL = 180 * 24 * 60 * 60 * 1000 // 半年
+
+function ownerLsGet(code: string): string | null {
+  try {
+    const raw = localStorage.getItem(OWNER_LS_KEY)
+    if (!raw) return null
+    const store: Record<string, { v: string; t: number }> = JSON.parse(raw)
+    const entry = store[code]
+    if (!entry || Date.now() - entry.t > OWNER_TTL) return null
+    return entry.v
+  } catch { return null }
+}
+
+function ownerLsSet(code: string, value: string) {
+  try {
+    const raw = localStorage.getItem(OWNER_LS_KEY)
+    const store: Record<string, { v: string; t: number }> = raw ? JSON.parse(raw) : {}
+    store[code] = { v: value, t: Date.now() }
+    localStorage.setItem(OWNER_LS_KEY, JSON.stringify(store))
+  } catch { /* ignore quota errors */ }
+}
+
+const CENTRAL_SOE_KEYWORDS = ['国务院', '中央汇金', '中国投资有限', '招商局', '中国烟草', '中国石油', '中国石化', '中国移动', '中国联通', '中国电信', '国家电网', '中国华能', '中国大唐', '中国华电', '中国国电', '国家开发投资', '中粮', '中国铁建', '中国中铁', '中国交通', '中国建筑', '中国航空', '中国远洋', '中国海运', '中国五矿', '中国铝业', '中国宝武', '中国兵器', '中国航天', '中国电子', '中国核工业']
+const LOCAL_SOE_KEYWORDS = ['国有资产监督', '人民政府', '国资委', '省政府', '市政府']
+
+function classifyName(name: string): '央企' | '地方国企' | '民营' | null {
+  if (CENTRAL_SOE_KEYWORDS.some(kw => name.includes(kw))) return '央企'
+  if (LOCAL_SOE_KEYWORDS.some(kw => name.includes(kw))) return '地方国企'
+  return null
+}
+
+export async function fetchOwnerType(code: string): Promise<string> {
+  if (OWNER_MEM_CACHE[code]) return OWNER_MEM_CACHE[code]
+  const cached = ownerLsGet(code)
+  if (cached) { OWNER_MEM_CACHE[code] = cached; return cached }
+
+  try {
+    const res = await fetch(`/api/company-nature?code=${code}`)
+    const data = await res.json()
+    const holderName: string | null = data?.sjkzr?.[0]?.HOLDER_NAME ?? null
+
+    let ownerType = '未知'
+
+    if (holderName) {
+      ownerType = classifyName(holderName) ?? '民营'
+    } else {
+      const sdgd: Array<{ HOLDER_NAME?: string }> = data?.sdgd || []
+      for (const s of sdgd) {
+        const n = s.HOLDER_NAME || ''
+        if (!n || n.includes('中央结算') || n.includes('代理人')) continue
+        const result = classifyName(n)
+        if (result) { ownerType = result; break }
+      }
+    }
+
+    OWNER_MEM_CACHE[code] = ownerType
+    ownerLsSet(code, ownerType)
+    return ownerType
+  } catch {
+    return '未知'
+  }
 }
 
 // 纯数字代码搜索时，只保留代码包含关键词的结果
