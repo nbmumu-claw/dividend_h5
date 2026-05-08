@@ -299,7 +299,7 @@ async function searchViaYahooUS(keyword: string): Promise<SearchResult[]> {
 }
 
 const OWNER_MEM_CACHE: Record<string, string> = {}
-const OWNER_LS_KEY = 'owner-type-cache'
+const OWNER_LS_KEY = 'owner-type-cache-v2'
 const OWNER_TTL = 180 * 24 * 60 * 60 * 1000 // 半年
 
 function ownerLsGet(code: string): string | null {
@@ -328,6 +328,8 @@ const LOCAL_SOE_KEYWORDS = ['国有资产监督', '人民政府', '国资委', '
 function classifyName(name: string): '央企' | '地方国企' | '民营' | null {
   if (CENTRAL_SOE_KEYWORDS.some(kw => name.includes(kw))) return '央企'
   if (LOCAL_SOE_KEYWORDS.some(kw => name.includes(kw))) return '地方国企'
+  // 以"中国"开头的集团/公司，通常为国务院直属央企（如中国海洋石油集团、中国华润有限公司）
+  if (/^中国.{0,15}(集团|总公司|有限公司|有限责任公司)/.test(name)) return '央企'
   return null
 }
 
