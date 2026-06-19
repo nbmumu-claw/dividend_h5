@@ -47,6 +47,12 @@ body {
   flex-direction: column;
 }
 
+/* 股息率网格独立页：PC 端突破手机框，占满整宽 */
+.app-shell.app-shell--wide {
+  max-width: none;
+  overflow: visible;
+}
+
 .page-content {
   flex: 1;
   overflow-y: auto;
