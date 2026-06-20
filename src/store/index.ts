@@ -28,6 +28,10 @@ interface AppState {
   renameSector: (oldName: string, newName: string) => void
   deleteSector: (name: string) => void
 
+  // 三大类手动归类覆盖 { [code]: 'weak'|'strong'|'consume' }
+  categoryOverrides: Record<string, string>
+  setCategoryOverride: (code: string, cat: string | null) => void
+
   // Settings
   exchangeRate: number
   setExchangeRate: (rate: number) => void
@@ -118,6 +122,16 @@ export const useStore = create<AppState>()(
         set(s => ({
           customSectors: s.customSectors.filter(sec => sec !== name),
         })),
+
+      // 三大类手动归类覆盖
+      categoryOverrides: {},
+      setCategoryOverride: (code, cat) =>
+        set(s => {
+          const next = { ...s.categoryOverrides }
+          if (cat) next[code] = cat
+          else delete next[code]
+          return { categoryOverrides: next }
+        }),
 
       // Settings
       exchangeRate: 0.88,

@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
 import { fetchStockPrices } from '../utils/api'
+import { isIncluded, resolveCategory, labelOf, colorOf, CATEGORIES, type Category } from '../utils/categories'
 import type { WatchlistStock } from '../types'
 
 const COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
@@ -15,8 +16,9 @@ export default function Portfolio() {
   const exchangeRate = useStore(s => s.exchangeRate)
   const usdRate = useStore(s => s.usdRate)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
+  const categoryOverrides = useStore(s => s.categoryOverrides)
   const [chartType, setChartType] = useState<'div' | 'cost'>('div')
-  const [chartGroup, setChartGroup] = useState<'sector' | 'stock'>('sector')
+  const [chartGroup, setChartGroup] = useState<'sector' | 'stock' | 'category'>('sector')
 
   useEffect(() => {
     if (!watchlist.length) return
@@ -38,7 +40,6 @@ export default function Portfolio() {
       if (Object.keys(updates).length) batchUpdateWatchlist(updates)
     })
   }, [])
-  const chartMode = chartType === 'div' ? chartGroup : `cost-${chartGroup}` as 'cost-sector' | 'cost-stock'
   const holdings = useMemo(
     () => watchlist.filter(s => s.shares && Number(s.shares) > 0),
     [watchlist]
@@ -57,6 +58,8 @@ export default function Portfolio() {
     let totalAnnual = 0
     let totalCost = 0
     let totalMarket = 0
+    let shMarket = 0   // 沪市市值（仅 A 股）
+    let szMarket = 0   // 深市市值（仅 A 股）
 
     holdings.forEach(s => {
       const shares = Number(s.shares) || 0
@@ -64,9 +67,16 @@ export default function Portfolio() {
       const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
       const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
       const annualDiv = afterTax(divCny * shares, s)
+      const market = priceCny * shares
 
       totalAnnual += annualDiv
-      totalMarket += priceCny * shares
+      totalMarket += market
+      // 沪深细分：境内标的(非港非美)，6/9 开头沪市(含沪B 900) / 0、2、3 开头深市(含深B 200)
+      if (!s.isHK && !s.isUS) {
+        const head = String(s.code).charAt(0)
+        if (head === '6' || head === '9') shMarket += market
+        else if (head === '0' || head === '2' || head === '3') szMarket += market
+      }
       const hasCost = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== ''
       const costPriceCny = hasCost
         ? (s.isHK ? costPrice * exchangeRate : s.isUS ? costPrice * usdRate : costPrice)
@@ -85,45 +95,60 @@ export default function Portfolio() {
       profitLoss,
       profitLossRatio: totalCost > 0 ? (profitLoss / totalCost) * 100 : 0,
       overallYield,
+      shMarket,
+      szMarket,
+      shPct: totalMarket > 0 ? (shMarket / totalMarket) * 100 : 0,
+      szPct: totalMarket > 0 ? (szMarket / totalMarket) * 100 : 0,
+      hasShSz: shMarket > 0 || szMarket > 0,
       stockCount: watchlist.length,
       hasHoldings: holdings.length > 0,
     }
-  }, [holdings, watchlist.length, exchangeRate])
+  }, [holdings, watchlist.length, exchangeRate, usdRate])
 
-  const chartData = useMemo(() => {
-    if (chartMode === 'sector' || chartMode === 'stock') {
-      const bySector: Record<string, number> = {}
-      const byStock = holdingsWithDisplay
-        .map(({ stock: s, displayName }) => {
-          const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
-          const ann = afterTax(divCny * Number(s.shares), s)
-          const sector = (s.sector || '').trim()
-          bySector[sector] = (bySector[sector] || 0) + ann
-          return { name: displayName, value: parseFloat(ann.toFixed(2)) }
-        })
-        .filter(d => d.value > 0)
-      if (chartMode === 'sector') {
-        return Object.entries(bySector).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) })).filter(d => d.value > 0)
+  const chartData = useMemo<{ name: string; value: number; color?: string }[]>(() => {
+    const useCost = chartType === 'cost'
+    const valOf = (s: WatchlistStock) => {
+      const shares = Number(s.shares) || 0
+      if (useCost) {
+        const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
+        return priceCny * shares
       }
-      return byStock
-    } else {
-      const bySector: Record<string, number> = {}
-      const byStock = holdingsWithDisplay
-        .map(({ stock: s, displayName }) => {
-          const shares = Number(s.shares) || 0
-          const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
-          const market = priceCny * shares
-          const sector = (s.sector || '').trim()
-          bySector[sector] = (bySector[sector] || 0) + market
-          return { name: displayName, value: parseFloat(market.toFixed(2)) }
-        })
-        .filter(d => d.value > 0)
-      if (chartMode === 'cost-sector') {
-        return Object.entries(bySector).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) })).filter(d => d.value > 0)
-      }
-      return byStock
+      const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+      return afterTax(divCny * shares, s)
     }
-  }, [holdingsWithDisplay, exchangeRate, chartMode])
+
+    // 三大类：排除美股/ETF，固定配色与顺序，未分类垫底
+    if (chartGroup === 'category') {
+      const sums: Record<string, number> = { weak: 0, strong: 0, consume: 0, '': 0 }
+      holdings.forEach(s => {
+        if (!isIncluded(s)) return
+        const v = valOf(s)
+        if (v <= 0) return
+        const cat = resolveCategory(s, categoryOverrides)
+        sums[cat] = (sums[cat] || 0) + v
+      })
+      const order: (Category | '')[] = [...CATEGORIES, '']
+      return order
+        .filter(cat => (sums[cat] || 0) > 0)
+        .map(cat => ({ name: labelOf(cat), value: parseFloat(sums[cat].toFixed(2)), color: colorOf(cat) }))
+    }
+
+    if (chartGroup === 'sector') {
+      const bySector: Record<string, number> = {}
+      holdings.forEach(s => {
+        const sector = (s.sector || '').trim() || '其他'
+        bySector[sector] = (bySector[sector] || 0) + valOf(s)
+      })
+      return Object.entries(bySector)
+        .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }))
+        .filter(d => d.value > 0)
+    }
+
+    // 个股
+    return holdingsWithDisplay
+      .map(({ stock: s, displayName }) => ({ name: displayName, value: parseFloat(valOf(s).toFixed(2)) }))
+      .filter(d => d.value > 0)
+  }, [holdings, holdingsWithDisplay, exchangeRate, usdRate, chartType, chartGroup, categoryOverrides])
 
 
 
@@ -179,6 +204,18 @@ export default function Portfolio() {
                 <span className="text-gray-500">成本金额</span>
                 <span className="font-medium text-red-600">¥{metrics.totalCost.toFixed(0)}</span>
               </div>
+              {metrics.hasShSz && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">沪市市值</span>
+                    <span className="font-medium text-gray-700">¥{metrics.shMarket.toFixed(0)} <span className="text-xs text-gray-400">{metrics.shPct.toFixed(1)}%</span></span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">深市市值</span>
+                    <span className="font-medium text-gray-700">¥{metrics.szMarket.toFixed(0)} <span className="text-xs text-gray-400">{metrics.szPct.toFixed(1)}%</span></span>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -190,7 +227,7 @@ export default function Portfolio() {
           <div className="card p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-gray-800">
-                {chartType === 'cost' ? '市值分布' : '红利分布'}
+                {chartGroup === 'category' ? '三大类占比' : chartType === 'cost' ? '市值分布' : '红利分布'}
               </span>
               <div className="flex gap-1">
                 {(['div', 'cost'] as const).map(t => (
@@ -200,10 +237,10 @@ export default function Portfolio() {
                   </button>
                 ))}
                 <div className="w-px bg-gray-200 mx-0.5" />
-                {(['sector', 'stock'] as const).map(g => (
+                {(['sector', 'stock', 'category'] as const).map(g => (
                   <button key={g} onClick={() => setChartGroup(g)}
                     className={`text-xs px-3 py-1 rounded-full border ${chartGroup === g ? 'bg-gray-700 text-white border-gray-700' : 'border-gray-200 text-gray-500'}`}>
-                    {g === 'sector' ? '板块' : '个股'}
+                    {g === 'sector' ? '板块' : g === 'stock' ? '个股' : '三大类'}
                   </button>
                 ))}
               </div>
@@ -220,15 +257,15 @@ export default function Portfolio() {
                     paddingAngle={2}
                     dataKey="value"
                   >
-                    {chartData.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    {chartData.map((d, i) => (
+                      <Cell key={i} fill={d.color || COLORS[i % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(value: number) => {
                       const total = chartData.reduce((s, d) => s + d.value, 0)
                       const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0'
-                      const label = chartMode.startsWith('cost') ? '持仓市值' : '年红利'
+                      const label = chartType === 'cost' ? '持仓市值' : '年红利'
                       return [`¥${value.toFixed(2)} (${pct}%)`, label]
                     }}
                     contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
@@ -243,12 +280,13 @@ export default function Portfolio() {
                   .sort((a, b) => b.value - a.value)
                   .map((d) => {
                     const origIdx = chartData.indexOf(d)
+                    const color = d.color || COLORS[origIdx % COLORS.length]
                     return (
                       <div key={d.name} className="flex items-center gap-1 text-xs text-gray-600">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: COLORS[origIdx % COLORS.length] }} />
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
                         <span>{d.name}</span>
                         <span className="text-gray-400">¥{d.value.toFixed(0)}</span>
-                        <span className="font-medium" style={{ color: COLORS[origIdx % COLORS.length] }}>
+                        <span className="font-medium" style={{ color }}>
                           {total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%
                         </span>
                       </div>

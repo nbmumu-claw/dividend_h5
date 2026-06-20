@@ -12,6 +12,7 @@ import YieldGrid from './pages/YieldGrid'
 import Calendar from './pages/Calendar'
 import Settings from './pages/Settings'
 import DataGuide from './pages/DataGuide'
+import CategoryManager from './pages/CategoryManager'
 import Support from './pages/Support'
 import Changelog from './pages/Changelog'
 
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/data-guide" element={<DataGuide />} />
+        <Route path="/category-manager" element={<CategoryManager />} />
         <Route path="/support" element={<Support />} />
         <Route path="/changelog" element={<Changelog />} />
       </Routes>
