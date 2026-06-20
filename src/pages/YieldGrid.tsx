@@ -34,13 +34,32 @@ const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
 const SECTORS = [...new Set(STOCKS.map(s => s.sector))]
 const ALL = '全部'
 
-const GRID_DEFAULT = [0.05, 0.055, 0.06, 0.065, 0.07]
-const GRID_POWER = [0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07]
-const SECTOR_GRID: Record<string, number[]> = { 电力: GRID_POWER }
-const gridFor = (s: string) => SECTOR_GRID[s] || GRID_DEFAULT
+// 水电（低息、估值另算）：买入档从 4% 起、卖出档从 3% 起；其余股票买入从 5% 起、卖出从 4% 起
+const HYDRO = new Set(['国投电力', '长江电力'])
+const BUY_HYDRO = [0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07]
+const BUY_DEFAULT = [0.05, 0.055, 0.06, 0.065, 0.07]
+const SELL_HYDRO = [0.02, 0.025, 0.03]      // 升序：左低息=高价=强卖
+const SELL_DEFAULT = [0.03, 0.035, 0.04]
+const buyGridFor = (name: string) => (HYDRO.has(name) ? BUY_HYDRO : BUY_DEFAULT)
+const sellGridFor = (name: string) => (HYDRO.has(name) ? SELL_HYDRO : SELL_DEFAULT)
+
+// 已达档位的底色：买入越高息越深（橙），卖出越低息越深（绿）。键 = 股息率×1000
+const BUY_BG: Record<number, string> = { 40: '#ffedd5', 45: '#fee3c4', 50: '#fed7aa', 55: '#fdc28a', 60: '#fdab6f', 65: '#fb9456', 70: '#f97c3c' }
+const SELL_BG: Record<number, string> = { 20: '#22c55e', 25: '#4ade80', 30: '#86efac', 35: '#bbf7d0', 40: '#dcfce7' }
+const hitBg = (kind: 'buy' | 'sell', y: number) => (kind === 'buy' ? BUY_BG : SELL_BG)[Math.round(y * 1000)]
+
 const cyClass = (cy: number) => (cy >= 0.05 ? 'cy-hi' : cy >= 0.04 ? 'cy-mid' : 'cy-lo')
 
 type Row = { sector: string; name: string; dive: number; price: number; cy: number }
+
+// 单档计算：买入「已达」= 现价≤目标价；卖出「已达」= 现价≥目标价
+function tier(r: Row, y: number, kind: 'buy' | 'sell') {
+  const target = r.dive / y
+  const reached = kind === 'buy' ? r.price <= target : r.price >= target
+  const pct = Math.round((kind === 'buy' ? (r.price - target) : (target - r.price)) / r.price * 100)
+  const label = reached ? '已达' : `${kind === 'buy' ? '↓' : '↑'}${pct}%`
+  return { target, reached, label }
+}
 
 // 监听设备宽度：手机出卡片，PC 出表格，同一网址自适应
 function useIsMobile() {
@@ -53,12 +72,6 @@ function useIsMobile() {
     return () => mq.removeEventListener('change', h)
   }, [])
   return m
-}
-
-function tierData(price: number, dive: number, y: number) {
-  const buy = dive / y
-  const hit = price <= buy
-  return { buy, hit, drop: hit ? 0 : Math.round(((price - buy) / price) * 100) }
 }
 
 export default function YieldGrid() {
@@ -110,9 +123,9 @@ export default function YieldGrid() {
           </svg>
           <span>返回</span>
         </button>
-        <h1>股息率网格买入价位表</h1>
+        <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} 收盘价` : '正在获取最新行情…'}</div>
-        <div className="legend">买入价 = 25年股息 ÷ 目标股息率；档位 5%~7%（电力板块从 4% 起）；<b>橘色=现价已达到该档股息率</b>，否则显示现价还需下跌幅度。仅供参考，非投资建议。</div>
+        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
         <div className="filter">
           <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
           {SECTORS.map(s => (
@@ -122,7 +135,9 @@ export default function YieldGrid() {
         {error && <div className="state">{error}</div>}
         {!error && !rows && <div className="state">加载中…</div>}
         {sectors.filter(({ sector }) => active === ALL || sector === active).map(({ sector, items }) => {
-          const grid = gridFor(sector)
+          // 板块内各股票档位取并集，保证表头列对齐（仅电力含水电会出现空档）
+          const sellCols = [...new Set(items.flatMap(r => sellGridFor(r.name)))].sort((a, b) => a - b)
+          const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name)))].sort((a, b) => a - b)
           return (
             <section key={sector}>
               <h2>{sector} <em>{items.length}</em></h2>
@@ -136,17 +151,13 @@ export default function YieldGrid() {
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                       </div>
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}</div>
+                      <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
-                        {grid.map((y, i) => {
-                          const t = tierData(r.price, r.dive, y)
-                          return (
-                            <div key={i} className={`tier${t.hit ? ' hit' : ''}`}>
-                              <i>{(y * 100).toFixed(1)}%</i>
-                              <b>¥{t.buy.toFixed(2)}</b>
-                              <span>{t.hit ? '已达' : `↓${t.drop}%`}</span>
-                            </div>
-                          )
-                        })}
+                        {sellGridFor(r.name).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" />)}
+                      </div>
+                      <div className="glabel buy">买入网格</div>
+                      <div className="tiers">
+                        {buyGridFor(r.name).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" />)}
                       </div>
                     </div>
                   ))}
@@ -157,7 +168,8 @@ export default function YieldGrid() {
                     <thead>
                       <tr>
                         <th>股票</th><th>现价</th><th>现股息率</th><th>25年股息</th>
-                        {grid.map((y, i) => <th key={i}>{(y * 100).toFixed(1)}%</th>)}
+                        {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{(y * 100).toFixed(1)}%</th>)}
+                        {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{(y * 100).toFixed(1)}%</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -167,14 +179,8 @@ export default function YieldGrid() {
                           <td className="px">¥{r.price.toFixed(2)}</td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
-                          {grid.map((y, i) => {
-                            const t = tierData(r.price, r.dive, y)
-                            return (
-                              <td key={i} className={`g${t.hit ? ' hit' : ''}`}>
-                                <b>¥{t.buy.toFixed(2)}</b><span>{t.hit ? '已达' : `↓${t.drop}%`}</span>
-                              </td>
-                            )
-                          })}
+                          {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" />)}
+                          {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} />)}
                         </tr>
                       ))}
                     </tbody>
@@ -185,6 +191,33 @@ export default function YieldGrid() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// 表格单元格：该股票无此档位则留空
+function Cell({ r, y, kind, sep }: { r: Row; y: number; kind: 'buy' | 'sell'; sep?: boolean }) {
+  const grid = kind === 'buy' ? buyGridFor(r.name) : sellGridFor(r.name)
+  if (!grid.includes(y)) return <td className={`g blank${sep ? ' sep' : ''}`}>·</td>
+  const t = tier(r, y, kind)
+  const cls = `g${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
+  return (
+    <td className={cls} style={t.reached ? { background: hitBg(kind, y) } : undefined}>
+      <b>¥{t.target.toFixed(2)}</b><span>{t.label}</span>
+    </td>
+  )
+}
+
+// 卡片档位 chip
+function Chip({ r, y, kind }: { r: Row; y: number; kind: 'buy' | 'sell' }) {
+  const t = tier(r, y, kind)
+  const cls = `tier${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}`
+  const bg = hitBg(kind, y)
+  return (
+    <div className={cls} style={t.reached ? { background: bg, borderColor: bg } : undefined}>
+      <i>{(y * 100).toFixed(1)}%</i>
+      <b>¥{t.target.toFixed(2)}</b>
+      <span>{t.label}</span>
     </div>
   )
 }
@@ -202,7 +235,9 @@ const CSS = `
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }
-.yg-page .legend b { color: #ea580c; }
+.yg-page .legend b { font-weight: 700; }
+.yg-page .legend .o { color: #ea580c; }
+.yg-page .legend .g2 { color: #16a34a; }
 .yg-page .state { color: #9ca3af; font-size: 13px; padding: 8px 2px; }
 .yg-page .filter { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; flex-wrap: nowrap;
   overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 10px 0; margin: -2px 0 14px;
@@ -219,8 +254,10 @@ const CSS = `
 .yg-page .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .yg-page table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .yg-page th, .yg-page td { padding: 7px 6px; text-align: center; border-bottom: 1px solid #eef0f3; }
-.yg-page thead th { color: #6b7280; font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid #e5e7eb; }
-.yg-page thead th:nth-child(n+5) { color: #7c3aed; }
+.yg-page thead th { color: #6b7280; font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid #e5e7eb; white-space: nowrap; }
+.yg-page thead th.th-s { color: #16a34a; }
+.yg-page thead th.th-b { color: #7c3aed; }
+.yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
 .yg-page td.px { color: #374151; font-variant-numeric: tabular-nums; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
@@ -230,9 +267,12 @@ const CSS = `
 .yg-page td.g { font-variant-numeric: tabular-nums; line-height: 1.25; }
 .yg-page td.g b { font-weight: 600; color: #1f2328; }
 .yg-page td.g span { display: block; font-size: 10.5px; color: #9ca3af; margin-top: 1px; }
-.yg-page td.g.hit { background: #fed7aa; border-radius: 6px; }
+.yg-page td.g.blank { color: #d1d5db; }
+.yg-page td.g.hit { border-radius: 6px; }
 .yg-page td.g.hit b { color: #9a3412; }
-.yg-page td.g.hit span { color: #ea580c; font-weight: 600; }
+.yg-page td.g.hit span { color: #c2410c; font-weight: 600; }
+.yg-page td.g.sell.hit b { color: #14532d; }
+.yg-page td.g.sell.hit span { color: #166534; }
 
 /* ===== 手机端卡片布局 ===== */
 .yg-page.mobile { padding: 16px 12px 32px; }
@@ -245,13 +285,21 @@ const CSS = `
 .yg-page .chead .cpx { font-size: 13px; color: #374151; font-variant-numeric: tabular-nums; }
 .yg-page .chead .ccy { margin-left: auto; font-size: 14px; font-variant-numeric: tabular-nums; }
 .yg-page .cmeta { font-size: 11.5px; color: #9ca3af; margin-top: 2px; }
-.yg-page .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 9px; }
+.yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
+.yg-page .glabel.sell { color: #16a34a; }
+.yg-page .glabel.buy { color: #ea580c; }
+.yg-page .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .yg-page .tier { border: 1px solid #eef0f3; border-radius: 8px; padding: 5px 2px 6px; text-align: center;
   font-variant-numeric: tabular-nums; }
-.yg-page .tier i { display: block; font-style: normal; font-size: 10.5px; color: #7c3aed; }
+.yg-page .tier i { display: block; font-style: normal; font-size: 10.5px; color: #9ca3af; }
+.yg-page .tier.sell i { color: #16a34a; }
+.yg-page .tier:not(.sell) i { color: #7c3aed; }
 .yg-page .tier b { display: block; font-size: 13.5px; margin-top: 1px; }
 .yg-page .tier span { display: block; font-size: 10px; color: #9ca3af; margin-top: 1px; }
-.yg-page .tier.hit { background: #fed7aa; border-color: #fed7aa; }
 .yg-page .tier.hit b { color: #9a3412; }
-.yg-page .tier.hit span { color: #ea580c; font-weight: 600; }
+.yg-page .tier.hit span { color: #c2410c; font-weight: 600; }
+.yg-page .tier.hit i { color: #9a3412; }
+.yg-page .tier.sell.hit b { color: #14532d; }
+.yg-page .tier.sell.hit span { color: #166534; }
+.yg-page .tier.sell.hit i { color: #14532d; }
 `
