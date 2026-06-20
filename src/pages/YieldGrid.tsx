@@ -31,7 +31,9 @@ const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
   ['消费', '分众传媒', '002027', 0.34], ['消费', '伊利股份', '600887', 1.38],
 ].map(([sector, name, code, dive]) => ({ sector: sector as string, name: name as string, code: code as string, dive: dive as number }))
 
-const SECTORS = [...new Set(STOCKS.map(s => s.sector))]
+// 板块展示顺序（能源与白酒对调）
+const SECTOR_ORDER = ['电力', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费']
+const SECTORS = SECTOR_ORDER.filter(s => STOCKS.some(x => x.sector === s))
 const ALL = '全部'
 
 // 水电（低息、估值另算）：买入档从 4% 起、卖出档从 3% 起；其余股票买入从 5% 起、卖出从 4% 起
@@ -110,6 +112,7 @@ export default function YieldGrid() {
     g.items.push(r)
   }
   for (const g of sectors) g.items.sort((a, b) => b.cy - a.cy)
+  sectors.sort((a, b) => SECTOR_ORDER.indexOf(a.sector) - SECTOR_ORDER.indexOf(b.sector))
 
   return (
     <div className={`yg-page${isMobile ? ' mobile' : ''}`}>
