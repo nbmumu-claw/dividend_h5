@@ -40,10 +40,10 @@ const BUY_HYDRO = [0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07]
 const BUY_DEFAULT = [0.05, 0.055, 0.06, 0.065, 0.07]
 const SELL_HYDRO = [0.02, 0.025, 0.03]      // 升序：左低息=高价=强卖
 const SELL_DEFAULT = [0.03, 0.035, 0.04]
-// 中国广核、中国核电：低息成长属性，暂不套用卖出网格逻辑
-const NO_SELL = new Set(['中国广核', '中国核电'])
+// 中国广核、中国核电：低息成长属性，卖出档只展示价格，不着色、不判「已达」
+const SELL_MUTED = new Set(['中国广核', '中国核电'])
 const buyGridFor = (name: string) => (HYDRO.has(name) ? BUY_HYDRO : BUY_DEFAULT)
-const sellGridFor = (name: string) => (NO_SELL.has(name) ? [] : HYDRO.has(name) ? SELL_HYDRO : SELL_DEFAULT)
+const sellGridFor = (name: string) => (HYDRO.has(name) ? SELL_HYDRO : SELL_DEFAULT)
 
 // 已达档位的底色：买入越高息越深（橙），卖出越低息越深（绿）。键 = 股息率×1000
 const BUY_BG: Record<number, string> = { 40: '#ffedd5', 45: '#fee3c4', 50: '#fed7aa', 55: '#fdc28a', 60: '#fdab6f', 65: '#fb9456', 70: '#f97c3c' }
@@ -153,14 +153,10 @@ export default function YieldGrid() {
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                       </div>
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}</div>
-                      {sellGridFor(r.name).length > 0 && (
-                        <>
-                          <div className="glabel sell">卖出网格</div>
-                          <div className="tiers">
-                            {sellGridFor(r.name).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" />)}
-                          </div>
-                        </>
-                      )}
+                      <div className="glabel sell">卖出网格</div>
+                      <div className="tiers">
+                        {sellGridFor(r.name).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" />)}
+                      </div>
                       <div className="glabel buy">买入网格</div>
                       <div className="tiers">
                         {buyGridFor(r.name).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" />)}
@@ -206,6 +202,10 @@ function Cell({ r, y, kind, sep }: { r: Row; y: number; kind: 'buy' | 'sell'; se
   const grid = kind === 'buy' ? buyGridFor(r.name) : sellGridFor(r.name)
   if (!grid.includes(y)) return <td className={`g blank${sep ? ' sep' : ''}`}>·</td>
   const t = tier(r, y, kind)
+  // 广核/核电卖出：仅显示价格，不着色、不判已达
+  if (kind === 'sell' && SELL_MUTED.has(r.name)) {
+    return <td className={`g sell muted${sep ? ' sep' : ''}`}><b>¥{t.target.toFixed(2)}</b></td>
+  }
   const cls = `g${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
   return (
     <td className={cls} style={t.reached ? { background: hitBg(kind, y) } : undefined}>
@@ -217,6 +217,15 @@ function Cell({ r, y, kind, sep }: { r: Row; y: number; kind: 'buy' | 'sell'; se
 // 卡片档位 chip
 function Chip({ r, y, kind }: { r: Row; y: number; kind: 'buy' | 'sell' }) {
   const t = tier(r, y, kind)
+  // 广核/核电卖出：仅显示价格，不着色、不判已达
+  if (kind === 'sell' && SELL_MUTED.has(r.name)) {
+    return (
+      <div className="tier sell muted">
+        <i>{(y * 100).toFixed(1)}%</i>
+        <b>¥{t.target.toFixed(2)}</b>
+      </div>
+    )
+  }
   const cls = `tier${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}`
   const bg = hitBg(kind, y)
   return (
@@ -274,6 +283,9 @@ const CSS = `
 .yg-page td.g b { font-weight: 600; color: #1f2328; }
 .yg-page td.g span { display: block; font-size: 10.5px; color: #9ca3af; margin-top: 1px; }
 .yg-page td.g.blank { color: #d1d5db; }
+.yg-page td.g.muted b { color: #9ca3af; font-weight: 500; }
+.yg-page .tier.muted b { color: #9ca3af; font-weight: 500; }
+.yg-page .tier.muted i { color: #9ca3af; }
 .yg-page td.g.hit { border-radius: 6px; }
 .yg-page td.g.hit b { color: #9a3412; }
 .yg-page td.g.hit span { color: #c2410c; font-weight: 600; }
