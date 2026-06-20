@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices } from '../utils/api'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
@@ -58,6 +59,7 @@ function tierData(price: number, dive: number, y: number) {
 }
 
 export default function YieldGrid() {
+  const navigate = useNavigate()
   const isMobile = useIsMobile()
   const [rows, setRows] = useState<Row[] | null>(null)
   const [date, setDate] = useState('')
@@ -94,6 +96,16 @@ export default function YieldGrid() {
     <div className={`yg-page${isMobile ? ' mobile' : ''}`}>
       <style>{CSS}</style>
       <div className="wrap">
+        <button
+          className="yg-back"
+          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/discovery'))}
+          aria-label="返回"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>返回</span>
+        </button>
         <h1>股息率网格买入价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} 收盘价` : '正在获取最新行情…'}</div>
         <div className="legend">买入价 = 25年股息 ÷ 目标股息率；档位 5%~7%（电力板块从 4% 起）；<b>橘色=现价已达到该档股息率</b>，否则显示现价还需下跌幅度。仅供参考，非投资建议。</div>
@@ -172,6 +184,11 @@ const CSS = `
   font-family: "PingFang SC","Microsoft YaHei",sans-serif; color: #1f2328; }
 .yg-page * { box-sizing: border-box; }
 .yg-page .wrap { max-width: 1100px; margin: 0 auto; }
+.yg-page .yg-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 10px -6px;
+  padding: 4px 6px; background: none; border: 0; cursor: pointer; color: #6b7280; font-size: 14px;
+  font-family: inherit; }
+.yg-page .yg-back svg { width: 18px; height: 18px; }
+.yg-page .yg-back:active { color: #1f2328; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }

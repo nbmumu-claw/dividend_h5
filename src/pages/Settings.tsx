@@ -273,6 +273,12 @@ export default function Settings() {
             onClick={() => navigate('/changelog')}
           />
           <SettingRow
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18" strokeLinecap="round"/></svg>}
+            label="股息率网格"
+            value="买入价位表"
+            onClick={() => navigate('/yield-grid')}
+          />
+          <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10z"/><path d="M12 8h.01M11 12h1v4h1" strokeLinecap="round"/></svg>}
             label="数据说明"
             onClick={() => navigate('/data-guide')}

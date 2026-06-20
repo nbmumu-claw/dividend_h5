@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { fetchStockPrices, searchStocks, searchStocksLocal } from '../utils/api'
 import Disclaimer from '../components/Disclaimer'
@@ -41,6 +42,7 @@ function YieldBadge({ rate }: { rate: number }) {
 }
 
 export default function Discovery() {
+  const navigate = useNavigate()
   const customSectors = useStore(s => s.customSectors)
   const watchlist = useStore(s => s.watchlist)
   const manualStocks = useStore(s => s.manualStocks)
@@ -361,6 +363,29 @@ export default function Discovery() {
             </svg>
           </button>
         </div>
+      </div>
+
+      {/* 股息率网格入口 */}
+      <div className="px-4 pb-3">
+        <button
+          onClick={() => navigate('/yield-grid')}
+          className="w-full card p-3.5 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-gray-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18" strokeLinecap="round"/>
+              </svg>
+            </span>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-gray-800">股息率网格</div>
+              <div className="text-xs text-gray-400">各档目标股息率对应买入价</div>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </div>
 
       {/* Sector tabs */}
