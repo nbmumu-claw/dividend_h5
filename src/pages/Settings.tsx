@@ -50,6 +50,7 @@ export default function Settings() {
   const importBackup = useStore(s => s.importBackup)
   const agreementAccepted = useStore(s => s.agreementAccepted)
   const setAgreementAccepted = useStore(s => s.setAgreementAccepted)
+  const feeConfig = useStore(s => s.feeConfig)
   const navigate = useNavigate()
 
   const [showImport, setShowImport] = useState(false)
@@ -232,6 +233,12 @@ export default function Settings() {
             label="类别设置"
             value="三大类归类"
             onClick={() => navigate('/category-manager')}
+          />
+          <SettingRow
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4 1M14.5 14.5a2.5 2.5 0 0 1-4-1M15 9l-6 6" strokeLinecap="round"/></svg>}
+            label="交易手续费"
+            value={feeConfig.enabled ? `万${+(feeConfig.commissionRate * 10000).toFixed(2)}` : '未开启'}
+            onClick={() => navigate('/fee-setting')}
           />
           <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round"/></svg>}

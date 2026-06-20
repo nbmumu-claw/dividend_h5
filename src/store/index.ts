@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Stock, WatchlistStock } from '../types'
 import { DEFAULT_SECTORS, STATIC_STOCKS } from '../data/stocks'
+import { applyHolding, ensureTransactions, type Transaction } from '../utils/holdings'
+import { makeFeeCalc, DEFAULT_FEE_CONFIG, type FeeConfig } from '../utils/fees'
 
 interface AppState {
   // Watchlist
@@ -11,6 +13,11 @@ interface AppState {
   updateWatchlistStock: (code: string, updates: Partial<WatchlistStock>) => void
   batchUpdateWatchlist: (updates: Record<string, Partial<WatchlistStock>>) => void
   setWatchlist: (list: WatchlistStock[]) => void
+  setTransactions: (code: string, txs: Transaction[]) => void
+
+  // 交易手续费
+  feeConfig: FeeConfig
+  setFeeConfig: (cfg: FeeConfig) => void
 
   // Discovery
   manualStocks: Stock[]
@@ -65,6 +72,24 @@ export const useStore = create<AppState>()(
           watchlist: s.watchlist.map(w => w.code in updates ? { ...w, ...updates[w.code] } : w),
         })),
       setWatchlist: (list) => set({ watchlist: list }),
+      setTransactions: (code, txs) =>
+        set(s => ({
+          watchlist: s.watchlist.map(w =>
+            w.code === code ? applyHolding({ ...w }, txs, makeFeeCalc(w, s.feeConfig)) : w
+          ),
+        })),
+
+      // 交易手续费
+      feeConfig: DEFAULT_FEE_CONFIG,
+      setFeeConfig: (cfg) =>
+        set(s => ({
+          feeConfig: cfg,
+          // 改费率后按新费率重算所有自选股的摊薄成本
+          watchlist: s.watchlist.map(w => {
+            const txs = Array.isArray(w.transactions) ? w.transactions : ensureTransactions(w)
+            return applyHolding({ ...w }, txs, makeFeeCalc(w, cfg))
+          }),
+        })),
 
       // Discovery
       manualStocks: [],

@@ -24,6 +24,7 @@ export interface WatchlistStock extends Stock {
   costPrice?: string
   taxType?: 'h' | 'n' | 'a'
   marketCap?: number
+  transactions?: import('../utils/holdings').Transaction[]
 }
 
 export interface PriceData {

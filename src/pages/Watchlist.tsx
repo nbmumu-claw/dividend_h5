@@ -333,12 +333,16 @@ export default function Watchlist() {
             {sortedFiltered.map(stock => {
               const annualDiv = getAnnualDividend(stock)
               const priceCny = stock.isHK ? stock.price * exchangeRate : stock.isUS ? stock.price * usdRate : stock.price
-              const costPriceCny = stock.costPrice && Number(stock.costPrice) > 0
-                ? (stock.isHK ? Number(stock.costPrice) * exchangeRate : stock.isUS ? Number(stock.costPrice) * usdRate : Number(stock.costPrice))
-                : null
               const shares = Number(stock.shares) || 0
-              const unrealized = costPriceCny && shares ? (priceCny - costPriceCny) * shares : null
-              const unrealizedPct = costPriceCny ? ((priceCny - costPriceCny) / costPriceCny) * 100 : null
+              // 成本由记录摊薄算出，可为负(已回本)；空串=无持仓/清仓
+              const costRaw = stock.costPrice !== undefined && stock.costPrice !== '' ? Number(stock.costPrice) : null
+              const hasCost = costRaw != null && !Number.isNaN(costRaw) && shares > 0
+              const costPriceCny = hasCost
+                ? (stock.isHK ? costRaw! * exchangeRate : stock.isUS ? costRaw! * usdRate : costRaw!)
+                : null
+              const unrealized = costPriceCny != null && shares ? (priceCny - costPriceCny) * shares : null
+              const unrealizedPct = costPriceCny != null && costPriceCny > 0 ? ((priceCny - costPriceCny) / costPriceCny) * 100 : null
+              const recovered = costPriceCny != null && costPriceCny <= 0  // 已回本（负成本）
               const marketValueCny = priceCny > 0 && shares > 0 ? priceCny * shares : null
               const marketValueDisplay = stock.price > 0 && shares > 0 ? stock.price * shares : null
               const positionPct = marketValueCny != null && totalMarketValue > 0 ? (marketValueCny / totalMarketValue) * 100 : null
@@ -424,29 +428,15 @@ export default function Watchlist() {
                       )}
                     </div>
 
-                    {/* Holdings */}
-                    <div className="flex gap-3">
+                    {/* Holdings（只读，按买卖/分红记录算出，点「记录」编辑） */}
+                    <div className="flex gap-3" onClick={() => navigate(`/holding/${stock.code}`)}>
                       <div className="flex-1">
                         <label className="text-xs text-gray-400 block mb-1">持股数量</label>
-                        <input
-                          className="input-field text-sm"
-                          type="number"
-                          min="0"
-                          placeholder="0"
-                          value={stock.shares || ''}
-                          onChange={e => updateWatchlistStock(stock.code, { shares: Number(e.target.value) || undefined })}
-                        />
+                        <div className="input-field text-sm bg-gray-50 text-gray-700 cursor-pointer">{shares > 0 ? shares : '0'}</div>
                       </div>
                       <div className="flex-1">
-                        <label className="text-xs text-gray-400 block mb-1">成本价</label>
-                        <input
-                          className="input-field text-sm"
-                          type="number"
-                          min="0"
-                          placeholder="0.00"
-                          value={stock.costPrice || ''}
-                          onChange={e => updateWatchlistStock(stock.code, { costPrice: e.target.value })}
-                        />
+                        <label className="text-xs text-gray-400 block mb-1">成本价{recovered ? '（已回本）' : ''}</label>
+                        <div className="input-field text-sm bg-gray-50 text-gray-700 cursor-pointer">{hasCost ? Number(costRaw).toFixed(3) : '--'}</div>
                       </div>
                     </div>
 
@@ -467,12 +457,14 @@ export default function Watchlist() {
                                 </div>
                               </>
                             )}
-                            {unrealized != null && unrealizedPct != null && (
+                            {unrealized != null && (
                               <div className="text-center">
                                 <span className="text-gray-500 text-xs">持仓盈亏</span>
                                 <div className={`font-semibold ${unrealized >= 0 ? 'text-red-500' : 'text-green-600'}`}>
                                   {unrealized >= 0 ? '+' : ''}¥{Math.abs(unrealized).toFixed(0)}
-                                  <span className="text-xs ml-1">({unrealizedPct >= 0 ? '+' : ''}{unrealizedPct.toFixed(2)}%)</span>
+                                  {unrealizedPct != null
+                                    ? <span className="text-xs ml-1">({unrealizedPct >= 0 ? '+' : ''}{unrealizedPct.toFixed(2)}%)</span>
+                                    : recovered && <span className="text-xs ml-1">(已回本)</span>}
                                 </div>
                               </div>
                             )}
@@ -516,6 +508,16 @@ export default function Watchlist() {
 
                   {/* Actions */}
                   <div className="flex border-t border-gray-50">
+                    <button
+                      className="flex-1 py-2.5 text-xs text-gray-500 flex items-center justify-center gap-1"
+                      onClick={() => navigate(`/holding/${stock.code}`)}
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 12h6M9 16h6" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      记录
+                    </button>
+                    <div className="w-px bg-gray-50" />
                     <button
                       className="flex-1 py-2.5 text-xs text-gray-500 flex items-center justify-center gap-1"
                       onClick={() => navigate(`/matrix?code=${stock.code}&name=${stock.name}&dividend=${stock.dividendPerShare}&price=${stock.price.toFixed(2)}&isHK=${stock.isHK || false}&isUS=${stock.isUS || false}`)}
