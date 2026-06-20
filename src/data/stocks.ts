@@ -1,6 +1,6 @@
 import type { Stock } from '../types'
 
-export const DEFAULT_SECTORS = ['电力', '银行', '保险', '白酒', '通讯', '白色家电', '中药', '运输', '能源', '红利ETF', '美股', '其他']
+export const DEFAULT_SECTORS = ['电力', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '红利ETF', '美股', '其他']
 
 export const STATIC_STOCKS: Stock[] = [
   { sector: '电力', name: '中国广核', code: '003816', price: 4.48, dividendPerShare: 0.086, yieldRate: 1.92, confirmed: true, targetYield: 4.0, targetPrice: 2.15, price2026: 3.77, change2026: 18.83 },
@@ -22,13 +22,16 @@ export const STATIC_STOCKS: Stock[] = [
   { sector: '银行', name: '宁波银行', code: '002142', price: 30.25, dividendPerShare: 1.2, yieldRate: 3.31, confirmed: true, targetYield: 4.5, targetPrice: 22.22, price2026: 28.15, change2026: 7.46 },
   { sector: '银行', name: '江苏银行', code: '600919', price: 10.78, dividendPerShare: 0.564, yieldRate: 5.1, confirmed: true, targetYield: 5.0, targetPrice: 11.0, price2026: 10.46, change2026: 3.06 },
   { sector: '银行', name: '兴业银行', code: '601166', price: 18.53, dividendPerShare: 1.066, yieldRate: 5.75, confirmed: true, targetYield: 5.0, targetPrice: 21.32, price2026: 21.05, change2026: -11.97 },
+  { sector: '银行', name: '中信银行', code: '601998', price: 7.27, dividendPerShare: 0.381, yieldRate: 5.24, confirmed: true, targetYield: 5.0, targetPrice: 7.62 },
+  { sector: '银行', name: '平安银行', code: '000001', price: 10.52, dividendPerShare: 0.596, yieldRate: 5.67, confirmed: true, targetYield: 5.0, targetPrice: 11.92 },
   { sector: '保险', name: '中国平安', code: '601318', price: 58.82, dividendPerShare: 2.7, yieldRate: 4.59, confirmed: true, targetYield: 5.0, targetPrice: 54.0, price2026: 72.36, change2026: -18.71 },
   { sector: '保险', name: '中国平安H', code: '2318', isHK: true, price: 46.0, dividendPerShare: 3.047, yieldRate: 6.62, confirmed: true, targetYield: 6.0, targetPrice: 50.78 },
   { sector: '保险', name: '中国太保', code: '601601', price: 38.63, dividendPerShare: 1.15, yieldRate: 2.98, confirmed: true, targetYield: 5.0, targetPrice: 23.0, price2026: 45.06, change2026: -14.27 },
+  { sector: '保险', name: '新华保险', code: '601336', price: 57.55, dividendPerShare: 2.73, yieldRate: 4.74, confirmed: true, targetYield: 5.0, targetPrice: 54.6 },
   { sector: '白酒', name: '贵州茅台', code: '600519', price: 1453.96, dividendPerShare: 52, yieldRate: 3.85, confirmed: true, targetYield: 4.0, targetPrice: 1400.0, price2026: 1426.0, change2026: 1.96 },
   { sector: '白酒', name: '五粮液', code: '000858', price: 102.07, dividendPerShare: 5.16, yieldRate: 5.68, confirmed: true, targetYield: 5.0, targetPrice: 116.0, price2026: 107.9, change2026: -5.4 },
   { sector: '白酒', name: '泸州老窖', code: '000568', price: 102.51, dividendPerShare: 5.775, yieldRate: 5.66, confirmed: true, targetYield: 5.0, targetPrice: 116.0, price2026: 118.0, change2026: -13.13 },
-  { sector: '通讯', name: '中国移动', code: '600941', price: 94.0, dividendPerShare: 4.73, yieldRate: 5.03, confirmed: true, targetYield: 5.0, targetPrice: 94.6, price2026: 100.58, change2026: -6.54 },
+  { sector: '通讯', name: '中国移动', code: '600941', price: 94.0, dividendPerShare: 4.704, yieldRate: 5.0, confirmed: true, targetYield: 5.0, targetPrice: 94.6, price2026: 100.58, change2026: -6.54 },
   { sector: '通讯', name: '中国移动H', code: '0941', isHK: true, price: 56.0, dividendPerShare: 5.27, yieldRate: 9.41, confirmed: true, targetYield: 6.0, targetPrice: 87.83 },
   { sector: '通讯', name: '中国电信', code: '601728', price: 5.79, dividendPerShare: 0.272, yieldRate: 4.7, confirmed: true, targetYield: 5.0, targetPrice: 5.44, price2026: 6.34, change2026: -8.68 },
   { sector: '白色家电', name: '美的集团', code: '000333', price: 76.41, dividendPerShare: 4.3, yieldRate: 5.63, confirmed: true, targetYield: 5.0, targetPrice: 86.0, price2026: 78.68, change2026: -2.89 },

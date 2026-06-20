@@ -151,7 +151,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[] }
         if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
@@ -167,6 +167,16 @@ export const useStore = create<AppState>()(
           if (othersIdx >= 0) sectors.splice(othersIdx, 0, '美股')
           else sectors.push('美股')
           s.customSectors = sectors
+        }
+        // v4：白酒与能源对换位置
+        if (s?.customSectors) {
+          const a = s.customSectors.indexOf('白酒')
+          const b = s.customSectors.indexOf('能源')
+          if (a >= 0 && b >= 0) {
+            const sectors = [...s.customSectors]
+            ;[sectors[a], sectors[b]] = [sectors[b], sectors[a]]
+            s.customSectors = sectors
+          }
         }
         return s
       },
