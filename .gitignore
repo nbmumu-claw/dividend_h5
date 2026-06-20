@@ -4,3 +4,6 @@ marketing/
 .DS_Store
 *.local
 playground/
+.gstack/
+.claude/
+.codegraph/
