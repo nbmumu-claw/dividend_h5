@@ -1,14 +1,16 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useStore } from '../store'
 import Disclaimer from '../components/Disclaimer'
+import Modal from '../components/Modal'
 import { afterTax } from '../utils/tax'
 import { fetchStockPrices } from '../utils/api'
 import { isIncluded, resolveCategory, labelOf, colorOf, CATEGORIES, type Category } from '../utils/categories'
 import type { WatchlistStock } from '../types'
 
 const COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
+const LABEL_TO_CAT: Record<string, string> = { 弱周期: 'weak', 强周期: 'strong', 消费: 'consume', 未分类: '' }
 
 export default function Portfolio() {
   const navigate = useNavigate()
@@ -19,6 +21,8 @@ export default function Portfolio() {
   const categoryOverrides = useStore(s => s.categoryOverrides)
   const [chartType, setChartType] = useState<'div' | 'cost'>('div')
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock' | 'category'>('sector')
+  // 明细弹窗（沪/深市值、三大类成分股）
+  const [detail, setDetail] = useState<{ title: string; items: { name: string; value: number }[] } | null>(null)
 
   useEffect(() => {
     if (!watchlist.length) return
@@ -60,6 +64,8 @@ export default function Portfolio() {
     let totalMarket = 0
     let shMarket = 0   // 沪市市值（仅 A 股）
     let szMarket = 0   // 深市市值（仅 A 股）
+    const shItems: { name: string; value: number }[] = []
+    const szItems: { name: string; value: number }[] = []
 
     holdings.forEach(s => {
       const shares = Number(s.shares) || 0
@@ -72,10 +78,10 @@ export default function Portfolio() {
       totalAnnual += annualDiv
       totalMarket += market
       // 沪深细分：境内标的(非港非美)，6/9 开头沪市(含沪B 900) / 0、2、3 开头深市(含深B 200)
-      if (!s.isHK && !s.isUS) {
+      if (!s.isHK && !s.isUS && market > 0) {
         const head = String(s.code).charAt(0)
-        if (head === '6' || head === '9') shMarket += market
-        else if (head === '0' || head === '2' || head === '3') szMarket += market
+        if (head === '6' || head === '9') { shMarket += market; shItems.push({ name: s.name, value: market }) }
+        else if (head === '0' || head === '2' || head === '3') { szMarket += market; szItems.push({ name: s.name, value: market }) }
       }
       const hasCost = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== ''
       const costPriceCny = hasCost
@@ -100,23 +106,38 @@ export default function Portfolio() {
       shPct: totalMarket > 0 ? (shMarket / totalMarket) * 100 : 0,
       szPct: totalMarket > 0 ? (szMarket / totalMarket) * 100 : 0,
       hasShSz: shMarket > 0 || szMarket > 0,
+      shItems: shItems.sort((a, b) => b.value - a.value),
+      szItems: szItems.sort((a, b) => b.value - a.value),
       stockCount: watchlist.length,
       hasHoldings: holdings.length > 0,
     }
   }, [holdings, watchlist.length, exchangeRate, usdRate])
 
-  const chartData = useMemo<{ name: string; value: number; color?: string }[]>(() => {
-    const useCost = chartType === 'cost'
-    const valOf = (s: WatchlistStock) => {
-      const shares = Number(s.shares) || 0
-      if (useCost) {
-        const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
-        return priceCny * shares
-      }
-      const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
-      return afterTax(divCny * shares, s)
+  const valOf = useCallback((s: WatchlistStock) => {
+    const shares = Number(s.shares) || 0
+    if (chartType === 'cost') {
+      const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
+      return priceCny * shares
     }
+    const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+    return afterTax(divCny * shares, s)
+  }, [chartType, exchangeRate, usdRate])
 
+  // 三大类成分股明细（含未分类）
+  const categoryMembers = useMemo(() => {
+    const m: Record<string, { name: string; value: number }[]> = { weak: [], strong: [], consume: [], '': [] }
+    if (chartGroup !== 'category') return m
+    holdingsWithDisplay.forEach(({ stock: s, displayName }) => {
+      if (!isIncluded(s)) return
+      const v = valOf(s)
+      if (v <= 0) return
+      m[resolveCategory(s, categoryOverrides)].push({ name: displayName, value: v })
+    })
+    Object.values(m).forEach(arr => arr.sort((a, b) => b.value - a.value))
+    return m
+  }, [holdingsWithDisplay, chartGroup, valOf, categoryOverrides])
+
+  const chartData = useMemo<{ name: string; value: number; color?: string }[]>(() => {
     // 三大类：排除美股/ETF，固定配色与顺序，未分类垫底
     if (chartGroup === 'category') {
       const sums: Record<string, number> = { weak: 0, strong: 0, consume: 0, '': 0 }
@@ -148,7 +169,7 @@ export default function Portfolio() {
     return holdingsWithDisplay
       .map(({ stock: s, displayName }) => ({ name: displayName, value: parseFloat(valOf(s).toFixed(2)) }))
       .filter(d => d.value > 0)
-  }, [holdings, holdingsWithDisplay, exchangeRate, usdRate, chartType, chartGroup, categoryOverrides])
+  }, [holdings, holdingsWithDisplay, chartGroup, categoryOverrides, valOf])
 
 
 
@@ -206,14 +227,26 @@ export default function Portfolio() {
               </div>
               {metrics.hasShSz && (
                 <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">沪市市值</span>
+                  <button
+                    className="flex justify-between items-center text-sm active:opacity-60"
+                    onClick={() => setDetail({ title: '沪市市值明细', items: metrics.shItems })}
+                  >
+                    <span className="text-gray-500 flex items-center gap-0.5">
+                      沪市市值
+                      <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
                     <span className="font-medium text-gray-700">¥{metrics.shMarket.toFixed(0)} <span className="text-xs text-gray-400">{metrics.shPct.toFixed(1)}%</span></span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">深市市值</span>
+                  </button>
+                  <button
+                    className="flex justify-between items-center text-sm active:opacity-60"
+                    onClick={() => setDetail({ title: '深市市值明细', items: metrics.szItems })}
+                  >
+                    <span className="text-gray-500 flex items-center gap-0.5">
+                      深市市值
+                      <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
                     <span className="font-medium text-gray-700">¥{metrics.szMarket.toFixed(0)} <span className="text-xs text-gray-400">{metrics.szPct.toFixed(1)}%</span></span>
-                  </div>
+                  </button>
                 </>
               )}
             </div>
@@ -281,14 +314,23 @@ export default function Portfolio() {
                   .map((d) => {
                     const origIdx = chartData.indexOf(d)
                     const color = d.color || COLORS[origIdx % COLORS.length]
+                    const cat = chartGroup === 'category' ? LABEL_TO_CAT[d.name] : undefined
+                    const clickable = cat !== undefined
                     return (
-                      <div key={d.name} className="flex items-center gap-1 text-xs text-gray-600">
+                      <div
+                        key={d.name}
+                        className={`flex items-center gap-1 text-xs text-gray-600 ${clickable ? 'cursor-pointer active:opacity-60' : ''}`}
+                        onClick={clickable ? () => setDetail({ title: `${d.name}明细`, items: categoryMembers[cat as string] }) : undefined}
+                      >
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
                         <span>{d.name}</span>
                         <span className="text-gray-400">¥{d.value.toFixed(0)}</span>
                         <span className="font-medium" style={{ color }}>
                           {total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%
                         </span>
+                        {clickable && (
+                          <svg className="w-3 h-3 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        )}
                       </div>
                     )
                   })
@@ -315,6 +357,29 @@ export default function Portfolio() {
           </svg>
         </button>
       </div>
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.title}>
+        {detail && (() => {
+          const total = detail.items.reduce((s, d) => s + d.value, 0)
+          if (!detail.items.length) return <div className="py-6 text-center text-sm text-gray-400">暂无明细</div>
+          return (
+            <div className="divide-y divide-gray-50">
+              {detail.items.map(it => (
+                <div key={it.name} className="flex items-center justify-between py-2.5 text-sm">
+                  <span className="text-gray-700">{it.name}</span>
+                  <span className="text-gray-600">
+                    ¥{it.value.toFixed(0)}
+                    <span className="ml-2 text-xs text-gray-400">{total > 0 ? ((it.value / total) * 100).toFixed(1) : 0}%</span>
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between py-2.5 text-sm font-semibold">
+                <span className="text-gray-800">合计</span>
+                <span className="text-gray-800">¥{total.toFixed(0)}</span>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
       <Disclaimer />
     </div>
   )
