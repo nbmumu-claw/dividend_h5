@@ -40,8 +40,10 @@ const BUY_HYDRO = [0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07]
 const BUY_DEFAULT = [0.05, 0.055, 0.06, 0.065, 0.07]
 const SELL_HYDRO = [0.02, 0.025, 0.03]      // 升序：左低息=高价=强卖
 const SELL_DEFAULT = [0.03, 0.035, 0.04]
+// 中国广核、中国核电：低息成长属性，暂不套用卖出网格逻辑
+const NO_SELL = new Set(['中国广核', '中国核电'])
 const buyGridFor = (name: string) => (HYDRO.has(name) ? BUY_HYDRO : BUY_DEFAULT)
-const sellGridFor = (name: string) => (HYDRO.has(name) ? SELL_HYDRO : SELL_DEFAULT)
+const sellGridFor = (name: string) => (NO_SELL.has(name) ? [] : HYDRO.has(name) ? SELL_HYDRO : SELL_DEFAULT)
 
 // 已达档位的底色：买入越高息越深（橙），卖出越低息越深（绿）。键 = 股息率×1000
 const BUY_BG: Record<number, string> = { 40: '#ffedd5', 45: '#fee3c4', 50: '#fed7aa', 55: '#fdc28a', 60: '#fdab6f', 65: '#fb9456', 70: '#f97c3c' }
@@ -151,10 +153,14 @@ export default function YieldGrid() {
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                       </div>
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}</div>
-                      <div className="glabel sell">卖出网格</div>
-                      <div className="tiers">
-                        {sellGridFor(r.name).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" />)}
-                      </div>
+                      {sellGridFor(r.name).length > 0 && (
+                        <>
+                          <div className="glabel sell">卖出网格</div>
+                          <div className="tiers">
+                            {sellGridFor(r.name).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" />)}
+                          </div>
+                        </>
+                      )}
                       <div className="glabel buy">买入网格</div>
                       <div className="tiers">
                         {buyGridFor(r.name).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" />)}
