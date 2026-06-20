@@ -31,6 +31,9 @@ const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
   ['消费', '分众传媒', '002027', 0.34], ['消费', '伊利股份', '600887', 1.38],
 ].map(([sector, name, code, dive]) => ({ sector: sector as string, name: name as string, code: code as string, dive: dive as number }))
 
+const SECTORS = [...new Set(STOCKS.map(s => s.sector))]
+const ALL = '全部'
+
 const GRID_DEFAULT = [0.05, 0.055, 0.06, 0.065, 0.07]
 const GRID_POWER = [0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07]
 const SECTOR_GRID: Record<string, number[]> = { 电力: GRID_POWER }
@@ -64,6 +67,7 @@ export default function YieldGrid() {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [date, setDate] = useState('')
   const [error, setError] = useState('')
+  const [active, setActive] = useState<string>(ALL)
 
   useEffect(() => {
     fetchStockPrices(STOCKS.map(s => ({ code: s.code })))
@@ -109,9 +113,15 @@ export default function YieldGrid() {
         <h1>股息率网格买入价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} 收盘价` : '正在获取最新行情…'}</div>
         <div className="legend">买入价 = 25年股息 ÷ 目标股息率；档位 5%~7%（电力板块从 4% 起）；<b>橘色=现价已达到该档股息率</b>，否则显示现价还需下跌幅度。仅供参考，非投资建议。</div>
+        <div className="filter">
+          <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
+          {SECTORS.map(s => (
+            <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => setActive(s)}>{s}</button>
+          ))}
+        </div>
         {error && <div className="state">{error}</div>}
         {!error && !rows && <div className="state">加载中…</div>}
-        {sectors.map(({ sector, items }) => {
+        {sectors.filter(({ sector }) => active === ALL || sector === active).map(({ sector, items }) => {
           const grid = gridFor(sector)
           return (
             <section key={sector}>
@@ -194,6 +204,13 @@ const CSS = `
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }
 .yg-page .legend b { color: #ea580c; }
 .yg-page .state { color: #9ca3af; font-size: 13px; padding: 8px 2px; }
+.yg-page .filter { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; flex-wrap: nowrap;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 10px 0; margin: -2px 0 14px;
+  background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
+.yg-page .filter::-webkit-scrollbar { display: none; }
+.yg-page .chip { flex: 0 0 auto; padding: 5px 14px; border: 1px solid #e5e7eb; border-radius: 999px;
+  background: #fff; color: #374151; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.yg-page .chip.active { background: #1f2328; color: #fff; border-color: #1f2328; }
 .yg-page section { background: #fff; border-radius: 14px; padding: 14px 16px 18px;
   margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .yg-page h2 { font-size: 17px; margin: 4px 2px 12px; display: flex; align-items: center; gap: 8px; }
