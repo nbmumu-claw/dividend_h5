@@ -2,6 +2,15 @@ import { useNavigate } from 'react-router-dom'
 
 const VERSIONS = [
   {
+    version: 'v1.8',
+    date: '2026-06',
+    items: [
+      '决策矩阵「均每股派息」改为近 5 年（不足 5 年取实际年数）',
+      '历史分红纳入「股东大会决议通过」的已公告待除息分红，年度统计更完整',
+      '收益页持仓盈亏明细支持按盈亏正序 / 倒序切换',
+    ],
+  },
+  {
     version: 'v1.7',
     date: '2026-06',
     items: [
