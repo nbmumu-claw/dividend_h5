@@ -25,6 +25,7 @@ export default function Portfolio() {
   // 明细弹窗（沪/深市值、三大类成分股）
   const [detail, setDetail] = useState<{ title: string; items: { name: string; value: number }[] } | null>(null)
   const [showPnl, setShowPnl] = useState(false)
+  const [pnlSort, setPnlSort] = useState<'pl' | 'pct' | 'market'>('pl')
 
   useEffect(() => {
     if (!watchlist.length) return
@@ -190,8 +191,15 @@ export default function Portfolio() {
         return { name: displayName, code: s.code, market, cost, pl, pct }
       })
       .filter(d => d.market > 0)
-      .sort((a, b) => b.pl - a.pl)
   }, [holdingsWithDisplay, exchangeRate, usdRate])
+
+  const pnlSorted = useMemo(() => {
+    const arr = [...pnlDetail]
+    if (pnlSort === 'market') arr.sort((a, b) => b.market - a.market)
+    else if (pnlSort === 'pct') arr.sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity))
+    else arr.sort((a, b) => b.pl - a.pl)
+    return arr
+  }, [pnlDetail, pnlSort])
 
 
 
@@ -409,7 +417,20 @@ export default function Portfolio() {
       </Modal>
 
       {/* 持仓盈亏明细 */}
-      <Modal open={showPnl} onClose={() => setShowPnl(false)} title="持仓盈亏明细">
+      <Modal
+        open={showPnl}
+        onClose={() => setShowPnl(false)}
+        title="持仓盈亏明细"
+        headerRight={
+          <button
+            onClick={() => setPnlSort(p => (p === 'pl' ? 'pct' : p === 'pct' ? 'market' : 'pl'))}
+            className="text-xs text-red-500 bg-red-50 rounded-full px-2.5 py-1 flex items-center gap-0.5"
+          >
+            {pnlSort === 'pl' ? '按盈亏' : pnlSort === 'pct' ? '按盈亏%' : '按市值'}
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        }
+      >
         {pnlDetail.length === 0 ? (
           <div className="py-6 text-center text-sm text-gray-400">暂无持仓</div>
         ) : (
@@ -426,7 +447,7 @@ export default function Portfolio() {
               </span>
             </div>
             <div className="divide-y divide-gray-50">
-              {pnlDetail.map(d => (
+              {pnlSorted.map(d => (
                 <div key={d.code} className="flex items-center justify-between py-3">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-gray-800 truncate">{d.name}</div>

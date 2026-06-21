@@ -7,9 +7,10 @@ interface ModalProps {
   title?: string
   children: React.ReactNode
   footer?: React.ReactNode
+  headerRight?: React.ReactNode
 }
 
-export default function Modal({ open, onClose, title, children, footer }: ModalProps) {
+export default function Modal({ open, onClose, title, children, footer, headerRight }: ModalProps) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -28,11 +29,14 @@ export default function Modal({ open, onClose, title, children, footer }: ModalP
           {title && (
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-              <button onClick={onClose} className="text-gray-400 p-1">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                {headerRight}
+                <button onClick={onClose} className="text-gray-400 p-1">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
           )}
           {children}
