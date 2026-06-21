@@ -25,7 +25,7 @@ export default function Portfolio() {
   // 明细弹窗（沪/深市值、三大类成分股）
   const [detail, setDetail] = useState<{ title: string; items: { name: string; value: number }[] } | null>(null)
   const [showPnl, setShowPnl] = useState(false)
-  const [pnlSort, setPnlSort] = useState<'pl' | 'pct' | 'market'>('pl')
+  const [pnlDesc, setPnlDesc] = useState(true)
 
   useEffect(() => {
     if (!watchlist.length) return
@@ -195,11 +195,9 @@ export default function Portfolio() {
 
   const pnlSorted = useMemo(() => {
     const arr = [...pnlDetail]
-    if (pnlSort === 'market') arr.sort((a, b) => b.market - a.market)
-    else if (pnlSort === 'pct') arr.sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity))
-    else arr.sort((a, b) => b.pl - a.pl)
+    arr.sort((a, b) => pnlDesc ? b.pl - a.pl : a.pl - b.pl)
     return arr
-  }, [pnlDetail, pnlSort])
+  }, [pnlDetail, pnlDesc])
 
 
 
@@ -423,11 +421,13 @@ export default function Portfolio() {
         title="持仓盈亏明细"
         headerRight={
           <button
-            onClick={() => setPnlSort(p => (p === 'pl' ? 'pct' : p === 'pct' ? 'market' : 'pl'))}
+            onClick={() => setPnlDesc(v => !v)}
             className="text-xs text-red-500 bg-red-50 rounded-full px-2.5 py-1 flex items-center gap-0.5"
           >
-            {pnlSort === 'pl' ? '按盈亏' : pnlSort === 'pct' ? '按盈亏%' : '按市值'}
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            按盈亏
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d={pnlDesc ? 'm6 9 6 6 6-6' : 'm6 15 6-6 6 6'} strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
         }
       >

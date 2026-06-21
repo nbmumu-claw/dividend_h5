@@ -56,11 +56,12 @@ export default function Matrix() {
     })
   }, [code, isHK, isUS])
 
+  // 近 5 年平均每股派息（不足 5 年取实际年数）
   const avgDps = useMemo(() => {
-    if (!divHistory?.consecutiveYears) return 0
-    const consecutive = divHistory.records.slice(0, divHistory.consecutiveYears)
-    const sum = consecutive.reduce((s, r) => s + r.perShare, 0)
-    return sum / consecutive.length
+    const recs = divHistory?.records?.slice(0, 5) ?? []
+    if (!recs.length) return { avg: 0, years: 0 }
+    const sum = recs.reduce((s, r) => s + r.perShare, 0)
+    return { avg: sum / recs.length, years: recs.length }
   }, [divHistory])
 
   return (
@@ -170,7 +171,7 @@ export default function Matrix() {
             <div className="mb-3">
               <div className="text-sm font-semibold text-gray-800">历史分红</div>
               <div className="text-xs text-gray-400 mt-0.5">
-                {isHK ? '近10年历史派息记录（HKD，税前）' : isUS ? '近10年历史派息记录（USD，税前）' : '仅展示近10年已实施分配记录，每股派息为税前金额'}
+                {isHK ? '近10年历史派息记录（HKD，税前）' : isUS ? '近10年历史派息记录（USD，税前）' : '近10年已实施 / 已通过分配记录，每股派息为税前金额'}
               </div>
             </div>
             {historyLoading ? (
@@ -191,8 +192,8 @@ export default function Matrix() {
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3 text-center">
-                    <div className="text-xl font-bold text-gray-900">{currencySymbol}{avgDps.toFixed(3)}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">近{divHistory.consecutiveYears}年均每股派息</div>
+                    <div className="text-xl font-bold text-gray-900">{currencySymbol}{avgDps.avg.toFixed(3)}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">近{avgDps.years}年均每股派息</div>
                   </div>
                 </div>
 
