@@ -7,6 +7,29 @@ import { Toast, useToast } from '../components/Toast'
 import Modal from '../components/Modal'
 import { afterTax } from '../utils/tax'
 
+// 统计备份内容（兼容多账户 data.accounts 与旧版单 data.watchlist）
+function backupCounts(data: Record<string, unknown> | undefined) {
+  const accounts = Array.isArray((data as { accounts?: unknown[] })?.accounts)
+    ? (data as { accounts: { watchlist?: unknown[] }[] }).accounts
+    : null
+  const stockCount = accounts
+    ? accounts.reduce((n, a) => n + (a.watchlist?.length || 0), 0)
+    : (Array.isArray((data as { watchlist?: unknown[] })?.watchlist) ? (data as { watchlist: unknown[] }).watchlist.length : 0)
+  const accountCount = accounts ? accounts.length : 1
+  const sectorCount = (((data as { discoveryCustomSectors?: unknown[]; customSectors?: unknown[] })?.discoveryCustomSectors
+    || (data as { customSectors?: unknown[] })?.customSectors || []) as unknown[]).length
+  return { stockCount, accountCount, sectorCount }
+}
+
+function fmtBackupTime(iso?: string): string {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  } catch { return '' }
+}
+
 interface Achievement {
   id: string; label: string; description: string; unlocked: boolean; icon: string
 }
@@ -56,6 +79,9 @@ export default function Settings() {
 
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
+  const [showExport, setShowExport] = useState(false)
+  const [exportCode, setExportCode] = useState('')
+  const [exportSummary, setExportSummary] = useState('')
   const [showAgreement, setShowAgreement] = useState(false)
   const [showAchievements, setShowAchievements] = useState(false)
   const { message, showToast } = useToast()
@@ -103,26 +129,50 @@ export default function Settings() {
         discoveryCustomSectors: useStore.getState().customSectors,
       },
     }
-    const text = JSON.stringify(backup, null, 2)
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('备份已复制到剪贴板')
-    }).catch(() => {
-      // fallback: download file
-      const blob = new Blob([text], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `xuxu-efu-backup-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      showToast('备份文件已下载')
-    })
+    const c = backupCounts(backup.data)
+    if (c.stockCount === 0) { showToast('暂无可备份的数据'); return }
+    const text = JSON.stringify(backup)
+    const summary = `${c.accountCount > 1 ? `${c.accountCount} 个账户 · ` : ''}${c.stockCount} 只股票`
+      + (c.sectorCount ? ` · ${c.sectorCount} 个板块` : '')
+    setExportCode(text)
+    setExportSummary(summary)
+    setShowExport(true)
+    navigator.clipboard.writeText(text).catch(() => {})
+  }
+
+  const downloadBackup = () => {
+    const blob = new Blob([exportCode], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `dividend-backup-${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('备份文件已下载')
+  }
+
+  // 导入预览（解析粘贴内容，导入前展示将恢复的内容）
+  const importInfo = useMemo<{ error?: string; stockCount?: number; accountCount?: number; sectorCount?: number; exportedAt?: string } | null>(() => {
+    const t = importText.trim()
+    if (!t) return null
+    let parsed: { data?: Record<string, unknown>; exportedAt?: string }
+    try { parsed = JSON.parse(t) } catch { return { error: '格式错误，请确认粘贴了完整的备份码' } }
+    const data = (parsed.data || parsed) as Record<string, unknown>
+    const hasData = Array.isArray((data as { accounts?: unknown }).accounts) || Array.isArray((data as { watchlist?: unknown }).watchlist)
+    if (!hasData) return { error: '备份数据不完整，请重新导出后再试' }
+    return { ...backupCounts(data), exportedAt: fmtBackupTime(parsed.exportedAt) }
+  }, [importText])
+
+  const openImport = () => {
+    setImportText('')
+    setShowImport(true)
+    navigator.clipboard.readText().then(t => { if (t) setImportText(t.trim()) }).catch(() => {})
   }
 
   const handleImport = () => {
     try {
       const parsed = JSON.parse(importText)
-      let data = parsed.data || parsed
+      const data = parsed.data || parsed
       importBackup(data)
       showToast('数据已恢复')
       setShowImport(false)
@@ -257,7 +307,7 @@ export default function Settings() {
           <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/></svg>}
             label="导入备份"
-            onClick={() => setShowImport(true)}
+            onClick={openImport}
           />
           <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10zM12 8v8M12 8l-2 2M12 8l2 2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
@@ -290,7 +340,7 @@ export default function Settings() {
           <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" strokeLinecap="round" strokeLinejoin="round"/></svg>}
             label="更新日志"
-            value="v1.8"
+            value="v1.9"
             onClick={() => navigate('/changelog')}
           />
           <SettingRow
@@ -383,20 +433,47 @@ export default function Settings() {
         </div>
       </Modal>
 
+      {/* Export Modal */}
+      <Modal open={showExport} onClose={() => setShowExport(false)} title="导出备份">
+        <div className="space-y-3">
+          <div className="bg-red-50 rounded-lg px-3 py-2.5 text-sm">
+            <div className="text-gray-500 text-xs mb-0.5">本次备份包含</div>
+            <div className="font-semibold text-gray-800">{exportSummary}</div>
+          </div>
+          <p className="text-xs text-gray-500">备份码已复制到剪贴板，妥善保存；也可保存为文件。</p>
+          <textarea className="input-field text-xs text-gray-500" rows={4} readOnly value={exportCode} style={{ resize: 'none' }} onFocus={e => e.target.select()} />
+          <button className="btn-primary" onClick={() => navigator.clipboard.writeText(exportCode).then(() => showToast('已复制')).catch(() => showToast('复制失败'))}>复制备份码</button>
+          <button className="btn-secondary" onClick={downloadBackup}>保存为文件</button>
+        </div>
+      </Modal>
+
       {/* Import Modal */}
       <Modal open={showImport} onClose={() => setShowImport(false)} title="导入备份">
         <div className="space-y-3">
-          <p className="text-xs text-gray-500">将之前导出的备份 JSON 内容粘贴到下方：</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-500">粘贴备份码，或读取剪贴板：</p>
+            <button className="text-xs text-red-500" onClick={() => navigator.clipboard.readText().then(t => { if (t) setImportText(t.trim()); else showToast('剪贴板为空') }).catch(() => showToast('无法读取剪贴板'))}>读取剪贴板</button>
+          </div>
           <textarea
             className="input-field"
-            rows={8}
+            rows={6}
             placeholder='粘贴备份内容（JSON格式）...'
             value={importText}
             onChange={e => setImportText(e.target.value)}
             style={{ resize: 'vertical' }}
           />
-          <button className="btn-primary" onClick={handleImport} disabled={!importText.trim()}>
-            确认导入
+          {importInfo?.error && <div className="text-xs text-red-500">{importInfo.error}</div>}
+          {importInfo && !importInfo.error && (
+            <div className="bg-gray-50 rounded-lg px-3 py-2.5 text-sm">
+              <div className="text-gray-500 text-xs mb-0.5">将恢复{importInfo.exportedAt ? ` · 导出于 ${importInfo.exportedAt}` : ''}</div>
+              <div className="font-semibold text-gray-800">
+                {importInfo.accountCount! > 1 ? `${importInfo.accountCount} 个账户 · ` : ''}{importInfo.stockCount} 只股票{importInfo.sectorCount ? ` · ${importInfo.sectorCount} 个板块` : ''}
+              </div>
+              <div className="text-xs text-orange-500 mt-1">⚠️ 将覆盖当前全部数据，不可撤销</div>
+            </div>
+          )}
+          <button className="btn-primary" onClick={handleImport} disabled={!importInfo || !!importInfo.error}>
+            确认导入并覆盖
           </button>
           <button className="btn-secondary" onClick={() => setShowImport(false)}>取消</button>
         </div>

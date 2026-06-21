@@ -267,7 +267,7 @@ function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResul
 }
 
 // US exchanges on Yahoo Finance
-const US_EXCHANGES = new Set(['NMS', 'NYQ', 'NGM', 'PCX', 'ASE', 'NasdaqGS', 'NASDAQ', 'NYSE', 'CBT', 'NYB'])
+const US_EXCHANGES = new Set(['NMS', 'NYQ', 'NGM', 'PCX', 'ASE', 'BTS', 'NCM', 'NasdaqGS', 'NASDAQ', 'NYSE', 'CBT', 'NYB'])
 
 // Yahoo Finance search for US stocks
 async function searchViaYahooUS(keyword: string): Promise<SearchResult[]> {

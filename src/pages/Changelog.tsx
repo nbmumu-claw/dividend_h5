@@ -2,6 +2,15 @@ import { useNavigate } from 'react-router-dom'
 
 const VERSIONS = [
   {
+    version: 'v1.9',
+    date: '2026-06',
+    items: [
+      '导出备份：弹窗显示备份摘要（账户 / 股票 / 板块数），一键复制或保存为文件',
+      '导入备份：自动读取剪贴板并预览将恢复的内容（含导出时间），明确覆盖提示',
+      '美股搜索补充 Cboe BZX / 纳斯达克资本市场交易所，修复部分 ETF（如 DRAM）搜不到',
+    ],
+  },
+  {
     version: 'v1.8',
     date: '2026-06',
     items: [
