@@ -24,6 +24,7 @@ export default function Portfolio() {
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock' | 'category'>('sector')
   // 明细弹窗（沪/深市值、三大类成分股）
   const [detail, setDetail] = useState<{ title: string; items: { name: string; value: number }[] } | null>(null)
+  const [showPnl, setShowPnl] = useState(false)
 
   useEffect(() => {
     if (!watchlist.length) return
@@ -173,6 +174,25 @@ export default function Portfolio() {
       .filter(d => d.value > 0)
   }, [holdings, holdingsWithDisplay, chartGroup, categoryOverrides, valOf])
 
+  // 持仓盈亏明细（按盈亏倒序）
+  const pnlDetail = useMemo(() => {
+    return holdingsWithDisplay
+      .map(({ stock: s, displayName }) => {
+        const shares = Number(s.shares) || 0
+        const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
+        const market = priceCny * shares
+        const hasCost = s.costPrice !== undefined && s.costPrice !== '' && !Number.isNaN(Number(s.costPrice))
+        const cost = hasCost
+          ? (s.isHK ? Number(s.costPrice) * exchangeRate : s.isUS ? Number(s.costPrice) * usdRate : Number(s.costPrice)) * shares
+          : market
+        const pl = market - cost
+        const pct = cost > 0 ? (pl / cost) * 100 : null
+        return { name: displayName, code: s.code, market, cost, pl, pct }
+      })
+      .filter(d => d.market > 0)
+      .sort((a, b) => b.pl - a.pl)
+  }, [holdingsWithDisplay, exchangeRate, usdRate])
+
 
 
   return (
@@ -192,7 +212,12 @@ export default function Portfolio() {
             </div>
             {metrics.hasHoldings ? (
               <div className="text-right">
-                <div className="text-xs text-gray-400 mb-1">持仓盈亏</div>
+                <div className="text-xs text-gray-400 mb-1 flex items-center justify-end gap-1">
+                  持仓盈亏
+                  <button onClick={() => setShowPnl(true)} className="text-red-500 flex items-center">明细
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                </div>
                 <div className={`text-3xl font-bold ${metrics.profitLoss >= 0 ? 'text-red-500' : 'text-green-600'}`}>
                   {metrics.profitLoss >= 0 ? '+' : ''}¥{Math.abs(metrics.profitLoss).toFixed(0)}
                 </div>
@@ -381,6 +406,47 @@ export default function Portfolio() {
             </div>
           )
         })()}
+      </Modal>
+
+      {/* 持仓盈亏明细 */}
+      <Modal open={showPnl} onClose={() => setShowPnl(false)} title="持仓盈亏明细">
+        {pnlDetail.length === 0 ? (
+          <div className="py-6 text-center text-sm text-gray-400">暂无持仓</div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-100 text-sm">
+              <span className="text-gray-400">合计</span>
+              <span className="text-right">
+                <span className={`font-bold ${metrics.profitLoss >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {metrics.profitLoss >= 0 ? '+' : '-'}¥{Math.abs(metrics.profitLoss).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </span>
+                <span className={`ml-2 text-xs ${metrics.profitLossRatio >= 0 ? 'text-red-400' : 'text-green-500'}`}>
+                  {metrics.profitLossRatio >= 0 ? '+' : ''}{metrics.profitLossRatio.toFixed(2)}%
+                </span>
+              </span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {pnlDetail.map(d => (
+                <div key={d.code} className="flex items-center justify-between py-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-800 truncate">{d.name}</div>
+                    <div className="text-xs text-gray-400">
+                      {d.code} · 市值 ¥{d.market.toLocaleString('en-US', { maximumFractionDigits: 0 })} / 成本 ¥{d.cost.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <div className={`text-sm font-bold ${d.pl >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {d.pl >= 0 ? '+' : '-'}¥{Math.abs(d.pl).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </div>
+                    <div className={`text-xs ${d.pl >= 0 ? 'text-red-400' : 'text-green-500'}`}>
+                      {d.pct != null ? `${d.pct >= 0 ? '+' : ''}${d.pct.toFixed(2)}%` : '已回本'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
       <Disclaimer />
     </div>
