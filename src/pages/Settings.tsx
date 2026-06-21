@@ -51,6 +51,7 @@ export default function Settings() {
   const agreementAccepted = useStore(s => s.agreementAccepted)
   const setAgreementAccepted = useStore(s => s.setAgreementAccepted)
   const feeConfig = useStore(s => s.feeConfig)
+  const accounts = useStore(s => s.accounts)
   const navigate = useNavigate()
 
   const [showImport, setShowImport] = useState(false)
@@ -91,10 +92,11 @@ export default function Settings() {
 
   const handleExport = () => {
     const backup: BackupData = {
-      version: '2.0',
+      version: '2.2',
       exportedAt: new Date().toISOString(),
       data: {
         watchlist: useStore.getState().watchlist,
+        accounts: useStore.getState().gatherAccounts(),
         discoveryManualStocks: useStore.getState().manualStocks,
         discoveryStaticEdits: useStore.getState().staticEdits,
         discoveryHiddenStocks: useStore.getState().hiddenStocks,
@@ -228,6 +230,12 @@ export default function Settings() {
       <div className="mx-4 mb-3">
         <div className="section-header px-0">数据管理</div>
         <div className="card">
+          <SettingRow
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" strokeLinecap="round"/></svg>}
+            label="账户管理"
+            value={`${accounts.length} 个`}
+            onClick={() => navigate('/account-manager')}
+          />
           <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>}
             label="类别设置"

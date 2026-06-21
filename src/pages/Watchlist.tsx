@@ -6,6 +6,7 @@ import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
 import type { WatchlistStock } from '../types'
 import { Toast, useToast } from '../components/Toast'
+import Modal from '../components/Modal'
 
 const TAX_OPTIONS: { value: WatchlistStock['taxType']; label: string }[] = [
   { value: 'h', label: 'H股 20%' },
@@ -70,6 +71,11 @@ export default function Watchlist() {
   const removeFromWatchlist = useStore(s => s.removeFromWatchlist)
   const updateWatchlistStock = useStore(s => s.updateWatchlistStock)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
+  const accounts = useStore(s => s.accounts)
+  const activeAccountId = useStore(s => s.activeAccountId)
+  const switchAccount = useStore(s => s.switchAccount)
+  const [showAccountSheet, setShowAccountSheet] = useState(false)
+  const activeAccountName = accounts.find(a => a.id === activeAccountId)?.name || '我的账户'
   const [activeSector, setActiveSector] = useState(
     () => sessionStorage.getItem('watchlist-sector') || '全部'
   )
@@ -116,15 +122,17 @@ export default function Watchlist() {
       if (Object.keys(updates).length) batchUpdateWatchlist(updates)
       setPricesLoaded(true)
     }).catch(() => setPricesLoaded(true))
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAccountId])
 
-  // 首次加载企业性质（仅A股非ETF）
+  // 首次加载企业性质（仅A股非ETF），切账户后重新加载
   useEffect(() => {
     const aShares = watchlist.filter(s => !s.isHK && !s.isUS && !s.isETF)
     if (!aShares.length) return
     Promise.all(aShares.map(s => fetchOwnerType(s.code).then(t => [s.code, t] as [string, string])))
       .then(results => setOwnerTypes(Object.fromEntries(results)))
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAccountId])
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY
@@ -266,8 +274,15 @@ export default function Watchlist() {
 
       {/* Header */}
       <div className="px-4 pt-12 pb-2">
-        <div className="flex items-center justify-center mb-2">
+        <div className="relative flex items-center justify-center mb-2">
           <h1 className="text-xl font-bold text-gray-900">自选</h1>
+          <button
+            onClick={() => setShowAccountSheet(true)}
+            className="absolute right-0 flex items-center gap-0.5 text-sm text-gray-600 bg-gray-100 rounded-full px-3 py-1 max-w-[40%]"
+          >
+            <span className="truncate">{activeAccountName}</span>
+            <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
         </div>
         <div className="flex items-center justify-center gap-1">
           {SORT_OPTIONS.map(opt => (
@@ -547,6 +562,34 @@ export default function Watchlist() {
 
       <Disclaimer />
       <Toast message={message} />
+
+      {/* 账户切换 */}
+      <Modal open={showAccountSheet} onClose={() => setShowAccountSheet(false)} title="切换账户">
+        <div className="space-y-1">
+          {accounts.map(a => {
+            const active = a.id === activeAccountId
+            return (
+              <button
+                key={a.id}
+                onClick={() => { switchAccount(a.id); setShowAccountSheet(false); if (!active) showToast(`已切换到「${a.name}」`) }}
+                className={`w-full flex items-center gap-2 px-3 py-3 rounded-lg ${active ? 'bg-red-50' : 'active:bg-gray-50'}`}
+              >
+                <span className={`w-4 h-4 flex-shrink-0 ${active ? 'text-red-600' : 'text-transparent'}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </span>
+                <span className={`text-sm ${active ? 'font-semibold text-red-700' : 'text-gray-800'}`}>{a.name}</span>
+              </button>
+            )
+          })}
+          <button
+            onClick={() => { setShowAccountSheet(false); navigate('/account-manager') }}
+            className="w-full flex items-center gap-2 px-3 py-3 rounded-lg active:bg-gray-50 text-gray-500 text-sm border-t border-gray-50 mt-1"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            管理账户
+          </button>
+        </div>
+      </Modal>
 
       {confirmRemove && (
         <div className="modal-backdrop" style={{ alignItems: 'center' }} onClick={() => setConfirmRemove(null)}>

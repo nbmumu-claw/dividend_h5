@@ -5,6 +5,15 @@ import { DEFAULT_SECTORS, STATIC_STOCKS } from '../data/stocks'
 import { applyHolding, ensureTransactions, type Transaction } from '../utils/holdings'
 import { makeFeeCalc, DEFAULT_FEE_CONFIG, type FeeConfig } from '../utils/fees'
 
+const MAX_ACCOUNTS = 3
+const DEFAULT_ACCOUNT_ID = 'default'
+const DEFAULT_ACCOUNT_NAME = '我的账户'
+const genAccountId = () => 'acc_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36)
+
+// 按当前费率重算一组持仓的摊薄成本（保证存储成本与 computeHolding 一致，避免卡片/详情不一致）
+const recomputeList = (list: WatchlistStock[], cfg: FeeConfig): WatchlistStock[] =>
+  list.map(w => applyHolding({ ...w }, Array.isArray(w.transactions) ? w.transactions : ensureTransactions(w), makeFeeCalc(w, cfg)))
+
 interface AppState {
   // Watchlist
   watchlist: WatchlistStock[]
@@ -14,6 +23,16 @@ interface AppState {
   batchUpdateWatchlist: (updates: Record<string, Partial<WatchlistStock>>) => void
   setWatchlist: (list: WatchlistStock[]) => void
   setTransactions: (code: string, txs: Transaction[]) => void
+
+  // 多账户（镜像法：活动账户持仓在 watchlist，其余存 accountSnapshots）
+  accounts: { id: string; name: string }[]
+  activeAccountId: string
+  accountSnapshots: Record<string, WatchlistStock[]>
+  switchAccount: (id: string) => void
+  addAccount: (name: string) => string | null
+  renameAccount: (id: string, name: string) => void
+  removeAccount: (id: string) => void
+  gatherAccounts: () => { id: string; name: string; watchlist: WatchlistStock[] }[]
 
   // 交易手续费
   feeConfig: FeeConfig
@@ -79,16 +98,75 @@ export const useStore = create<AppState>()(
           ),
         })),
 
+      // 多账户
+      accounts: [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }],
+      activeAccountId: DEFAULT_ACCOUNT_ID,
+      accountSnapshots: {},
+      switchAccount: (id) =>
+        set(s => {
+          if (id === s.activeAccountId || !s.accounts.find(a => a.id === id)) return s
+          const snapshots = { ...s.accountSnapshots, [s.activeAccountId]: s.watchlist }
+          // 载入目标账户时按当前费率重算，避免快照成本因费率变更而过期
+          const target = recomputeList(snapshots[id] ?? [], s.feeConfig)
+          delete snapshots[id]
+          return { accountSnapshots: snapshots, watchlist: target, activeAccountId: id }
+        }),
+      addAccount: (name) => {
+        const s = get()
+        if (s.accounts.length >= MAX_ACCOUNTS) return null
+        const id = genAccountId()
+        set({
+          accounts: [...s.accounts, { id, name: String(name || '新账户').trim() || '新账户' }],
+          accountSnapshots: { ...s.accountSnapshots, [s.activeAccountId]: s.watchlist },
+          watchlist: [],
+          activeAccountId: id,
+        })
+        return id
+      },
+      renameAccount: (id, name) =>
+        set(s => ({
+          accounts: s.accounts.map(a => a.id === id ? { ...a, name: String(name || '').trim() || a.name } : a),
+        })),
+      removeAccount: (id) =>
+        set(s => {
+          if (s.accounts.length <= 1) return s
+          const snapshots = { ...s.accountSnapshots }
+          let { watchlist, activeAccountId } = s
+          if (id === s.activeAccountId) {
+            // 删的是当前账户：先切到别的（载入其快照）
+            const other = s.accounts.find(a => a.id !== id)!
+            snapshots[s.activeAccountId] = s.watchlist // 临时存（随后删）
+            watchlist = snapshots[other.id] ?? []
+            activeAccountId = other.id
+            delete snapshots[other.id]
+          }
+          delete snapshots[id]
+          return {
+            accounts: s.accounts.filter(a => a.id !== id),
+            accountSnapshots: snapshots,
+            watchlist,
+            activeAccountId,
+          }
+        }),
+      gatherAccounts: () => {
+        const s = get()
+        return s.accounts.map(a => ({
+          id: a.id,
+          name: a.name,
+          watchlist: a.id === s.activeAccountId ? s.watchlist : (s.accountSnapshots[a.id] ?? []),
+        }))
+      },
+
       // 交易手续费
       feeConfig: DEFAULT_FEE_CONFIG,
       setFeeConfig: (cfg) =>
         set(s => ({
           feeConfig: cfg,
-          // 改费率后按新费率重算所有自选股的摊薄成本
-          watchlist: s.watchlist.map(w => {
-            const txs = Array.isArray(w.transactions) ? w.transactions : ensureTransactions(w)
-            return applyHolding({ ...w }, txs, makeFeeCalc(w, cfg))
-          }),
+          // 改费率后按新费率重算所有账户（活动 + 各快照）的摊薄成本
+          watchlist: recomputeList(s.watchlist, cfg),
+          accountSnapshots: Object.fromEntries(
+            Object.entries(s.accountSnapshots).map(([id, list]) => [id, recomputeList(list, cfg)])
+          ),
         })),
 
       // Discovery
@@ -169,6 +247,7 @@ export const useStore = create<AppState>()(
       importBackup: (data) => {
         const d = data as {
           watchlist?: WatchlistStock[]
+          accounts?: { id: string; name: string; watchlist?: WatchlistStock[] }[]
           discoveryManualStocks?: Stock[]
           discoveryStaticEdits?: Record<string, Partial<Stock>>
           discoveryHiddenStocks?: string[]
@@ -179,8 +258,33 @@ export const useStore = create<AppState>()(
           hiddenStocks?: string[]
           customSectors?: string[]
         }
+
+        // 账户：新格式 data.accounts；否则旧格式单账户落到默认账户
+        let accounts: { id: string; name: string }[]
+        let activeAccountId: string
+        let accountSnapshots: Record<string, WatchlistStock[]>
+        let watchlist: WatchlistStock[]
+        if (Array.isArray(d.accounts) && d.accounts.length > 0) {
+          accounts = d.accounts.map((a, i) => ({
+            id: a.id || (i === 0 ? DEFAULT_ACCOUNT_ID : genAccountId()),
+            name: a.name || DEFAULT_ACCOUNT_NAME,
+          }))
+          activeAccountId = accounts[0].id
+          watchlist = d.accounts[0].watchlist || []
+          accountSnapshots = {}
+          d.accounts.slice(1).forEach((a, i) => { accountSnapshots[accounts[i + 1].id] = a.watchlist || [] })
+        } else {
+          accounts = [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }]
+          activeAccountId = DEFAULT_ACCOUNT_ID
+          accountSnapshots = {}
+          watchlist = d.watchlist || []
+        }
+
         set({
-          watchlist: d.watchlist || [],
+          watchlist,
+          accounts,
+          activeAccountId,
+          accountSnapshots,
           manualStocks: d.discoveryManualStocks || d.manualStocks || [],
           staticEdits: d.discoveryStaticEdits || d.staticEdits || {},
           hiddenStocks: d.discoveryHiddenStocks || d.hiddenStocks || [],
@@ -190,9 +294,9 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 4,
+      version: 5,
       migrate: (persisted) => {
-        const s = persisted as { customSectors?: string[] }
+        const s = persisted as { customSectors?: string[]; accounts?: unknown }
         if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
           const sectors = [...s.customSectors]
           const othersIdx = sectors.indexOf('其他')
@@ -216,6 +320,13 @@ export const useStore = create<AppState>()(
             ;[sectors[a], sectors[b]] = [sectors[b], sectors[a]]
             s.customSectors = sectors
           }
+        }
+        // v5：多账户。只在缺失时补账户字段，绝不触碰 watchlist（老持仓→默认账户）
+        if (!Array.isArray(s.accounts)) {
+          const m = s as Record<string, unknown>
+          m.accounts = [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }]
+          m.activeAccountId = DEFAULT_ACCOUNT_ID
+          m.accountSnapshots = {}
         }
         return s
       },

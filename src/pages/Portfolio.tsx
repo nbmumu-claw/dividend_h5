@@ -19,6 +19,7 @@ export default function Portfolio() {
   const usdRate = useStore(s => s.usdRate)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
   const categoryOverrides = useStore(s => s.categoryOverrides)
+  const activeAccountId = useStore(s => s.activeAccountId)
   const [chartType, setChartType] = useState<'div' | 'cost'>('div')
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock' | 'category'>('sector')
   // 明细弹窗（沪/深市值、三大类成分股）
@@ -43,7 +44,8 @@ export default function Portfolio() {
       })
       if (Object.keys(updates).length) batchUpdateWatchlist(updates)
     })
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAccountId])
   const holdings = useMemo(
     () => watchlist.filter(s => s.shares && Number(s.shares) > 0),
     [watchlist]

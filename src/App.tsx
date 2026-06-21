@@ -15,6 +15,7 @@ import DataGuide from './pages/DataGuide'
 import CategoryManager from './pages/CategoryManager'
 import HoldingDetail from './pages/HoldingDetail'
 import FeeSetting from './pages/FeeSetting'
+import AccountManager from './pages/AccountManager'
 import Support from './pages/Support'
 import Changelog from './pages/Changelog'
 
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/category-manager" element={<CategoryManager />} />
         <Route path="/holding/:code" element={<HoldingDetail />} />
         <Route path="/fee-setting" element={<FeeSetting />} />
+        <Route path="/account-manager" element={<AccountManager />} />
         <Route path="/support" element={<Support />} />
         <Route path="/changelog" element={<Changelog />} />
       </Routes>
