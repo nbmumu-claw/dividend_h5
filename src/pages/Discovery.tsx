@@ -411,7 +411,7 @@ export default function Discovery() {
 
       {/* Stocks list */}
       <div className="px-4 pb-4">
-        <div className="card overflow-hidden disc-list">
+        <div className={`card overflow-hidden${displayStocks.length ? ' disc-list' : ''}`}>
           {displayStocks.length === 0 ? (
             <div className="empty-state">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
