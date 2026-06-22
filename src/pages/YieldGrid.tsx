@@ -161,14 +161,18 @@ export default function YieldGrid() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string }>({ name: '', code: '', sector: '', dive: '' })
 
+  const [searching, setSearching] = useState(false)
   useEffect(() => {
-    if (q.trim().length < 1) { setResults([]); return }
+    if (q.trim().length < 1) { setResults([]); setSearching(false); return }
     let alive = true
+    setSearching(true)
     const t = setTimeout(() => {
       // forceCloud=true：强制走云端，否则本地命中即返回，搜不全（与发现页一致）
       searchStocks(q.trim(), true).then(rs => {
-        if (alive) setResults(rs.filter(r => !r.isHK && !r.isUS).slice(0, 8))  // 网格仅支持 A 股
-      }).catch(() => { if (alive) setResults([]) })
+        if (!alive) return
+        setResults(rs.filter(r => !r.isHK && !r.isUS).slice(0, 8))  // 网格仅支持 A 股
+        setSearching(false)
+      }).catch(() => { if (alive) { setResults([]); setSearching(false) } })
     }, 300)
     return () => { alive = false; clearTimeout(t) }
   }, [q])
@@ -363,7 +367,13 @@ export default function YieldGrid() {
           <div className="space-y-3 pb-2">
             <div>
               <input className="input-field" placeholder="输入名称或代码搜索 A 股" value={q} onChange={e => setQ(e.target.value)} />
-              {results.length > 0 && (
+              {searching && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 px-1">
+                  <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin" />
+                  搜索中…
+                </div>
+              )}
+              {!searching && results.length > 0 && (
                 <div className="mt-1 border border-gray-100 rounded-lg overflow-hidden">
                   {results.map(r => (
                     <button key={r.code} className="w-full text-left px-3 py-2 text-sm flex justify-between active:bg-gray-50" onClick={() => selectResult(r)}>
@@ -371,6 +381,9 @@ export default function YieldGrid() {
                     </button>
                   ))}
                 </div>
+              )}
+              {!searching && q.trim().length >= 1 && results.length === 0 && (
+                <div className="mt-2 text-xs text-gray-400 px-1">未找到匹配的 A 股</div>
               )}
             </div>
 
