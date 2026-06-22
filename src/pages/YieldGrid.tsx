@@ -115,6 +115,12 @@ export default function YieldGrid() {
   for (const g of sectors) g.items.sort((a, b) => b.cy - a.cy)
   sectors.sort((a, b) => SECTOR_ORDER.indexOf(a.sector) - SECTOR_ORDER.indexOf(b.sector))
 
+  // 盘中（行情日期=今天 且 处于 A 股交易时段 9:30–15:00）显示「盘中价」，否则「收盘价」
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const mins = now.getHours() * 60 + now.getMinutes()
+  const priceLabel = date === todayStr && mins >= 570 && mins < 900 ? '盘中价' : '收盘价'
+
   return (
     <div className={`yg-page${isMobile ? ' mobile' : ''}`}>
       <style>{CSS}</style>
@@ -130,7 +136,7 @@ export default function YieldGrid() {
           <span>返回</span>
         </button>
         <h1>股息率网格买卖价位表</h1>
-        <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} 收盘价` : '正在获取最新行情…'}</div>
+        <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}` : '正在获取最新行情…'}</div>
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
         <div className="filter">
           <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
