@@ -51,10 +51,11 @@ export default function App() {
       {!hideTabBar && <TabBar />}
       <Analytics
         beforeSend={(event) => {
-          // 每次访问只统计首屏：会话内已上报过 pageview 则丢弃后续（SPA 切换不再计数）
+          // 每次访问只统计首屏（SPA 切换不再计数），且首屏再按 10% 概率抽样上报
           if (event.type === 'pageview') {
             if (sessionStorage.getItem('va-pv-sent')) return null
             sessionStorage.setItem('va-pv-sent', '1')
+            if (Math.random() >= 0.1) return null
           }
           return event
         }}
