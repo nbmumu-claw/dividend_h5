@@ -17,6 +17,9 @@ export default function FeeSetting() {
   const navigate = useNavigate()
   const feeConfig = useStore(s => s.feeConfig)
   const setFeeConfig = useStore(s => s.setFeeConfig)
+  const accounts = useStore(s => s.accounts)
+  const activeAccountId = useStore(s => s.activeAccountId)
+  const activeAccountName = accounts.find(a => a.id === activeAccountId)?.name || ''
   const { message, showToast } = useToast()
   // 佣金以「万分之 N」编辑
   const [rateInput, setRateInput] = useState(String(+(feeConfig.commissionRate * 10000).toFixed(4)))
@@ -56,8 +59,13 @@ export default function FeeSetting() {
       </div>
 
       <div className="px-4 pb-3">
+        {accounts.length > 1 && (
+          <div className="mb-2 inline-flex items-center gap-1.5 text-xs bg-red-50 text-red-600 px-2.5 py-1 rounded-full">
+            当前账户：{activeAccountName} · 费率按账户独立
+          </div>
+        )}
         <p className="text-xs text-gray-400 leading-relaxed">
-          开启后，记录买入 / 卖出时按下方费率把手续费计入摊薄成本，与券商 App 对齐。仅 A / B 股生效（港股、美股不计）。修改后会自动重算所有持仓成本。
+          开启后，记录买入 / 卖出时按下方费率把手续费计入摊薄成本，与券商 App 对齐。仅 A / B 股生效（港股、美股不计）。修改后会自动重算当前账户的持仓成本。
         </p>
       </div>
 

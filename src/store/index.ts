@@ -36,17 +36,18 @@ interface AppState {
   // 将未手动改过的自选股每股红利同步为发现页（静态/手动）的权威值
   syncWatchlistDividends: () => void
 
-  // 多账户（镜像法：活动账户持仓在 watchlist，其余存 accountSnapshots）
+  // 多账户（镜像法：活动账户持仓在 watchlist、费率在 feeConfig，其余存 accountSnapshots / accountFeeConfigs）
   accounts: { id: string; name: string }[]
   activeAccountId: string
   accountSnapshots: Record<string, WatchlistStock[]>
+  accountFeeConfigs: Record<string, FeeConfig>
   switchAccount: (id: string) => void
   addAccount: (name: string) => string | null
   renameAccount: (id: string, name: string) => void
   removeAccount: (id: string) => void
-  gatherAccounts: () => { id: string; name: string; watchlist: WatchlistStock[] }[]
+  gatherAccounts: () => { id: string; name: string; watchlist: WatchlistStock[]; feeConfig: FeeConfig }[]
 
-  // 交易手续费
+  // 交易手续费（按账户独立）
   feeConfig: FeeConfig
   setFeeConfig: (cfg: FeeConfig) => void
 
@@ -138,14 +139,17 @@ export const useStore = create<AppState>()(
       accounts: [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }],
       activeAccountId: DEFAULT_ACCOUNT_ID,
       accountSnapshots: {},
+      accountFeeConfigs: {},
       switchAccount: (id) =>
         set(s => {
           if (id === s.activeAccountId || !s.accounts.find(a => a.id === id)) return s
           const snapshots = { ...s.accountSnapshots, [s.activeAccountId]: s.watchlist }
-          // 载入目标账户时按当前费率重算，避免快照成本因费率变更而过期
-          const target = recomputeList(snapshots[id] ?? [], s.feeConfig)
-          delete snapshots[id]
-          return { accountSnapshots: snapshots, watchlist: target, activeAccountId: id }
+          const feeConfigs = { ...s.accountFeeConfigs, [s.activeAccountId]: s.feeConfig }
+          const targetCfg = feeConfigs[id] ?? DEFAULT_FEE_CONFIG
+          // 载入目标账户时按「该账户的费率」重算摊薄成本
+          const target = recomputeList(snapshots[id] ?? [], targetCfg)
+          delete snapshots[id]; delete feeConfigs[id]
+          return { accountSnapshots: snapshots, accountFeeConfigs: feeConfigs, watchlist: target, feeConfig: targetCfg, activeAccountId: id }
         }),
       addAccount: (name) => {
         const s = get()
@@ -154,8 +158,10 @@ export const useStore = create<AppState>()(
         set({
           accounts: [...s.accounts, { id, name: String(name || '新账户').trim() || '新账户' }],
           accountSnapshots: { ...s.accountSnapshots, [s.activeAccountId]: s.watchlist },
+          accountFeeConfigs: { ...s.accountFeeConfigs, [s.activeAccountId]: s.feeConfig },
           watchlist: [],
           activeAccountId: id,
+          feeConfig: { ...s.feeConfig }, // 新账户默认继承当前费率，可再单独修改
         })
         return id
       },
@@ -167,21 +173,24 @@ export const useStore = create<AppState>()(
         set(s => {
           if (s.accounts.length <= 1) return s
           const snapshots = { ...s.accountSnapshots }
-          let { watchlist, activeAccountId } = s
+          const feeConfigs = { ...s.accountFeeConfigs }
+          let { watchlist, activeAccountId, feeConfig } = s
           if (id === s.activeAccountId) {
-            // 删的是当前账户：先切到别的（载入其快照）
+            // 删的是当前账户：切到别的，载入其持仓与费率并按该费率重算
             const other = s.accounts.find(a => a.id !== id)!
-            snapshots[s.activeAccountId] = s.watchlist // 临时存（随后删）
-            watchlist = snapshots[other.id] ?? []
+            feeConfig = feeConfigs[other.id] ?? DEFAULT_FEE_CONFIG
+            watchlist = recomputeList(snapshots[other.id] ?? [], feeConfig)
             activeAccountId = other.id
-            delete snapshots[other.id]
+            delete snapshots[other.id]; delete feeConfigs[other.id]
           }
-          delete snapshots[id]
+          delete snapshots[id]; delete feeConfigs[id]
           return {
             accounts: s.accounts.filter(a => a.id !== id),
             accountSnapshots: snapshots,
+            accountFeeConfigs: feeConfigs,
             watchlist,
             activeAccountId,
+            feeConfig,
           }
         }),
       gatherAccounts: () => {
@@ -190,19 +199,17 @@ export const useStore = create<AppState>()(
           id: a.id,
           name: a.name,
           watchlist: a.id === s.activeAccountId ? s.watchlist : (s.accountSnapshots[a.id] ?? []),
+          feeConfig: a.id === s.activeAccountId ? s.feeConfig : (s.accountFeeConfigs[a.id] ?? DEFAULT_FEE_CONFIG),
         }))
       },
 
-      // 交易手续费
+      // 交易手续费（按账户独立，仅作用于当前账户）
       feeConfig: DEFAULT_FEE_CONFIG,
       setFeeConfig: (cfg) =>
         set(s => ({
           feeConfig: cfg,
-          // 改费率后按新费率重算所有账户（活动 + 各快照）的摊薄成本
+          // 改费率后只重算当前账户的摊薄成本（其余账户各有自己的费率）
           watchlist: recomputeList(s.watchlist, cfg),
-          accountSnapshots: Object.fromEntries(
-            Object.entries(s.accountSnapshots).map(([id, list]) => [id, recomputeList(list, cfg)])
-          ),
         })),
 
       // Discovery
@@ -283,7 +290,7 @@ export const useStore = create<AppState>()(
       importBackup: (data) => {
         const d = data as {
           watchlist?: WatchlistStock[]
-          accounts?: { id: string; name: string; watchlist?: WatchlistStock[] }[]
+          accounts?: { id: string; name: string; watchlist?: WatchlistStock[]; feeConfig?: FeeConfig }[]
           discoveryManualStocks?: Stock[]
           discoveryStaticEdits?: Record<string, Partial<Stock>>
           discoveryHiddenStocks?: string[]
@@ -299,7 +306,10 @@ export const useStore = create<AppState>()(
         let accounts: { id: string; name: string }[]
         let activeAccountId: string
         let accountSnapshots: Record<string, WatchlistStock[]>
+        let accountFeeConfigs: Record<string, FeeConfig>
         let watchlist: WatchlistStock[]
+        let activeFeeConfig: FeeConfig | undefined
+        const curFee = get().feeConfig
         if (Array.isArray(d.accounts) && d.accounts.length > 0) {
           accounts = d.accounts.map((a, i) => ({
             id: a.id || (i === 0 ? DEFAULT_ACCOUNT_ID : genAccountId()),
@@ -307,12 +317,20 @@ export const useStore = create<AppState>()(
           }))
           activeAccountId = accounts[0].id
           watchlist = d.accounts[0].watchlist || []
+          // 旧备份无按账户费率：活动账户用当前费率兜底，避免切换后成本归零
+          activeFeeConfig = d.accounts[0].feeConfig ?? curFee
           accountSnapshots = {}
-          d.accounts.slice(1).forEach((a, i) => { accountSnapshots[accounts[i + 1].id] = a.watchlist || [] })
+          accountFeeConfigs = {}
+          d.accounts.slice(1).forEach((a, i) => {
+            accountSnapshots[accounts[i + 1].id] = a.watchlist || []
+            // 缺失则沿用当前费率，保持与旧版（单一全局费率）一致
+            accountFeeConfigs[accounts[i + 1].id] = a.feeConfig ?? curFee
+          })
         } else {
           accounts = [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }]
           activeAccountId = DEFAULT_ACCOUNT_ID
           accountSnapshots = {}
+          accountFeeConfigs = {}
           watchlist = d.watchlist || []
         }
 
@@ -321,16 +339,19 @@ export const useStore = create<AppState>()(
           accounts,
           activeAccountId,
           accountSnapshots,
+          accountFeeConfigs,
           manualStocks: d.discoveryManualStocks || d.manualStocks || [],
           staticEdits: d.discoveryStaticEdits || d.staticEdits || {},
           hiddenStocks: d.discoveryHiddenStocks || d.hiddenStocks || [],
           customSectors: d.discoveryCustomSectors || d.customSectors || [...DEFAULT_SECTORS],
+          // 备份含账户费率则恢复活动账户费率（旧备份无则保持当前）
+          ...(activeFeeConfig ? { feeConfig: activeFeeConfig } : {}),
         })
       },
     }),
     {
       name: 'xuxu-efu-store',
-      version: 5,
+      version: 6,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[]; accounts?: unknown }
         if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
@@ -363,6 +384,16 @@ export const useStore = create<AppState>()(
           m.accounts = [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }]
           m.activeAccountId = DEFAULT_ACCOUNT_ID
           m.accountSnapshots = {}
+        }
+        // v6：手续费按账户。补 accountFeeConfigs：非活动账户沿用旧的全局 feeConfig，行为不变
+        const m = s as Record<string, unknown>
+        if (!m.accountFeeConfigs || typeof m.accountFeeConfigs !== 'object') {
+          const accts = (m.accounts as { id: string }[]) || []
+          const active = m.activeAccountId
+          const fc = m.feeConfig
+          const map: Record<string, unknown> = {}
+          if (fc) for (const a of accts) { if (a.id !== active) map[a.id] = fc }
+          m.accountFeeConfigs = map
         }
         return s
       },

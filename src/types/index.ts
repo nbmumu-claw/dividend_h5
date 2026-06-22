@@ -47,7 +47,7 @@ export interface BackupData {
   exportedAt: string
   data: {
     watchlist: WatchlistStock[]
-    accounts?: { id: string; name: string; watchlist: WatchlistStock[] }[]
+    accounts?: { id: string; name: string; watchlist: WatchlistStock[]; feeConfig?: import('../utils/fees').FeeConfig }[]
     discoveryManualStocks: Stock[]
     discoveryStaticEdits: Record<string, Partial<Stock>>
     discoveryHiddenStocks: string[]

@@ -51,7 +51,7 @@ export default function AccountManager() {
 
       <div className="px-4 pb-3">
         <p className="text-xs text-gray-400 leading-relaxed">
-          每个账户的持仓记录互相独立，可分别管理；板块顺序、汇率、三大类分类、交易手续费等设置全局共享。最多 {MAX_ACCOUNTS} 个账户。
+          每个账户的持仓记录与交易手续费各自独立，可分别管理；板块顺序、汇率、三大类分类等设置全局共享。最多 {MAX_ACCOUNTS} 个账户。
         </p>
       </div>
 
