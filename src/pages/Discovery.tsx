@@ -562,8 +562,14 @@ export default function Discovery() {
             </div>
           </div>
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">所属板块</label>
-            <select className="input-field" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value, isETF: e.target.value === '红利ETF' ? true : f.isETF }))}>
+            <label className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+              所属板块
+              <span className="inline-flex items-center gap-0.5 text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                请确认
+              </span>
+            </label>
+            <select className="input-field border-red-300 bg-red-50/40 font-medium" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value, isETF: e.target.value === '红利ETF' ? true : f.isETF }))}>
               {customSectors.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
