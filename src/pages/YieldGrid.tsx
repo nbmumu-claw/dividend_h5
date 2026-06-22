@@ -59,7 +59,17 @@ const cyClass = (cy: number) => (cy >= 0.05 ? 'cy-hi' : cy >= 0.04 ? 'cy-mid' : 
 const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat')
 const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
 
-type Row = { sector: string; name: string; dive: number; price: number; cy: number; pctChg: number }
+type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number }
+
+// 网格页自选（localStorage，独立于主自选页）
+const FAV = '自选'
+const FAV_KEY = 'yg-favs'
+function loadFavs(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')) } catch { return new Set() }
+}
+function saveFavs(s: Set<string>) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
+}
 
 // 单档计算：买入「已达」= 现价≤目标价；卖出「已达」= 现价≥目标价
 function tier(r: Row, y: number, kind: 'buy' | 'sell') {
@@ -90,6 +100,13 @@ export default function YieldGrid() {
   const [date, setDate] = useState('')
   const [error, setError] = useState('')
   const [active, setActive] = useState<string>(ALL)
+  const [favs, setFavs] = useState<Set<string>>(loadFavs)
+  const toggleFav = (code: string) => setFavs(prev => {
+    const next = new Set(prev)
+    next.has(code) ? next.delete(code) : next.add(code)
+    saveFavs(next)
+    return next
+  })
 
   useEffect(() => {
     fetchStockPrices(STOCKS.map(s => ({ code: s.code })))
@@ -100,7 +117,7 @@ export default function YieldGrid() {
           const q = prices[s.code]
           if (!q || !q.price) continue
           if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
-          out.push({ sector: s.sector, name: s.name, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0 })
+          out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0 })
         }
         if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
         setRows(out)
@@ -125,6 +142,11 @@ export default function YieldGrid() {
   const mins = now.getHours() * 60 + now.getMinutes()
   const priceLabel = date === todayStr && mins >= 570 && mins < 900 ? '盘中价' : '收盘价'
 
+  // 应用板块 / 自选筛选；自选时只保留已收藏标的，去掉空板块
+  const visible = sectors
+    .map(g => (active === FAV ? { sector: g.sector, items: g.items.filter(r => favs.has(r.code)) } : g))
+    .filter(g => (active === ALL || active === FAV || g.sector === active) && g.items.length > 0)
+
   return (
     <div className={`yg-page${isMobile ? ' mobile' : ''}`}>
       <style>{CSS}</style>
@@ -144,13 +166,17 @@ export default function YieldGrid() {
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
         <div className="filter">
           <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
+          <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => setActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
           {SECTORS.map(s => (
             <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => setActive(s)}>{s}</button>
           ))}
         </div>
         {error && <div className="state">{error}</div>}
         {!error && !rows && <div className="state">加载中…</div>}
-        {sectors.filter(({ sector }) => active === ALL || sector === active).map(({ sector, items }) => {
+        {!error && rows && active === FAV && visible.length === 0 && (
+          <div className="state">暂无自选，点击股票右上角的 ★ 添加</div>
+        )}
+        {visible.map(({ sector, items }) => {
           // 板块内各股票档位取并集，保证表头列对齐（仅电力含水电会出现空档）
           const sellCols = [...new Set(items.flatMap(r => sellGridFor(r.name)))].sort((a, b) => a - b)
           const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name)))].sort((a, b) => a - b)
@@ -165,6 +191,7 @@ export default function YieldGrid() {
                         <span className="cnm">{r.name}</span>
                         <span className="cpx">¥{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
+                        <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}</div>
                       <div className="glabel sell">卖出网格</div>
@@ -191,7 +218,7 @@ export default function YieldGrid() {
                     <tbody>
                       {items.map(r => (
                         <tr key={r.name}>
-                          <td className="nm">{r.name}</td>
+                          <td className="nm"><Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
                           <td className="px">¥{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
@@ -208,6 +235,17 @@ export default function YieldGrid() {
         })}
       </div>
     </div>
+  )
+}
+
+// 自选星标
+function Star({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={`fav${on ? ' on' : ''}`} onClick={onClick} aria-label={on ? '取消自选' : '加入自选'}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round">
+        <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+      </svg>
+    </button>
   )
 }
 
@@ -288,6 +326,12 @@ const CSS = `
 .yg-page thead th.th-b { color: #7c3aed; }
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
+.yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
+.yg-page td.nm .fav { margin-right: 5px; }
+.yg-page .fav svg { width: 18px; height: 18px; }
+.yg-page .fav.on { color: #f59e0b; }
+.yg-page .fav.on svg { fill: #f59e0b; }
+.yg-page .chead .fav { margin-left: 6px; align-self: center; }
 .yg-page td.px { color: #374151; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .yg-page td.px i, .yg-page .chead .cpx i { font-style: normal; margin-left: 5px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .yg-page .chg-up { color: #dc2626; }
