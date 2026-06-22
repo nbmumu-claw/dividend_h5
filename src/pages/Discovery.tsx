@@ -2,6 +2,9 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { fetchStockPrices, searchStocks, searchStocksLocal } from '../utils/api'
+import { fetchDividendHistory } from '../utils/dividendHistory'
+import { predictSector, type Market } from '../utils/sectorPredictor'
+import { pickDividendForFill } from '../utils/dividendFill'
 import Disclaimer from '../components/Disclaimer'
 import type { SearchResult } from '../utils/api'
 import { STATIC_STOCKS } from '../data/stocks'
@@ -219,17 +222,36 @@ export default function Discovery() {
   }
 
   const selectSearchResult = (r: SearchResult) => {
-    setForm(f => ({ ...f, name: r.name, code: r.code, isHK: r.isHK, isUS: r.isUS || false, price: '', dividendPerShare: '' }))
+    const mkt: Market = r.isUS ? 'US' : r.isHK ? 'HK' : 'A'
+    // 自动定位板块：按名称/市场预判；预判板块不在当前板块列表时保留原选择
+    const predicted = predictSector(r.name, r.code, mkt)
+    setForm(f => ({
+      ...f,
+      name: r.name, code: r.code, isHK: r.isHK, isUS: r.isUS || false,
+      price: '', dividendPerShare: '',
+      sector: customSectors.includes(predicted) ? predicted : f.sector,
+    }))
     setSearchQuery('')
     setSearchResults([])
 
-    // fetch live price
+    // 自动拉现价
     fetchStockPrices([{ code: r.code, isHK: r.isHK, isUS: r.isUS }], true).then(priceMap => {
       const pd = priceMap[r.code]
       if (pd?.price) {
-        setForm(f => ({ ...f, price: String(pd.price) }))
+        setForm(f => f.code === r.code ? { ...f, price: String(pd.price) } : f)
       }
     })
+
+    // 自动拉每股红利（美股跨境数据源不稳定，跳过，由用户手填）
+    if (mkt !== 'US') {
+      fetchDividendHistory(r.code, r.isHK, false).then(h => {
+        if (!h?.records?.length) return
+        const guess = pickDividendForFill(h.records, mkt)
+        if (guess > 0) {
+          setForm(f => f.code === r.code && !f.dividendPerShare ? { ...f, dividendPerShare: String(Number(guess.toFixed(3))) } : f)
+        }
+      }).catch(() => {})
+    }
   }
 
   const submitForm = () => {
