@@ -55,7 +55,11 @@ const hitBg = (kind: 'buy' | 'sell', y: number) => (kind === 'buy' ? BUY_BG : SE
 
 const cyClass = (cy: number) => (cy >= 0.05 ? 'cy-hi' : cy >= 0.04 ? 'cy-mid' : 'cy-lo')
 
-type Row = { sector: string; name: string; dive: number; price: number; cy: number }
+// 涨跌幅：A 股惯例涨红跌绿
+const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat')
+const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
+
+type Row = { sector: string; name: string; dive: number; price: number; cy: number; pctChg: number }
 
 // 单档计算：买入「已达」= 现价≤目标价；卖出「已达」= 现价≥目标价
 function tier(r: Row, y: number, kind: 'buy' | 'sell') {
@@ -96,7 +100,7 @@ export default function YieldGrid() {
           const q = prices[s.code]
           if (!q || !q.price) continue
           if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
-          out.push({ sector: s.sector, name: s.name, dive: s.dive, price: q.price, cy: s.dive / q.price })
+          out.push({ sector: s.sector, name: s.name, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0 })
         }
         if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
         setRows(out)
@@ -159,7 +163,7 @@ export default function YieldGrid() {
                     <div className="card" key={r.name}>
                       <div className="chead">
                         <span className="cnm">{r.name}</span>
-                        <span className="cpx">¥{r.price.toFixed(2)}</span>
+                        <span className="cpx">¥{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                       </div>
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}</div>
@@ -188,7 +192,7 @@ export default function YieldGrid() {
                       {items.map(r => (
                         <tr key={r.name}>
                           <td className="nm">{r.name}</td>
-                          <td className="px">¥{r.price.toFixed(2)}</td>
+                          <td className="px">¥{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" />)}
@@ -284,7 +288,11 @@ const CSS = `
 .yg-page thead th.th-b { color: #7c3aed; }
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
-.yg-page td.px { color: #374151; font-variant-numeric: tabular-nums; }
+.yg-page td.px { color: #374151; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.yg-page td.px i, .yg-page .chead .cpx i { font-style: normal; margin-left: 5px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.yg-page .chg-up { color: #dc2626; }
+.yg-page .chg-dn { color: #16a34a; }
+.yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
