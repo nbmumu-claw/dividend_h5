@@ -5,6 +5,8 @@
 :root {
   --tab-bar-height: 56px;
   --nav-bar-height: 44px;
+  --shell-max: 430px;
+  --shell-roomy: 430px;
   --bg: #F5F5F5;
   --primary: #E03025;
   --primary-dark: #C62828;
@@ -30,6 +32,19 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
 }
 
+/* 自选持仓列表：手机单列，PC 两列（见下方媒体查询） */
+.wl-list { display: flex; flex-direction: column; gap: 12px; }
+
+/* PC 端：手机框加宽居中，单列内容自然撑开（网格页 app-shell--wide 不受影响） */
+@media (min-width: 768px) {
+  :root { --shell-max: 720px; --shell-roomy: 1040px; }
+
+  /* 发现 / 自选：宽容器内做两列布局 */
+  .wl-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .disc-list { display: grid; grid-template-columns: 1fr 1fr; }
+  .disc-list > .stock-item-wrapper:nth-child(odd) { border-right: 1px solid #F3F4F6; }
+}
+
 #root {
   display: flex;
   justify-content: center;
@@ -38,7 +53,7 @@ body {
 
 .app-shell {
   width: 100%;
-  max-width: 430px;
+  max-width: var(--shell-max);
   min-height: 100vh;
   background: var(--bg);
   position: relative;
@@ -51,6 +66,10 @@ body {
 .app-shell.app-shell--wide {
   max-width: none;
   overflow: visible;
+}
+
+.app-shell.app-shell--roomy {
+  max-width: var(--shell-roomy);
 }
 
 .page-content {
@@ -71,7 +90,7 @@ body {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 430px;
+  max-width: var(--shell-max);
   height: var(--tab-bar-height);
   background: #fff;
   border-top: 1px solid var(--border);
@@ -196,7 +215,7 @@ body {
 
 .modal-sheet {
   width: 100%;
-  max-width: 430px;
+  max-width: var(--shell-max);
   background: #fff;
   border-radius: 16px 16px 0 0;
   max-height: 80vh;

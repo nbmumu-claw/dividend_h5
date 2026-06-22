@@ -22,7 +22,10 @@ import Changelog from './pages/Changelog'
 export default function App() {
   const setExchangeRate = useStore(s => s.setExchangeRate)
   const setUsdRate = useStore(s => s.setUsdRate)
-  const hideTabBar = useLocation().pathname === '/yield-grid'
+  const pathname = useLocation().pathname
+  const hideTabBar = pathname === '/yield-grid'
+  // PC 端这几页用更宽的容器以容纳多列布局
+  const roomy = ['/discovery', '/watchlist'].includes(pathname)
 
   useEffect(() => {
     fetchExchangeRate().then(rate => setExchangeRate(rate)).catch(() => {})
@@ -30,7 +33,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className={`app-shell${hideTabBar ? ' app-shell--wide' : ''}`}>
+    <div className={`app-shell${hideTabBar ? ' app-shell--wide' : ''}${roomy ? ' app-shell--roomy' : ''}`}>
       <Routes>
         <Route path="/" element={<Navigate to="/discovery" replace />} />
         <Route path="/discovery" element={<Discovery />} />

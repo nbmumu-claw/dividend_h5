@@ -288,8 +288,8 @@ export default function HoldingDetail() {
 
       {/* 增加记录 悬浮按钮（置于底部 TabBar 之上） */}
       <div
-        className="fixed inset-x-0 max-w-[430px] mx-auto px-4 pt-2 pb-3 bg-gradient-to-t from-white via-white z-50"
-        style={{ bottom: 'var(--tab-bar-height)' }}
+        className="fixed inset-x-0 mx-auto px-4 pt-2 pb-3 bg-gradient-to-t from-white via-white z-50"
+        style={{ bottom: 'var(--tab-bar-height)', maxWidth: 'var(--shell-max)' }}
       >
         <button onClick={openAdd} className="w-full py-3.5 bg-red-600 text-white rounded-xl font-semibold">+ 增加记录</button>
       </div>

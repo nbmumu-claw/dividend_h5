@@ -344,7 +344,7 @@ export default function Watchlist() {
             <p className="text-xs text-gray-400 mt-1">在"发现"页面添加股票</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="wl-list">
             {sortedFiltered.map(stock => {
               const annualDiv = getAnnualDividend(stock)
               const priceCny = stock.isHK ? stock.price * exchangeRate : stock.isUS ? stock.price * usdRate : stock.price
