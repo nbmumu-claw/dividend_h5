@@ -10,7 +10,7 @@ import { Toast, useToast } from '../components/Toast'
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
   ['电力', '中国广核', '003816', 0.086], ['电力', '中国核电', '601985', 0.18],
-  ['电力', '长江电力', '600900', 1], ['电力', '国投电力', '600886', 0.5081],
+  ['水电', '长江电力', '600900', 1], ['水电', '国投电力', '600886', 0.5081],
   ['电力', '川投能源', '600674', 0.5], ['电力', '华能蒙电', '600863', 0.22],
   ['电力', '国电电力', '600795', 0.241], ['电力', '华能国际', '600011', 0.4],
   ['银行', '农业银行', '601288', 0.2492], ['银行', '工商银行', '601398', 0.3103],
@@ -39,7 +39,7 @@ const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
 ].map(([sector, name, code, dive]) => ({ sector: sector as string, name: name as string, code: code as string, dive: dive as number }))
 
 // 板块默认展示顺序（能源与白酒对调）；用户可手动调整并持久化
-const SECTOR_ORDER = ['电力', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他']
+const SECTOR_ORDER = ['电力', '水电', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他']
 // 「其他」始终可用，作为预判不到板块时的兜底归属
 const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.sector === s))
 const ALL = '全部'
@@ -58,19 +58,59 @@ function saveOrder(o: string[]) {
 
 // 水电（低息、估值另算）：买入档从 4% 起、卖出档从 3% 起；其余股票买入从 5% 起、卖出从 4% 起
 const HYDRO = new Set(['国投电力', '长江电力'])
-const BUY_HYDRO = [0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07]
-const BUY_DEFAULT = [0.05, 0.055, 0.06, 0.065, 0.07]
-const SELL_HYDRO = [0.02, 0.025, 0.03]      // 升序：左低息=高价=强卖
-const SELL_DEFAULT = [0.03, 0.035, 0.04]
+const buyBase = (name: string) => (HYDRO.has(name) ? 0.04 : 0.05)
+const sellBase = (name: string) => (HYDRO.has(name) ? 0.03 : 0.04)
 // 中国广核、中国核电：低息成长属性，卖出档只展示价格，不着色、不判「已达」
 const SELL_MUTED = new Set(['中国广核', '中国核电'])
-const buyGridFor = (name: string) => (HYDRO.has(name) ? BUY_HYDRO : BUY_DEFAULT)
-const sellGridFor = (name: string) => (HYDRO.has(name) ? SELL_HYDRO : SELL_DEFAULT)
 
-// 已达档位的底色：买入越高息越深（橙），卖出越低息越深（绿）。键 = 股息率×1000
-const BUY_BG: Record<number, string> = { 40: '#ffedd5', 45: '#fee3c4', 50: '#fed7aa', 55: '#fdc28a', 60: '#fdab6f', 65: '#fb9456', 70: '#f97c3c' }
-const SELL_BG: Record<number, string> = { 20: '#22c55e', 25: '#4ade80', 30: '#86efac', 35: '#bbf7d0', 40: '#dcfce7' }
-const hitBg = (kind: 'buy' | 'sell', y: number) => (kind === 'buy' ? BUY_BG : SELL_BG)[Math.round(y * 1000)]
+// 网格设置（localStorage）：买入 / 卖出各自步长 + 档数
+type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number }
+const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4 }
+const STEP_OPTIONS = [0.0025, 0.005]
+const COUNT_OPTIONS = [2, 4, 6, 8]
+const CFG_KEY = 'yg-grid-cfg'
+function loadCfg(): GridCfg {
+  try {
+    const c = JSON.parse(localStorage.getItem(CFG_KEY) || 'null')
+    if (c && typeof c === 'object') {
+      const okStep = (v: unknown) => (STEP_OPTIONS.includes(v as number) ? (v as number) : undefined)
+      const okCnt = (v: unknown) => (COUNT_OPTIONS.includes(v as number) ? (v as number) : undefined)
+      // 兼容旧版 {step,count} / {step,buyCount,sellCount}
+      return {
+        buyStep: okStep(c.buyStep) ?? okStep(c.step) ?? DEFAULT_CFG.buyStep,
+        sellStep: okStep(c.sellStep) ?? okStep(c.step) ?? DEFAULT_CFG.sellStep,
+        buyCount: okCnt(c.buyCount) ?? okCnt(c.count) ?? DEFAULT_CFG.buyCount,
+        sellCount: okCnt(c.sellCount) ?? okCnt(c.count) ?? DEFAULT_CFG.sellCount,
+      }
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_CFG
+}
+function saveCfg(c: GridCfg) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)) } catch { /* ignore */ } }
+
+const round4 = (n: number) => Math.round(n * 10000) / 10000
+// 动态生成档位：买入从基准向上 buyCount 档（升序）；卖出从基准向下 sellCount 档、过滤 ≤0 后升序
+const buyGridFor = (name: string, cfg: GridCfg) =>
+  Array.from({ length: cfg.buyCount }, (_, i) => round4(buyBase(name) + i * cfg.buyStep))
+const sellGridFor = (name: string, cfg: GridCfg) =>
+  Array.from({ length: cfg.sellCount }, (_, i) => round4(sellBase(name) - i * cfg.sellStep)).filter(y => y > 0).sort((a, b) => a - b)
+
+// 已达档位底色：买入越高息越深（橙），卖出越低息越深（绿）。按档位在网格中的位次插值
+function lerpHex(a: string, b: string, t: number) {
+  const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16))
+  const pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16))
+  return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join('')
+}
+const BUY_LIGHT = '#ffedd5', BUY_DARK = '#f97c3c', SELL_LIGHT = '#dcfce7', SELL_DARK = '#22c55e'
+function hitBg(kind: 'buy' | 'sell', y: number, grid: number[]): string | undefined {
+  const n = grid.length, idx = grid.indexOf(y)
+  if (idx < 0) return undefined
+  const t = n <= 1 ? 1 : (kind === 'buy' ? idx / (n - 1) : 1 - idx / (n - 1))
+  return kind === 'buy' ? lerpHex(BUY_LIGHT, BUY_DARK, t) : lerpHex(SELL_LIGHT, SELL_DARK, t)
+}
+
+// 收益率展示：去尾零，支持 0.25% 步长（5% / 5.25% / 5.5%）
+const fmtPct = (y: number) => +(y * 100).toFixed(2) + '%'
 
 const cyClass = (cy: number) => (cy >= 0.05 ? 'cy-hi' : cy >= 0.04 ? 'cy-mid' : 'cy-lo')
 
@@ -98,6 +138,27 @@ function loadCustom(): Custom[] {
 }
 function saveCustom(list: Custom[]) {
   try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)) } catch { /* ignore */ }
+}
+
+// 行情缓存（localStorage）：盘后/非交易时段直接读缓存不刷新
+type PriceSnap = { price: number; pctChg: number; tradeDate: string }
+type PriceCache = { fetchedAt: number; latestDate: string; data: Record<string, PriceSnap> }
+const PRICE_CACHE_KEY = 'yg-price-cache'
+function loadPriceCache(): PriceCache | null {
+  try { const c = JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || 'null'); return c && c.data ? c : null } catch { return null }
+}
+function savePriceCache(c: PriceCache) { try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(c)) } catch { /* ignore */ } }
+// 周一~五 9:30–15:00 视为交易时段（无节假日日历，近似）
+function clockInSession(): boolean {
+  const d = new Date(); const day = d.getDay(); const mins = d.getHours() * 60 + d.getMinutes()
+  return day >= 1 && day <= 5 && mins >= 570 && mins < 900
+}
+// 时间戳展示：当天显示 HH:MM，跨天显示 MM-DD HH:MM
+function fmtTs(ts: number): string {
+  if (!ts) return ''
+  const d = new Date(ts), p = (n: number) => String(n).padStart(2, '0')
+  const hm = `${p(d.getHours())}:${p(d.getMinutes())}`
+  return new Date().toDateString() === d.toDateString() ? hm : `${p(d.getMonth() + 1)}-${p(d.getDate())} ${hm}`
 }
 
 // 单档计算：买入「已达」= 现价≤目标价；卖出「已达」= 现价≥目标价
@@ -128,6 +189,7 @@ export default function YieldGrid() {
   const { message, showToast } = useToast()
   const [rows, setRows] = useState<Row[] | null>(null)
   const [date, setDate] = useState('')
+  const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
   const [active, setActive] = useState<string>(ALL)
   const [favs, setFavs] = useState<Set<string>>(loadFavs)
@@ -160,6 +222,11 @@ export default function YieldGrid() {
   const [q, setQ] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string }>({ name: '', code: '', sector: '', dive: '' })
+
+  // 网格设置
+  const [cfg, setCfg] = useState<GridCfg>(loadCfg)
+  const [showCfg, setShowCfg] = useState(false)
+  const updateCfg = (partial: Partial<GridCfg>) => setCfg(prev => { const n = { ...prev, ...partial }; saveCfg(n); return n })
 
   const [searching, setSearching] = useState(false)
   useEffect(() => {
@@ -209,21 +276,50 @@ export default function YieldGrid() {
   }
 
   useEffect(() => {
-    fetchStockPrices(allStocks.map(s => ({ code: s.code })))
+    const codes = allStocks.map(s => s.code)
+    const build = (data: Record<string, PriceSnap>, ts: number, seedDate: string) => {
+      const out: Row[] = []
+      let latest = seedDate || ''
+      for (const s of allStocks) {
+        const q = data[s.code]
+        if (!q || !q.price) continue
+        if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
+        out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0 })
+      }
+      if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
+      setRows(out)
+      setDate(latest ? `${latest.slice(0, 4)}-${latest.slice(4, 6)}-${latest.slice(6, 8)}` : '')
+      setFetchedAt(ts)
+    }
+
+    const cache = loadPriceCache()
+    const cacheCoversAll = !!cache && codes.every(c => cache.data[c])
+    // 盘后 / 非交易时段且缓存齐全：直接读缓存，不刷新
+    if (!clockInSession() && cacheCoversAll) {
+      build(cache!.data, cache!.fetchedAt, cache!.latestDate)
+      return
+    }
+    let alive = true
+    fetchStockPrices(codes.map(c => ({ code: c })))
       .then(prices => {
-        const out: Row[] = []
+        if (!alive) return
+        const data: Record<string, PriceSnap> = {}
         let latest = ''
-        for (const s of allStocks) {
-          const q = prices[s.code]
-          if (!q || !q.price) continue
-          if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
-          out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0 })
+        for (const c of codes) {
+          const q = prices[c]
+          if (q && q.price) { data[c] = { price: q.price, pctChg: q.pctChg ?? 0, tradeDate: q.tradeDate || '' }; if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate }
         }
-        if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
-        setRows(out)
-        setDate(latest ? `${latest.slice(0, 4)}-${latest.slice(4, 6)}-${latest.slice(6, 8)}` : '')
+        const now = Date.now()
+        if (Object.keys(data).length) savePriceCache({ fetchedAt: now, latestDate: latest, data })
+        build(data, now, latest)
       })
-      .catch(() => setError('行情获取失败，请稍后刷新。'))
+      .catch(() => {
+        if (!alive) return
+        // 拉取失败退回缓存（若有）
+        if (cacheCoversAll) build(cache!.data, cache!.fetchedAt, cache!.latestDate)
+        else setError('行情获取失败，请稍后刷新。')
+      })
+    return () => { alive = false }
   }, [custom])
 
   // 按板块分组（保持配置中板块出现顺序），组内按现股息率倒序
@@ -251,18 +347,21 @@ export default function YieldGrid() {
     <div className={`yg-page${isMobile ? ' mobile' : ''}`}>
       <style>{CSS}</style>
       <div className="wrap">
-        <button
-          className="yg-back"
-          onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/discovery'))}
-          aria-label="返回"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span>返回</span>
-        </button>
+        <div className="yg-topbar">
+          <button
+            className="yg-back"
+            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/discovery'))}
+            aria-label="返回"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>返回</span>
+          </button>
+          <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
+        </div>
         <h1>股息率网格买卖价位表</h1>
-        <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}` : '正在获取最新行情…'}</div>
+        <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 更新于 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
         <button className="yg-addbar" onClick={() => setShowAdd(true)}>
           <span className="plus">＋</span> 添加标的
@@ -295,8 +394,8 @@ export default function YieldGrid() {
         )}
         {visible.map(({ sector, items }) => {
           // 板块内各股票档位取并集，保证表头列对齐（仅电力含水电会出现空档）
-          const sellCols = [...new Set(items.flatMap(r => sellGridFor(r.name)))].sort((a, b) => a - b)
-          const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name)))].sort((a, b) => a - b)
+          const sellCols = [...new Set(items.flatMap(r => sellGridFor(r.name, cfg)))].sort((a, b) => a - b)
+          const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name, cfg)))].sort((a, b) => a - b)
           return (
             <section key={sector}>
               <h2>
@@ -321,11 +420,11 @@ export default function YieldGrid() {
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}</div>
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
-                        {sellGridFor(r.name).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" />)}
+                        {sellGridFor(r.name, cfg).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} />)}
                       </div>
                       <div className="glabel buy">买入网格</div>
                       <div className="tiers">
-                        {buyGridFor(r.name).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" />)}
+                        {buyGridFor(r.name, cfg).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" cfg={cfg} />)}
                       </div>
                     </div>
                   ))}
@@ -336,8 +435,8 @@ export default function YieldGrid() {
                     <thead>
                       <tr>
                         <th>股票</th><th>现价</th><th>现股息率</th><th>25年股息</th>
-                        {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{(y * 100).toFixed(1)}%</th>)}
-                        {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{(y * 100).toFixed(1)}%</th>)}
+                        {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{fmtPct(y)}</th>)}
+                        {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{fmtPct(y)}</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -347,8 +446,8 @@ export default function YieldGrid() {
                           <td className="px">¥{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
-                          {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" />)}
-                          {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} />)}
+                          {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
+                          {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} cfg={cfg} />)}
                         </tr>
                       ))}
                     </tbody>
@@ -421,6 +520,64 @@ export default function YieldGrid() {
             )}
           </div>
         </Modal>
+
+        <Modal open={showCfg} onClose={() => setShowCfg(false)} title="网格设置">
+          <div className="space-y-4 pb-2">
+            <div className="space-y-3 bg-orange-50/60 rounded-xl p-3">
+              <div className="text-sm font-semibold text-orange-700">买入网格</div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1.5">步长</div>
+                <div className="flex gap-2">
+                  {STEP_OPTIONS.map(s => (
+                    <button key={s} onClick={() => updateCfg({ buyStep: s })}
+                      className={`flex-1 py-2 rounded-lg text-sm border ${cfg.buyStep === s ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}>
+                      {+(s * 100).toFixed(2)}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1.5">档数</div>
+                <div className="flex gap-2">
+                  {COUNT_OPTIONS.map(c => (
+                    <button key={c} onClick={() => updateCfg({ buyCount: c })}
+                      className={`flex-1 py-2 rounded-lg text-sm border ${cfg.buyCount === c ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3 bg-green-50/60 rounded-xl p-3">
+              <div className="text-sm font-semibold text-green-700">卖出网格</div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1.5">步长</div>
+                <div className="flex gap-2">
+                  {STEP_OPTIONS.map(s => (
+                    <button key={s} onClick={() => updateCfg({ sellStep: s })}
+                      className={`flex-1 py-2 rounded-lg text-sm border ${cfg.sellStep === s ? 'bg-green-600 text-white border-green-600' : 'border-gray-200 text-gray-600'}`}>
+                      {+(s * 100).toFixed(2)}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-1.5">档数</div>
+                <div className="flex gap-2">
+                  {COUNT_OPTIONS.map(c => (
+                    <button key={c} onClick={() => updateCfg({ sellCount: c })}
+                      className={`flex-1 py-2 rounded-lg text-sm border ${cfg.sellCount === c ? 'bg-green-600 text-white border-green-600' : 'border-gray-200 text-gray-600'}`}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-gray-400 leading-relaxed">
+              买入从 5%（水电 4%）每档 +{+(cfg.buyStep * 100).toFixed(2)}% 共 {cfg.buyCount} 档；卖出从 4%（水电 3%）每档 −{+(cfg.sellStep * 100).toFixed(2)}% 共 {cfg.sellCount} 档（收益率 ≤0 的档位自动省略）。
+            </div>
+          </div>
+        </Modal>
         <Toast message={message} />
       </div>
     </div>
@@ -439,8 +596,8 @@ function Star({ on, onClick }: { on: boolean; onClick: () => void }) {
 }
 
 // 表格单元格：该股票无此档位则留空
-function Cell({ r, y, kind, sep }: { r: Row; y: number; kind: 'buy' | 'sell'; sep?: boolean }) {
-  const grid = kind === 'buy' ? buyGridFor(r.name) : sellGridFor(r.name)
+function Cell({ r, y, kind, sep, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; sep?: boolean; cfg: GridCfg }) {
+  const grid = kind === 'buy' ? buyGridFor(r.name, cfg) : sellGridFor(r.name, cfg)
   if (!grid.includes(y)) return <td className={`g blank${sep ? ' sep' : ''}`}>·</td>
   const t = tier(r, y, kind)
   // 广核/核电卖出：仅显示价格，不着色、不判已达
@@ -449,29 +606,30 @@ function Cell({ r, y, kind, sep }: { r: Row; y: number; kind: 'buy' | 'sell'; se
   }
   const cls = `g${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
   return (
-    <td className={cls} style={t.reached ? { background: hitBg(kind, y) } : undefined}>
+    <td className={cls} style={t.reached ? { background: hitBg(kind, y, grid) } : undefined}>
       <b>¥{t.target.toFixed(2)}</b><span>{t.label}</span>
     </td>
   )
 }
 
 // 卡片档位 chip
-function Chip({ r, y, kind }: { r: Row; y: number; kind: 'buy' | 'sell' }) {
+function Chip({ r, y, kind, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; cfg: GridCfg }) {
   const t = tier(r, y, kind)
   // 广核/核电卖出：仅显示价格，不着色、不判已达
   if (kind === 'sell' && SELL_MUTED.has(r.name)) {
     return (
       <div className="tier sell muted">
-        <i>{(y * 100).toFixed(1)}%</i>
+        <i>{fmtPct(y)}</i>
         <b>¥{t.target.toFixed(2)}</b>
       </div>
     )
   }
+  const grid = kind === 'buy' ? buyGridFor(r.name, cfg) : sellGridFor(r.name, cfg)
   const cls = `tier${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}`
-  const bg = hitBg(kind, y)
+  const bg = hitBg(kind, y, grid)
   return (
     <div className={cls} style={t.reached ? { background: bg, borderColor: bg } : undefined}>
-      <i>{(y * 100).toFixed(1)}%</i>
+      <i>{fmtPct(y)}</i>
       <b>¥{t.target.toFixed(2)}</b>
       <span>{t.label}</span>
     </div>
@@ -483,11 +641,15 @@ const CSS = `
   font-family: "PingFang SC","Microsoft YaHei",sans-serif; color: #1f2328; }
 .yg-page * { box-sizing: border-box; }
 .yg-page .wrap { max-width: 1100px; margin: 0 auto; }
-.yg-page .yg-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 10px -6px;
+.yg-page .yg-topbar { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
+.yg-page .yg-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 0 -6px;
   padding: 4px 6px; background: none; border: 0; cursor: pointer; color: #6b7280; font-size: 14px;
   font-family: inherit; }
 .yg-page .yg-back svg { width: 18px; height: 18px; }
 .yg-page .yg-back:active { color: #1f2328; }
+.yg-page .yg-cfgbtn { flex: 0 0 auto; padding: 5px 12px; border: 1px solid #e5e7eb; border-radius: 999px;
+  background: #fff; color: #6b7280; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.yg-page .yg-cfgbtn:active { background: #f0f1f4; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }
