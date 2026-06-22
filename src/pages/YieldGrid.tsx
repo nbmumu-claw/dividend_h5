@@ -199,8 +199,9 @@ export default function YieldGrid() {
             <button
               className={`orderbtn${editOrder ? ' on' : ''}`}
               onClick={() => { setEditOrder(e => !e); if (!editOrder) setActive(ALL) }}
+              aria-label={editOrder ? '完成排序' : '调整板块顺序'}
             >
-              {editOrder ? '✓ 完成' : '⇅ 调整板块顺序'}
+              {editOrder ? (isMobile ? '✓' : '✓ 完成') : (isMobile ? '⇅' : '⇅ 调整板块顺序')}
             </button>
           )}
         </div>
@@ -360,9 +361,14 @@ const CSS = `
 .yg-page h2 { font-size: 17px; margin: 4px 2px 12px; display: flex; align-items: center; gap: 8px; }
 .yg-page h2 em { font-style: normal; font-size: 12px; color: #6b7280; background: #eef0f3;
   padding: 1px 8px; border-radius: 10px; }
-.yg-page .orderbtn { flex: 0 0 auto; white-space: nowrap; padding: 5px 12px; border: 1px solid #e5e7eb;
-  border-radius: 999px; background: #fff; color: #6b7280; font-size: 12.5px; font-family: inherit; cursor: pointer; }
+.yg-page .orderbtn { position: relative; flex: 0 0 auto; white-space: nowrap; padding: 5px 12px;
+  border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; color: #6b7280; font-size: 12.5px;
+  font-family: inherit; cursor: pointer; }
+.yg-page .orderbtn::before { content: ''; position: absolute; left: -20px; top: 0; bottom: 0; width: 20px;
+  background: linear-gradient(to right, rgba(245,246,248,0), #f5f6f8); pointer-events: none; }
 .yg-page .orderbtn.on { background: #1f2328; color: #fff; border-color: #1f2328; }
+.yg-page.mobile .orderbtn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 15px;
+  display: inline-flex; align-items: center; justify-content: center; }
 .yg-page h2 .moves { margin-left: auto; display: inline-flex; gap: 6px; }
 .yg-page h2 .moves button { width: 30px; height: 28px; border: 1px solid #e5e7eb; border-radius: 8px;
   background: #fff; color: #374151; font-size: 14px; line-height: 1; cursor: pointer; }

@@ -49,7 +49,16 @@ export default function App() {
         <Route path="/changelog" element={<Changelog />} />
       </Routes>
       {!hideTabBar && <TabBar />}
-      <Analytics />
+      <Analytics
+        beforeSend={(event) => {
+          // 每次访问只统计首屏：会话内已上报过 pageview 则丢弃后续（SPA 切换不再计数）
+          if (event.type === 'pageview') {
+            if (sessionStorage.getItem('va-pv-sent')) return null
+            sessionStorage.setItem('va-pv-sent', '1')
+          }
+          return event
+        }}
+      />
     </div>
   )
 }
