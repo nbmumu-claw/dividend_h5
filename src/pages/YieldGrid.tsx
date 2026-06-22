@@ -118,7 +118,9 @@ const cyClass = (cy: number) => (cy >= 0.05 ? 'cy-hi' : cy >= 0.04 ? 'cy-mid' : 
 const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat')
 const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
 
-type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number }
+type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number; isHK: boolean }
+// 币种符号：港股 HK$，A 股 ¥
+const symOf = (isHK?: boolean) => (isHK ? 'HK$' : '¥')
 
 // 网格页自选（localStorage，独立于主自选页）
 const FAV = '自选'
@@ -131,7 +133,7 @@ function saveFavs(s: Set<string>) {
 }
 
 // 网格页自定义添加的标的（localStorage，仅 A 股，板块限网格已有板块）
-type Custom = { sector: string; name: string; code: string; dive: number }
+type Custom = { sector: string; name: string; code: string; dive: number; isHK?: boolean }
 const CUSTOM_KEY = 'yg-custom'
 function loadCustom(): Custom[] {
   try { const a = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
@@ -212,7 +214,7 @@ export default function YieldGrid() {
 
   // 自定义添加的标的，与静态列表合并（去重）
   const [custom, setCustom] = useState<Custom[]>(loadCustom)
-  const allStocks = useMemo(() => {
+  const allStocks = useMemo<Custom[]>(() => {
     const seen = new Set(STOCKS.map(s => s.code))
     return [...STOCKS, ...custom.filter(c => !seen.has(c.code))]
   }, [custom])
@@ -221,7 +223,7 @@ export default function YieldGrid() {
   const [showAdd, setShowAdd] = useState(false)
   const [q, setQ] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
-  const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string }>({ name: '', code: '', sector: '', dive: '' })
+  const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string; isHK: boolean }>({ name: '', code: '', sector: '', dive: '', isHK: false })
 
   // 网格设置
   const [cfg, setCfg] = useState<GridCfg>(loadCfg)
@@ -237,7 +239,7 @@ export default function YieldGrid() {
       // forceCloud=true：强制走云端，否则本地命中即返回，搜不全（与发现页一致）
       searchStocks(q.trim(), true).then(rs => {
         if (!alive) return
-        setResults(rs.filter(r => !r.isHK && !r.isUS).slice(0, 8))  // 网格仅支持 A 股
+        setResults(rs.filter(r => !r.isUS).slice(0, 8))  // 网格支持 A 股 / 港股（不含美股）
         setSearching(false)
       }).catch(() => { if (alive) { setResults([]); setSearching(false) } })
     }, 300)
@@ -245,12 +247,13 @@ export default function YieldGrid() {
   }, [q])
 
   const selectResult = (r: SearchResult) => {
-    const predicted = predictSector(r.name, r.code, 'A')
-    setAddForm({ name: r.name, code: r.code, sector: SECTORS.includes(predicted) ? predicted : '其他', dive: '' })
+    const mkt = r.isHK ? 'HK' : 'A'
+    const predicted = predictSector(r.name, r.code, mkt)
+    setAddForm({ name: r.name, code: r.code, sector: SECTORS.includes(predicted) ? predicted : '其他', dive: '', isHK: !!r.isHK })
     setQ(''); setResults([])
-    fetchDividendHistory(r.code, false, false).then(h => {
+    fetchDividendHistory(r.code, !!r.isHK, false).then(h => {
       if (!h?.records?.length) return
-      const guess = pickDividendForFill(h.records, 'A')
+      const guess = pickDividendForFill(h.records, mkt)
       if (guess > 0) setAddForm(f => f.code === r.code && !f.dive ? { ...f, dive: String(Number(guess.toFixed(4))) } : f)
     }).catch(() => {})
   }
@@ -263,9 +266,9 @@ export default function YieldGrid() {
       showToast(`${exist?.name || addForm.name} 已在「${exist?.sector || ''}」中`)
       return
     }
-    const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive }]
+    const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive, isHK: addForm.isHK }]
     setCustom(next); saveCustom(next)
-    setAddForm({ name: '', code: '', sector: '', dive: '' })
+    setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false })
     setRows(null); setError('')
   }
 
@@ -284,7 +287,7 @@ export default function YieldGrid() {
         const q = data[s.code]
         if (!q || !q.price) continue
         if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
-        out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0 })
+        out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0, isHK: !!s.isHK })
       }
       if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
       setRows(out)
@@ -300,7 +303,7 @@ export default function YieldGrid() {
       return
     }
     let alive = true
-    fetchStockPrices(codes.map(c => ({ code: c })))
+    fetchStockPrices(allStocks.map(s => ({ code: s.code, isHK: s.isHK })))
       .then(prices => {
         if (!alive) return
         const data: Record<string, PriceSnap> = {}
@@ -413,7 +416,7 @@ export default function YieldGrid() {
                     <div className="card" key={r.name}>
                       <div className="chead">
                         <span className="cnm">{r.name}</span>
-                        <span className="cpx">¥{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
+                        <span className="cpx">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                         <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
@@ -443,7 +446,7 @@ export default function YieldGrid() {
                       {items.map(r => (
                         <tr key={r.name}>
                           <td className="nm"><Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
-                          <td className="px">¥{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
+                          <td className="px">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -460,12 +463,12 @@ export default function YieldGrid() {
 
         <Modal
           open={showAdd}
-          onClose={() => { setShowAdd(false); setQ(''); setResults([]); setAddForm({ name: '', code: '', sector: '', dive: '' }) }}
-          title="添加标的（A股）"
+          onClose={() => { setShowAdd(false); setQ(''); setResults([]); setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false }) }}
+          title="添加标的（A股 / 港股）"
         >
           <div className="space-y-3 pb-2">
             <div>
-              <input className="input-field" placeholder="输入名称或代码搜索 A 股" value={q} onChange={e => setQ(e.target.value)} />
+              <input className="input-field" placeholder="输入名称或代码搜索 A 股 / 港股" value={q} onChange={e => setQ(e.target.value)} />
               {searching && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 px-1">
                   <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin" />
@@ -482,7 +485,7 @@ export default function YieldGrid() {
                 </div>
               )}
               {!searching && q.trim().length >= 1 && results.length === 0 && (
-                <div className="mt-2 text-xs text-gray-400 px-1">未找到匹配的 A 股</div>
+                <div className="mt-2 text-xs text-gray-400 px-1">未找到匹配的 A 股 / 港股</div>
               )}
             </div>
 
@@ -511,7 +514,7 @@ export default function YieldGrid() {
                 <div className="space-y-1">
                   {custom.map(c => (
                     <div key={c.code} className="flex items-center justify-between text-sm px-2 py-1.5 bg-gray-50 rounded-lg">
-                      <span className="text-gray-700">{c.name} <span className="text-gray-400 text-xs">{c.code} · {c.sector} · ¥{c.dive}</span></span>
+                      <span className="text-gray-700">{c.name} <span className="text-gray-400 text-xs">{c.code} · {c.sector} · {symOf(c.isHK)}{c.dive}</span></span>
                       <button className="text-red-500 text-xs px-2" onClick={() => deleteCustom(c.code)}>删除</button>
                     </div>
                   ))}
@@ -602,12 +605,12 @@ function Cell({ r, y, kind, sep, cfg }: { r: Row; y: number; kind: 'buy' | 'sell
   const t = tier(r, y, kind)
   // 广核/核电卖出：仅显示价格，不着色、不判已达
   if (kind === 'sell' && SELL_MUTED.has(r.name)) {
-    return <td className={`g sell muted${sep ? ' sep' : ''}`}><b>¥{t.target.toFixed(2)}</b></td>
+    return <td className={`g sell muted${sep ? ' sep' : ''}`}><b>{symOf(r.isHK)}{t.target.toFixed(2)}</b></td>
   }
   const cls = `g${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
   return (
     <td className={cls} style={t.reached ? { background: hitBg(kind, y, grid) } : undefined}>
-      <b>¥{t.target.toFixed(2)}</b><span>{t.label}</span>
+      <b>{symOf(r.isHK)}{t.target.toFixed(2)}</b><span>{t.label}</span>
     </td>
   )
 }
@@ -620,7 +623,7 @@ function Chip({ r, y, kind, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; cf
     return (
       <div className="tier sell muted">
         <i>{fmtPct(y)}</i>
-        <b>¥{t.target.toFixed(2)}</b>
+        <b>{symOf(r.isHK)}{t.target.toFixed(2)}</b>
       </div>
     )
   }
@@ -630,7 +633,7 @@ function Chip({ r, y, kind, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; cf
   return (
     <div className={cls} style={t.reached ? { background: bg, borderColor: bg } : undefined}>
       <i>{fmtPct(y)}</i>
-      <b>¥{t.target.toFixed(2)}</b>
+      <b>{symOf(r.isHK)}{t.target.toFixed(2)}</b>
       <span>{t.label}</span>
     </div>
   )
