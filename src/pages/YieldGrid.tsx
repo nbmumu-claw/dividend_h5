@@ -32,10 +32,22 @@ const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
   ['消费', '分众传媒', '002027', 0.34], ['消费', '伊利股份', '600887', 1.38],
 ].map(([sector, name, code, dive]) => ({ sector: sector as string, name: name as string, code: code as string, dive: dive as number }))
 
-// 板块展示顺序（能源与白酒对调）
+// 板块默认展示顺序（能源与白酒对调）；用户可手动调整并持久化
 const SECTOR_ORDER = ['电力', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费']
 const SECTORS = SECTOR_ORDER.filter(s => STOCKS.some(x => x.sector === s))
 const ALL = '全部'
+
+// 板块顺序（localStorage）：保留已保存且仍存在的板块，新板块追加到末尾
+const ORDER_KEY = 'yg-sector-order'
+function loadOrder(): string[] {
+  let saved: string[] = []
+  try { saved = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]') } catch { /* ignore */ }
+  const valid = saved.filter(s => SECTORS.includes(s))
+  return [...valid, ...SECTORS.filter(s => !valid.includes(s))]
+}
+function saveOrder(o: string[]) {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(o)) } catch { /* ignore */ }
+}
 
 // 水电（低息、估值另算）：买入档从 4% 起、卖出档从 3% 起；其余股票买入从 5% 起、卖出从 4% 起
 const HYDRO = new Set(['国投电力', '长江电力'])
@@ -107,6 +119,16 @@ export default function YieldGrid() {
     saveFavs(next)
     return next
   })
+  const [order, setOrder] = useState<string[]>(loadOrder)
+  const [editOrder, setEditOrder] = useState(false)
+  const moveSector = (sector: string, dir: -1 | 1) => setOrder(prev => {
+    const i = prev.indexOf(sector); const j = i + dir
+    if (i < 0 || j < 0 || j >= prev.length) return prev
+    const next = [...prev]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    saveOrder(next)
+    return next
+  })
 
   useEffect(() => {
     fetchStockPrices(STOCKS.map(s => ({ code: s.code })))
@@ -134,7 +156,7 @@ export default function YieldGrid() {
     g.items.push(r)
   }
   for (const g of sectors) g.items.sort((a, b) => b.cy - a.cy)
-  sectors.sort((a, b) => SECTOR_ORDER.indexOf(a.sector) - SECTOR_ORDER.indexOf(b.sector))
+  sectors.sort((a, b) => order.indexOf(a.sector) - order.indexOf(b.sector))
 
   // 盘中（行情日期=今天 且 处于 A 股交易时段 9:30–15:00）显示「盘中价」，否则「收盘价」
   const now = new Date()
@@ -164,12 +186,22 @@ export default function YieldGrid() {
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}` : '正在获取最新行情…'}</div>
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
-        <div className="filter">
-          <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
-          <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => setActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
-          {SECTORS.map(s => (
-            <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => setActive(s)}>{s}</button>
-          ))}
+        <div className="toolbar">
+          <div className="filter">
+            <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
+            <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => setActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
+            {order.map(s => (
+              <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => setActive(s)}>{s}</button>
+            ))}
+          </div>
+          {!error && rows && (
+            <button
+              className={`orderbtn${editOrder ? ' on' : ''}`}
+              onClick={() => { setEditOrder(e => !e); if (!editOrder) setActive(ALL) }}
+            >
+              {editOrder ? '✓ 完成' : '⇅ 调整板块顺序'}
+            </button>
+          )}
         </div>
         {error && <div className="state">{error}</div>}
         {!error && !rows && <div className="state">加载中…</div>}
@@ -182,7 +214,15 @@ export default function YieldGrid() {
           const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name)))].sort((a, b) => a - b)
           return (
             <section key={sector}>
-              <h2>{sector} <em>{items.length}</em></h2>
+              <h2>
+                {sector} <em>{items.length}</em>
+                {editOrder && (
+                  <span className="moves">
+                    <button disabled={order.indexOf(sector) === 0} onClick={() => moveSector(sector, -1)} aria-label="上移">↑</button>
+                    <button disabled={order.indexOf(sector) === order.length - 1} onClick={() => moveSector(sector, 1)} aria-label="下移">↓</button>
+                  </span>
+                )}
+              </h2>
               {isMobile ? (
                 <div className="cards">
                   {items.map(r => (
@@ -306,9 +346,10 @@ const CSS = `
 .yg-page .legend .o { color: #ea580c; }
 .yg-page .legend .g2 { color: #16a34a; }
 .yg-page .state { color: #9ca3af; font-size: 13px; padding: 8px 2px; }
-.yg-page .filter { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; flex-wrap: nowrap;
-  overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 10px 0; margin: -2px 0 14px;
-  background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
+.yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
+.yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .yg-page .filter::-webkit-scrollbar { display: none; }
 .yg-page .chip { flex: 0 0 auto; padding: 5px 14px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #374151; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
@@ -318,6 +359,14 @@ const CSS = `
 .yg-page h2 { font-size: 17px; margin: 4px 2px 12px; display: flex; align-items: center; gap: 8px; }
 .yg-page h2 em { font-style: normal; font-size: 12px; color: #6b7280; background: #eef0f3;
   padding: 1px 8px; border-radius: 10px; }
+.yg-page .orderbtn { flex: 0 0 auto; white-space: nowrap; padding: 5px 12px; border: 1px solid #e5e7eb;
+  border-radius: 999px; background: #fff; color: #6b7280; font-size: 12.5px; font-family: inherit; cursor: pointer; }
+.yg-page .orderbtn.on { background: #1f2328; color: #fff; border-color: #1f2328; }
+.yg-page h2 .moves { margin-left: auto; display: inline-flex; gap: 6px; }
+.yg-page h2 .moves button { width: 30px; height: 28px; border: 1px solid #e5e7eb; border-radius: 8px;
+  background: #fff; color: #374151; font-size: 14px; line-height: 1; cursor: pointer; }
+.yg-page h2 .moves button:disabled { color: #d1d5db; cursor: default; }
+.yg-page h2 .moves button:active:not(:disabled) { background: #f0f1f4; }
 .yg-page .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .yg-page table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .yg-page th, .yg-page td { padding: 7px 6px; text-align: center; border-bottom: 1px solid #eef0f3; }
