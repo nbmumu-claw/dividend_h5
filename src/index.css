@@ -44,6 +44,10 @@ body {
   .wl-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
   .disc-list { display: grid; grid-template-columns: 1fr 1fr; }
   .disc-list > .stock-item-wrapper:nth-child(odd) { border-right: 1px solid #F3F4F6; }
+
+  /* PC 端弹窗改为垂直居中的对话框（手机端仍贴底 sheet） */
+  .modal-backdrop { align-items: center; }
+  .modal-sheet { border-radius: 16px; max-height: 80vh; }
 }
 
 #root {

@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchStockPrices } from '../utils/api'
+import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
+import { fetchDividendHistory } from '../utils/dividendHistory'
+import { predictSector } from '../utils/sectorPredictor'
+import { pickDividendForFill } from '../utils/dividendFill'
+import Modal from '../components/Modal'
+import { Toast, useToast } from '../components/Toast'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -34,8 +39,9 @@ const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
 ].map(([sector, name, code, dive]) => ({ sector: sector as string, name: name as string, code: code as string, dive: dive as number }))
 
 // 板块默认展示顺序（能源与白酒对调）；用户可手动调整并持久化
-const SECTOR_ORDER = ['电力', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费']
-const SECTORS = SECTOR_ORDER.filter(s => STOCKS.some(x => x.sector === s))
+const SECTOR_ORDER = ['电力', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他']
+// 「其他」始终可用，作为预判不到板块时的兜底归属
+const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.sector === s))
 const ALL = '全部'
 
 // 板块顺序（localStorage）：保留已保存且仍存在的板块，新板块追加到末尾
@@ -84,6 +90,16 @@ function saveFavs(s: Set<string>) {
   try { localStorage.setItem(FAV_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
 }
 
+// 网格页自定义添加的标的（localStorage，仅 A 股，板块限网格已有板块）
+type Custom = { sector: string; name: string; code: string; dive: number }
+const CUSTOM_KEY = 'yg-custom'
+function loadCustom(): Custom[] {
+  try { const a = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
+}
+function saveCustom(list: Custom[]) {
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)) } catch { /* ignore */ }
+}
+
 // 单档计算：买入「已达」= 现价≤目标价；卖出「已达」= 现价≥目标价
 function tier(r: Row, y: number, kind: 'buy' | 'sell') {
   const target = r.dive / y
@@ -109,6 +125,7 @@ function useIsMobile() {
 export default function YieldGrid() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const { message, showToast } = useToast()
   const [rows, setRows] = useState<Row[] | null>(null)
   const [date, setDate] = useState('')
   const [error, setError] = useState('')
@@ -131,12 +148,65 @@ export default function YieldGrid() {
     return next
   })
 
+  // 自定义添加的标的，与静态列表合并（去重）
+  const [custom, setCustom] = useState<Custom[]>(loadCustom)
+  const allStocks = useMemo(() => {
+    const seen = new Set(STOCKS.map(s => s.code))
+    return [...STOCKS, ...custom.filter(c => !seen.has(c.code))]
+  }, [custom])
+
+  // 添加标的弹窗
+  const [showAdd, setShowAdd] = useState(false)
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string }>({ name: '', code: '', sector: '', dive: '' })
+
   useEffect(() => {
-    fetchStockPrices(STOCKS.map(s => ({ code: s.code })))
+    let alive = true
+    if (q.trim().length < 1) { setResults([]); return }
+    searchStocks(q.trim()).then(rs => {
+      if (alive) setResults(rs.filter(r => !r.isHK && !r.isUS).slice(0, 8))  // 网格仅支持 A 股
+    }).catch(() => { if (alive) setResults([]) })
+    return () => { alive = false }
+  }, [q])
+
+  const selectResult = (r: SearchResult) => {
+    const predicted = predictSector(r.name, r.code, 'A')
+    setAddForm({ name: r.name, code: r.code, sector: SECTORS.includes(predicted) ? predicted : '其他', dive: '' })
+    setQ(''); setResults([])
+    fetchDividendHistory(r.code, false, false).then(h => {
+      if (!h?.records?.length) return
+      const guess = pickDividendForFill(h.records, 'A')
+      if (guess > 0) setAddForm(f => f.code === r.code && !f.dive ? { ...f, dive: String(Number(guess.toFixed(4))) } : f)
+    }).catch(() => {})
+  }
+
+  const confirmAdd = () => {
+    const dive = parseFloat(addForm.dive)
+    if (!addForm.code || !addForm.name || !(dive > 0)) { showToast('请先搜索选择标的并填写每股股息'); return }
+    if (allStocks.some(s => s.code === addForm.code)) {
+      const exist = allStocks.find(s => s.code === addForm.code)
+      showToast(`${exist?.name || addForm.name} 已在「${exist?.sector || ''}」中`)
+      return
+    }
+    const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive }]
+    setCustom(next); saveCustom(next)
+    setAddForm({ name: '', code: '', sector: '', dive: '' })
+    setRows(null); setError('')
+  }
+
+  const deleteCustom = (code: string) => {
+    const next = custom.filter(c => c.code !== code)
+    setCustom(next); saveCustom(next)
+    setRows(null); setError('')
+  }
+
+  useEffect(() => {
+    fetchStockPrices(allStocks.map(s => ({ code: s.code })))
       .then(prices => {
         const out: Row[] = []
         let latest = ''
-        for (const s of STOCKS) {
+        for (const s of allStocks) {
           const q = prices[s.code]
           if (!q || !q.price) continue
           if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
@@ -147,7 +217,7 @@ export default function YieldGrid() {
         setDate(latest ? `${latest.slice(0, 4)}-${latest.slice(4, 6)}-${latest.slice(6, 8)}` : '')
       })
       .catch(() => setError('行情获取失败，请稍后刷新。'))
-  }, [])
+  }, [custom])
 
   // 按板块分组（保持配置中板块出现顺序），组内按现股息率倒序
   const sectors: { sector: string; items: Row[] }[] = []
@@ -187,6 +257,9 @@ export default function YieldGrid() {
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}` : '正在获取最新行情…'}</div>
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
+        <button className="yg-addbar" onClick={() => setShowAdd(true)}>
+          <span className="plus">＋</span> 添加标的
+        </button>
         <div className="toolbar">
           <div className="filter">
             <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
@@ -209,6 +282,9 @@ export default function YieldGrid() {
         {!error && !rows && <div className="state">加载中…</div>}
         {!error && rows && active === FAV && visible.length === 0 && (
           <div className="state">暂无自选，点击股票右上角的 ★ 添加</div>
+        )}
+        {!error && rows && active !== FAV && active !== ALL && visible.length === 0 && (
+          <div className="state">该板块暂无标的</div>
         )}
         {visible.map(({ sector, items }) => {
           // 板块内各股票档位取并集，保证表头列对齐（仅电力含水电会出现空档）
@@ -275,6 +351,61 @@ export default function YieldGrid() {
             </section>
           )
         })}
+
+        <Modal
+          open={showAdd}
+          onClose={() => { setShowAdd(false); setQ(''); setResults([]); setAddForm({ name: '', code: '', sector: '', dive: '' }) }}
+          title="添加标的（A股）"
+        >
+          <div className="space-y-3 pb-2">
+            <div>
+              <input className="input-field" placeholder="输入名称或代码搜索 A 股" value={q} onChange={e => setQ(e.target.value)} />
+              {results.length > 0 && (
+                <div className="mt-1 border border-gray-100 rounded-lg overflow-hidden">
+                  {results.map(r => (
+                    <button key={r.code} className="w-full text-left px-3 py-2 text-sm flex justify-between active:bg-gray-50" onClick={() => selectResult(r)}>
+                      <span className="text-gray-800">{r.name}</span><span className="text-gray-400">{r.code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {addForm.code && (
+              <div className="space-y-3 bg-gray-50 rounded-xl p-3">
+                <div className="text-sm font-semibold text-gray-800">{addForm.name} <span className="text-gray-400 font-normal">{addForm.code}</span></div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 block mb-1">板块</label>
+                    <select className="input-field text-sm" value={addForm.sector} onChange={e => setAddForm(f => ({ ...f, sector: e.target.value }))}>
+                      {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 block mb-1">每股股息(25年)</label>
+                    <input className="input-field text-sm" type="text" inputMode="decimal" placeholder="自动预填，可改" value={addForm.dive} onChange={e => setAddForm(f => ({ ...f, dive: e.target.value }))} />
+                  </div>
+                </div>
+                <button className="w-full py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold disabled:opacity-40" disabled={!(parseFloat(addForm.dive) > 0)} onClick={confirmAdd}>确认添加</button>
+              </div>
+            )}
+
+            {custom.length > 0 && (
+              <div>
+                <div className="text-xs text-gray-400 mb-1">已添加（{custom.length}）</div>
+                <div className="space-y-1">
+                  {custom.map(c => (
+                    <div key={c.code} className="flex items-center justify-between text-sm px-2 py-1.5 bg-gray-50 rounded-lg">
+                      <span className="text-gray-700">{c.name} <span className="text-gray-400 text-xs">{c.code} · {c.sector} · ¥{c.dive}</span></span>
+                      <button className="text-red-500 text-xs px-2" onClick={() => deleteCustom(c.code)}>删除</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
+        <Toast message={message} />
       </div>
     </div>
   )
@@ -347,6 +478,11 @@ const CSS = `
 .yg-page .legend b { font-weight: 700; }
 .yg-page .legend .o { color: #ea580c; }
 .yg-page .legend .g2 { color: #16a34a; }
+.yg-page .yg-addbar { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 0 0 14px; padding: 12px; border: 1px dashed #f0b4b0; border-radius: 12px; background: #fff;
+  color: #e03025; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.yg-page .yg-addbar .plus { font-size: 16px; line-height: 1; }
+.yg-page .yg-addbar:active { background: #fff5f5; }
 .yg-page .state { color: #9ca3af; font-size: 13px; padding: 8px 2px; }
 .yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
