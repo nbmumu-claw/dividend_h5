@@ -42,6 +42,8 @@ export default function HoldingDetail() {
   const [txNegative, setTxNegative] = useState(false)
   const [txDate, setTxDate] = useState(todayStr())
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null)
+  // 每股红利输入缓冲：编辑中保留原始输入，失焦后按 4 位小数展示
+  const [divText, setDivText] = useState<string | null>(null)
 
   // 进页：刷新现价；老数据懒迁移成一笔买入
   useEffect(() => {
@@ -192,7 +194,7 @@ export default function HoldingDetail() {
           <div className="text-sm font-semibold text-gray-800 mb-3">基础信息</div>
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="text-xs text-gray-400 block mb-1">所属板块</label>
+              <label className="text-xs text-gray-400 mb-1 flex items-center h-5">所属板块</label>
               <select
                 className="input-field text-sm"
                 value={stock.sector || ''}
@@ -202,16 +204,27 @@ export default function HoldingDetail() {
               </select>
             </div>
             <div className="flex-1">
-              <label className="text-xs text-gray-400 block mb-1">每股红利</label>
+              <label className="text-xs text-gray-400 mb-1 flex items-center gap-1 h-5">
+                每股红利
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                  <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
+                    <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  可修改
+                </span>
+              </label>
               <input
-                className="input-field text-sm"
-                type="number"
-                min="0"
-                value={stock.dividendPerShare || ''}
+                className="input-field text-sm border-red-300 bg-red-50/40 font-semibold"
+                type="text"
+                inputMode="decimal"
+                value={divText !== null ? divText : (stock.dividendPerShare ? Number(stock.dividendPerShare).toFixed(4) : '')}
+                onFocus={() => setDivText(stock.dividendPerShare ? String(stock.dividendPerShare) : '')}
                 onChange={e => {
+                  setDivText(e.target.value)
                   const v = Number(e.target.value) || 0
-                  updateWatchlistStock(stock.code, { dividendPerShare: v, yieldRate: price > 0 && v > 0 ? (v / price) * 100 : 0 })
+                  updateWatchlistStock(stock.code, { dividendPerShare: v, yieldRate: price > 0 && v > 0 ? (v / price) * 100 : 0, dividendManual: true })
                 }}
+                onBlur={() => setDivText(null)}
               />
             </div>
           </div>

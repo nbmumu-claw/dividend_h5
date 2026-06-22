@@ -25,6 +25,8 @@ export interface WatchlistStock extends Stock {
   taxType?: 'h' | 'n' | 'a'
   marketCap?: number
   transactions?: import('../utils/holdings').Transaction[]
+  // 每股红利是否被手动改过：true 则不再跟随发现页同步
+  dividendManual?: boolean
 }
 
 export interface PriceData {

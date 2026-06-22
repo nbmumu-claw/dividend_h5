@@ -22,6 +22,7 @@ import Changelog from './pages/Changelog'
 export default function App() {
   const setExchangeRate = useStore(s => s.setExchangeRate)
   const setUsdRate = useStore(s => s.setUsdRate)
+  const syncWatchlistDividends = useStore(s => s.syncWatchlistDividends)
   const pathname = useLocation().pathname
   const hideTabBar = pathname === '/yield-grid'
   // PC 端这几页用更宽的容器以容纳多列布局
@@ -30,6 +31,8 @@ export default function App() {
   useEffect(() => {
     fetchExchangeRate().then(rate => setExchangeRate(rate)).catch(() => {})
     fetchUsdRate().then(rate => setUsdRate(rate)).catch(() => {})
+    // 启动时把未手动改过的自选股每股红利同步为发现页权威值
+    syncWatchlistDividends()
   }, [])
 
   return (

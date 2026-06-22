@@ -14,6 +14,16 @@ const genAccountId = () => 'acc_' + Date.now().toString(36) + Math.floor(Math.ra
 const recomputeList = (list: WatchlistStock[], cfg: FeeConfig): WatchlistStock[] =>
   list.map(w => applyHolding({ ...w }, Array.isArray(w.transactions) ? w.transactions : ensureTransactions(w), makeFeeCalc(w, cfg)))
 
+// 发现页（静态 + 手动）对某代码的权威每股红利；找不到返回 undefined
+function discoveryDividendOf(code: string, staticEdits: Record<string, Partial<Stock>>, manualStocks: Stock[]): number | undefined {
+  const edit = staticEdits[code]
+  if (edit && typeof edit.dividendPerShare === 'number') return edit.dividendPerShare
+  const stat = STATIC_STOCKS.find(s => s.code === code)
+  if (stat) return stat.dividendPerShare
+  const man = manualStocks.find(s => s.code === code)
+  return man ? man.dividendPerShare : undefined
+}
+
 interface AppState {
   // Watchlist
   watchlist: WatchlistStock[]
@@ -23,6 +33,8 @@ interface AppState {
   batchUpdateWatchlist: (updates: Record<string, Partial<WatchlistStock>>) => void
   setWatchlist: (list: WatchlistStock[]) => void
   setTransactions: (code: string, txs: Transaction[]) => void
+  // 将未手动改过的自选股每股红利同步为发现页（静态/手动）的权威值
+  syncWatchlistDividends: () => void
 
   // 多账户（镜像法：活动账户持仓在 watchlist，其余存 accountSnapshots）
   accounts: { id: string; name: string }[]
@@ -91,6 +103,30 @@ export const useStore = create<AppState>()(
           watchlist: s.watchlist.map(w => w.code in updates ? { ...w, ...updates[w.code] } : w),
         })),
       setWatchlist: (list) => set({ watchlist: list }),
+      syncWatchlistDividends: () =>
+        set(s => {
+          const fix = (list: WatchlistStock[]) => {
+            let changed = false
+            const next = list.map(w => {
+              if (w.dividendManual) return w
+              const dv = discoveryDividendOf(w.code, s.staticEdits, s.manualStocks)
+              if (dv == null || dv === w.dividendPerShare) return w
+              changed = true
+              const price = Number(w.price) || 0
+              return { ...w, dividendPerShare: dv, yieldRate: price > 0 && dv > 0 ? (dv / price) * 100 : 0 }
+            })
+            return changed ? next : list
+          }
+          const watchlist = fix(s.watchlist)
+          let snapChanged = false
+          const accountSnapshots: Record<string, WatchlistStock[]> = {}
+          for (const [id, list] of Object.entries(s.accountSnapshots)) {
+            const nl = fix(list); accountSnapshots[id] = nl
+            if (nl !== list) snapChanged = true
+          }
+          if (watchlist === s.watchlist && !snapChanged) return s
+          return { watchlist, accountSnapshots: snapChanged ? accountSnapshots : s.accountSnapshots }
+        }),
       setTransactions: (code, txs) =>
         set(s => ({
           watchlist: s.watchlist.map(w =>

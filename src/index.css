@@ -7,6 +7,7 @@
   --nav-bar-height: 44px;
   --shell-max: 430px;
   --shell-roomy: 430px;
+  --tabbar-max: 430px;
   --bg: #F5F5F5;
   --primary: #E03025;
   --primary-dark: #C62828;
@@ -37,7 +38,7 @@ body {
 
 /* PC 端：手机框加宽居中，单列内容自然撑开（网格页 app-shell--wide 不受影响） */
 @media (min-width: 768px) {
-  :root { --shell-max: 720px; --shell-roomy: 1040px; }
+  :root { --shell-max: 720px; --shell-roomy: 1040px; --tabbar-max: 720px; }
 
   /* 发现 / 自选：宽容器内做两列布局 */
   .wl-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
@@ -70,6 +71,7 @@ body {
 
 .app-shell.app-shell--roomy {
   max-width: var(--shell-roomy);
+  --tabbar-max: var(--shell-roomy);
 }
 
 .page-content {
@@ -90,7 +92,7 @@ body {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: var(--shell-max);
+  max-width: var(--tabbar-max);
   height: var(--tab-bar-height);
   background: #fff;
   border-top: 1px solid var(--border);
