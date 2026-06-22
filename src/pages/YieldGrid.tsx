@@ -162,12 +162,15 @@ export default function YieldGrid() {
   const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string }>({ name: '', code: '', sector: '', dive: '' })
 
   useEffect(() => {
-    let alive = true
     if (q.trim().length < 1) { setResults([]); return }
-    searchStocks(q.trim()).then(rs => {
-      if (alive) setResults(rs.filter(r => !r.isHK && !r.isUS).slice(0, 8))  // 网格仅支持 A 股
-    }).catch(() => { if (alive) setResults([]) })
-    return () => { alive = false }
+    let alive = true
+    const t = setTimeout(() => {
+      // forceCloud=true：强制走云端，否则本地命中即返回，搜不全（与发现页一致）
+      searchStocks(q.trim(), true).then(rs => {
+        if (alive) setResults(rs.filter(r => !r.isHK && !r.isUS).slice(0, 8))  // 网格仅支持 A 股
+      }).catch(() => { if (alive) setResults([]) })
+    }, 300)
+    return () => { alive = false; clearTimeout(t) }
   }, [q])
 
   const selectResult = (r: SearchResult) => {
