@@ -2,15 +2,18 @@
 // 计入摊薄成本：买入/卖出 netAmount 都 += fee（见 holdings.ts）
 import type { WatchlistStock } from '../types'
 
+// 全佣含过户费的范围：off=都单收 / both=沪深都含 / sz=仅深市含（沪市仍单收）
+export type AllInTransfer = 'off' | 'both' | 'sz'
+
 export interface FeeConfig {
   enabled: boolean
-  commissionRate: number // 券商佣金费率（如万2.5 = 0.00025），可自定义
-  min5Free: boolean      // 是否免最低5元
-  allIn: boolean         // 全佣：佣金已含交易所规费，不再单独加规费
-  allInTransfer: boolean // 全佣是否也含过户费（含则不再单独加过户费）
+  commissionRate: number       // 券商佣金费率（如万2.5 = 0.00025），可自定义
+  min5Free: boolean            // 是否免最低5元
+  allIn: boolean               // 全佣：佣金已含交易所规费，不再单独加规费
+  allInTransfer: AllInTransfer // 全佣含过户费的范围
 }
 
-export const DEFAULT_FEE_CONFIG: FeeConfig = { enabled: false, commissionRate: 0.00025, min5Free: false, allIn: false, allInTransfer: false }
+export const DEFAULT_FEE_CONFIG: FeeConfig = { enabled: false, commissionRate: 0.00025, min5Free: false, allIn: false, allInTransfer: 'off' }
 
 // 国家统一标准（固定）
 const STAMP_RATE = 0.0005       // 印花税：卖出 0.05%（ETF 免）
@@ -30,8 +33,11 @@ export function makeFeeCalc(stock: WatchlistStock, config: FeeConfig): FeeCalc |
     let fee = commission
     // 全佣：佣金已含交易所规费，不再单独加
     if (!config.allIn) fee += amount * REGULATORY_RATE
-    // 全佣且勾选含过户费时，过户费已含；否则单独加
-    if (!(config.allIn && config.allInTransfer)) fee += amount * TRANSFER_RATE
+    // 全佣含过户费：both=沪深都含；sz=仅深市含（沪市仍单收）。沪市=代码 6/9 开头。兼容旧版布尔 true=both
+    const ait = config.allInTransfer as unknown
+    const isSH = /^[69]/.test(stock.code || '')
+    const transferIncluded = config.allIn && (ait === 'both' || ait === true || (ait === 'sz' && !isSH))
+    if (!transferIncluded) fee += amount * TRANSFER_RATE
     if (type === 'sell' && !stock.isETF) fee += amount * STAMP_RATE
     return fee
   }

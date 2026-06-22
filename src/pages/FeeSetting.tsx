@@ -99,15 +99,27 @@ export default function FeeSetting() {
             </div>
             <Toggle on={feeConfig.allIn} onClick={() => apply({ allIn: !feeConfig.allIn })} />
           </div>
-          {feeConfig.allIn && (
-            <div className="flex items-center justify-between px-4 py-3.5">
-              <div>
+          {feeConfig.allIn && (() => {
+            const raw = feeConfig.allInTransfer as unknown
+            const cur = raw === true ? 'both' : (raw === 'both' || raw === 'sz') ? raw : 'off'
+            return (
+              <div className="px-4 py-3.5">
                 <div className="text-sm text-gray-800">全佣含过户费</div>
-                <div className="text-xs text-gray-400">佣金还含过户费，不再单独计过户费</div>
+                <div className="text-xs text-gray-400 mb-2.5">佣金已含过户费的范围（不同券商口径不同）</div>
+                <div className="flex gap-2">
+                  {([['off', '不含'], ['both', '沪深都含'], ['sz', '仅深市含']] as const).map(([v, label]) => (
+                    <button key={v} onClick={() => apply({ allInTransfer: v })}
+                      className={`flex-1 py-2 rounded-lg text-sm border ${cur === v ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {cur === 'sz' && (
+                  <div className="text-xs text-gray-400 mt-2">沪市（代码 6/9 开头）仍单独计 0.001% 过户费</div>
+                )}
               </div>
-              <Toggle on={feeConfig.allInTransfer} onClick={() => apply({ allInTransfer: !feeConfig.allInTransfer })} />
-            </div>
-          )}
+            )
+          })()}
         </div>
       </div>
 
