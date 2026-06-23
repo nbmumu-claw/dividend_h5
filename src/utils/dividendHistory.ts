@@ -43,10 +43,13 @@ async function fetchHKDividendHistory(code: string): Promise<DividendHistory | n
   const divs: Record<string, { date: number; amount: number }> =
     json?.chart?.result?.[0]?.events?.dividends || {}
 
+  // 按财年聚合：港股末期息通常在次年上半年除息（对应上一财年）。
+  // 1–7 月除息=末期息→归上一财年，8–12 月除息=中期息→归当年；与 A 股 REPORT_DATE 口径一致。
   const byYear: Record<number, number> = {}
   for (const v of Object.values(divs)) {
-    const year = new Date(v.date * 1000).getFullYear()
-    byYear[year] = parseFloat(((byYear[year] || 0) + v.amount).toFixed(4))
+    const dt = new Date(v.date * 1000)
+    const fy = dt.getUTCMonth() + 1 <= 7 ? dt.getUTCFullYear() - 1 : dt.getUTCFullYear()
+    byYear[fy] = parseFloat(((byYear[fy] || 0) + v.amount).toFixed(4))
   }
 
   return buildHistory(byYear)
