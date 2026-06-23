@@ -151,8 +151,8 @@ function loadPriceCache(): PriceCache | null {
 }
 function savePriceCache(c: PriceCache) { try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(c)) } catch { /* ignore */ } }
 // 周一~五 9:30–15:00 视为交易时段（无节假日日历，近似）
-function marketPhase(): 'trading' | 'lunch' | 'closed' {
-  const d = new Date(); const day = d.getDay(); const mins = d.getHours() * 60 + d.getMinutes()
+function marketPhase(d: Date = new Date()): 'trading' | 'lunch' | 'closed' {
+  const day = d.getDay(); const mins = d.getHours() * 60 + d.getMinutes()
   if (day < 1 || day > 5) return 'closed'
   if ((mins >= 570 && mins < 690) || (mins >= 780 && mins < 900)) return 'trading' // 09:30–11:30、13:00–15:00
   if (mins >= 690 && mins < 780) return 'lunch' // 11:30–13:00 午休
@@ -312,13 +312,13 @@ export default function YieldGrid() {
     // 是否直接读缓存（不刷新）：
     //  · 午休：缓存须已是今天 11:30（午盘收盘）后抓取，否则补拉一次拿午盘收盘价
     //  · 当天收盘后(≥15:00)：缓存须已是今天 15:00 后抓取，否则补拉一次拿收盘价
-    //  · 其余休市(盘前/周末/隔夜)：直接读缓存（即上一次收盘后已存下的最终价）
+    //  · 其余休市(盘前/周末/隔夜)：缓存若抓于盘中(非定格价)则补拉一次拿最近收盘价，否则直接读
     const afterCloseToday = phase === 'closed' && now.getDay() >= 1 && now.getDay() <= 5 && curMins >= 900
     let useCache = false
     if (cacheCoversAll) {
       if (phase === 'lunch') useCache = cacheFetchedTodayAfter(690)
       else if (afterCloseToday) useCache = cacheFetchedTodayAfter(900)
-      else if (phase === 'closed') useCache = true
+      else if (phase === 'closed') useCache = marketPhase(new Date(cache!.fetchedAt)) !== 'trading'
     }
     if (useCache) {
       build(cache!.data, cache!.fetchedAt, cache!.latestDate)
