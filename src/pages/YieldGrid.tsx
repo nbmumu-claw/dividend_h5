@@ -151,10 +151,12 @@ function loadPriceCache(): PriceCache | null {
 }
 function savePriceCache(c: PriceCache) { try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(c)) } catch { /* ignore */ } }
 // 周一~五 9:30–15:00 视为交易时段（无节假日日历，近似）
-function clockInSession(): boolean {
+function marketPhase(): 'trading' | 'lunch' | 'closed' {
   const d = new Date(); const day = d.getDay(); const mins = d.getHours() * 60 + d.getMinutes()
-  // 09:30–11:30、13:00–15:00 为交易时段，11:30–13:00 午休算非交易
-  return day >= 1 && day <= 5 && mins >= 570 && mins < 900 && !(mins >= 690 && mins < 780)
+  if (day < 1 || day > 5) return 'closed'
+  if ((mins >= 570 && mins < 690) || (mins >= 780 && mins < 900)) return 'trading' // 09:30–11:30、13:00–15:00
+  if (mins >= 690 && mins < 780) return 'lunch' // 11:30–13:00 午休
+  return 'closed'
 }
 // 时间戳展示：当天显示 HH:MM，跨天显示 MM-DD HH:MM
 function fmtTs(ts: number): string {
@@ -298,8 +300,27 @@ export default function YieldGrid() {
 
     const cache = loadPriceCache()
     const cacheCoversAll = !!cache && codes.every(c => cache.data[c])
-    // 盘后 / 非交易时段且缓存齐全：直接读缓存，不刷新
-    if (!clockInSession() && cacheCoversAll) {
+    const phase = marketPhase()
+    const now = new Date()
+    const curMins = now.getHours() * 60 + now.getMinutes()
+    // 缓存是否在“今天某时刻（分钟）之后”抓取的
+    const cacheFetchedTodayAfter = (m: number) => !!cache && (() => {
+      const f = new Date(cache.fetchedAt)
+      return f.getFullYear() === now.getFullYear() && f.getMonth() === now.getMonth()
+        && f.getDate() === now.getDate() && f.getHours() * 60 + f.getMinutes() >= m
+    })()
+    // 是否直接读缓存（不刷新）：
+    //  · 午休：缓存须已是今天 11:30（午盘收盘）后抓取，否则补拉一次拿午盘收盘价
+    //  · 当天收盘后(≥15:00)：缓存须已是今天 15:00 后抓取，否则补拉一次拿收盘价
+    //  · 其余休市(盘前/周末/隔夜)：直接读缓存（即上一次收盘后已存下的最终价）
+    const afterCloseToday = phase === 'closed' && now.getDay() >= 1 && now.getDay() <= 5 && curMins >= 900
+    let useCache = false
+    if (cacheCoversAll) {
+      if (phase === 'lunch') useCache = cacheFetchedTodayAfter(690)
+      else if (afterCloseToday) useCache = cacheFetchedTodayAfter(900)
+      else if (phase === 'closed') useCache = true
+    }
+    if (useCache) {
       build(cache!.data, cache!.fetchedAt, cache!.latestDate)
       return
     }
