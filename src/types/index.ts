@@ -34,6 +34,7 @@ export interface PriceData {
   preClose?: number
   pctChg?: number
   tradeDate?: string
+  tradeTime?: string  // 行情时间 yyyymmddHHMMSS（股价对应的时刻，非抓取时刻）
   source?: string
   marketCap?: number
 }

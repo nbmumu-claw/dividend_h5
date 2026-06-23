@@ -20,8 +20,8 @@ function toTxCode(code: string, isHK?: boolean): string {
   return `sh${str}`
 }
 
-function parseTxBody(body: string): Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; marketCap?: number }> {
-  const result: Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; marketCap?: number }> = {}
+function parseTxBody(body: string): Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; tradeTime: string; marketCap?: number }> {
+  const result: Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; tradeTime: string; marketCap?: number }> = {}
   const lines = body.split('\n')
   for (const line of lines) {
     const match = line.match(/v_[a-z]{2}(\d{5,6})="([^"]*)"/)
@@ -33,9 +33,11 @@ function parseTxBody(body: string): Record<string, { price: number; preClose: nu
     const preClose = parseFloat(fields[4])
     if (!price || price <= 0) continue
     const pctChg = parseFloat(fields[32]) || 0
-    const tradeDate = (fields[30] || '').replace(/\D/g, '').slice(0, 8)
+    const raw = (fields[30] || '').replace(/\D/g, '')  // yyyymmddHHMMSS
+    const tradeDate = raw.slice(0, 8)
+    const tradeTime = raw.length >= 12 ? raw.slice(0, 14) : ''  // 行情时间（含时分秒）
     const marketCap = fields.length > 45 ? parseFloat(fields[45]) || undefined : undefined
-    result[code] = { price, preClose, pctChg, tradeDate, marketCap }
+    result[code] = { price, preClose, pctChg, tradeDate, tradeTime, marketCap }
   }
   return result
 }

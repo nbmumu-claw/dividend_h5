@@ -143,7 +143,7 @@ function saveCustom(list: Custom[]) {
 }
 
 // 行情缓存（localStorage）：盘后/非交易时段直接读缓存不刷新
-type PriceSnap = { price: number; pctChg: number; tradeDate: string }
+type PriceSnap = { price: number; pctChg: number; tradeDate: string; tradeTime: string }
 type PriceCache = { fetchedAt: number; latestDate: string; data: Record<string, PriceSnap> }
 const PRICE_CACHE_KEY = 'yg-price-cache'
 function loadPriceCache(): PriceCache | null {
@@ -286,16 +286,22 @@ export default function YieldGrid() {
     const build = (data: Record<string, PriceSnap>, ts: number, seedDate: string) => {
       const out: Row[] = []
       let latest = seedDate || ''
+      let latestTime = ''
       for (const s of allStocks) {
         const q = data[s.code]
         if (!q || !q.price) continue
         if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
+        if (q.tradeTime && q.tradeTime > latestTime) latestTime = q.tradeTime
         out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0, isHK: !!s.isHK })
       }
       if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
       setRows(out)
       setDate(latest ? `${latest.slice(0, 4)}-${latest.slice(4, 6)}-${latest.slice(6, 8)}` : '')
-      setFetchedAt(ts)
+      // 显示行情时间（股价对应的时刻）；接口未给时分时退回抓取时刻
+      const quoteTs = latestTime.length >= 12
+        ? new Date(`${latestTime.slice(0, 4)}-${latestTime.slice(4, 6)}-${latestTime.slice(6, 8)}T${latestTime.slice(8, 10)}:${latestTime.slice(10, 12)}:00`).getTime()
+        : ts
+      setFetchedAt(quoteTs)
     }
 
     const cache = loadPriceCache()
@@ -332,7 +338,7 @@ export default function YieldGrid() {
         let latest = ''
         for (const c of codes) {
           const q = prices[c]
-          if (q && q.price) { data[c] = { price: q.price, pctChg: q.pctChg ?? 0, tradeDate: q.tradeDate || '' }; if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate }
+          if (q && q.price) { data[c] = { price: q.price, pctChg: q.pctChg ?? 0, tradeDate: q.tradeDate || '', tradeTime: q.tradeTime || '' }; if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate }
         }
         const now = Date.now()
         if (Object.keys(data).length) savePriceCache({ fetchedAt: now, latestDate: latest, data })
@@ -386,7 +392,7 @@ export default function YieldGrid() {
           <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
         </div>
         <h1>股息率网格买卖价位表</h1>
-        <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 更新于 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
+        <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
         <button className="yg-addbar" onClick={() => setShowAdd(true)}>
           <span className="plus">＋</span> 添加标的
