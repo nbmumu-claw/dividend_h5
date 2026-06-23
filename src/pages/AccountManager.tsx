@@ -37,7 +37,7 @@ export default function AccountManager() {
   }
 
   return (
-    <div className="page-content">
+    <div className="page-content page-narrow">
       <div className="relative flex items-center px-4 pt-12 pb-4">
         <button onClick={() => navigate(-1)} className="p-1.5 text-gray-500">
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>

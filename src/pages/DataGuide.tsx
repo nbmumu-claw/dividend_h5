@@ -46,7 +46,7 @@ export default function DataGuide() {
   }, [])
 
   return (
-    <div className="page-content">
+    <div className="page-content page-narrow">
       {/* Header */}
       <div className="relative flex items-center px-4 pt-12 pb-4">
         <button onClick={() => navigate(-1)} className="p-1.5 text-gray-500">
