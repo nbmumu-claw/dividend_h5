@@ -2,7 +2,7 @@ import type { PriceMap } from '../types'
 import { cacheGet, cacheSet } from './cache'
 import { STATIC_STOCKS } from '../data/stocks'
 
-const PRICE_TTL = 5 * 60 * 1000
+const PRICE_TTL = 8 * 60 * 1000
 const RATE_TTL = 6 * 60 * 60 * 1000
 
 function toTxCode(code: string, isHK?: boolean): string {

@@ -153,7 +153,8 @@ function savePriceCache(c: PriceCache) { try { localStorage.setItem(PRICE_CACHE_
 // 周一~五 9:30–15:00 视为交易时段（无节假日日历，近似）
 function clockInSession(): boolean {
   const d = new Date(); const day = d.getDay(); const mins = d.getHours() * 60 + d.getMinutes()
-  return day >= 1 && day <= 5 && mins >= 570 && mins < 900
+  // 09:30–11:30、13:00–15:00 为交易时段，11:30–13:00 午休算非交易
+  return day >= 1 && day <= 5 && mins >= 570 && mins < 900 && !(mins >= 690 && mins < 780)
 }
 // 时间戳展示：当天显示 HH:MM，跨天显示 MM-DD HH:MM
 function fmtTs(ts: number): string {
