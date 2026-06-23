@@ -169,7 +169,13 @@ export default function Discovery() {
   }
 
   const handleAddToWatchlist = (stock: Stock) => {
-    if (watchlist.find(w => w.code === stock.code)) {
+    const existing = watchlist.find(w => w.code === stock.code)
+    if (existing) {
+      // 自选记录承载持仓与交易记录，有持仓/记录时禁止直接取消，避免误删
+      if ((existing.transactions?.length ?? 0) > 0 || (existing.shares ?? 0) > 0) {
+        showToast('该股有持仓/交易记录，请先在持仓详情清空记录后再取消自选')
+        return
+      }
       removeFromWatchlist(stock.code)
       showToast('已移出自选')
       return

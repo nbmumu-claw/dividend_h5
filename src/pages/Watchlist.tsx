@@ -591,11 +591,21 @@ export default function Watchlist() {
         </div>
       </Modal>
 
-      {confirmRemove && (
+      {confirmRemove && (() => {
+        const target = watchlist.find(w => w.code === confirmRemove)
+        const txCount = target?.transactions?.length ?? 0
+        const hasHolding = txCount > 0 || (target?.shares ?? 0) > 0
+        return (
         <div className="modal-backdrop" style={{ alignItems: 'center' }} onClick={() => setConfirmRemove(null)}>
           <div className="bg-white rounded-2xl p-6 mx-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
             <p className="text-base font-semibold text-gray-900 mb-1">移除自选</p>
-            <p className="text-sm text-gray-500 mb-5">确定要移除该股票吗？</p>
+            {hasHolding ? (
+              <p className="text-sm text-red-500 mb-5">
+                该股有持仓{txCount > 0 ? `及 ${txCount} 条交易记录` : ''}，移除将一并删除，且无法恢复。确定移除？
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500 mb-5">确定要移除该股票吗？</p>
+            )}
             <div className="flex gap-3">
               <button className="btn-secondary flex-1" onClick={() => setConfirmRemove(null)}>取消</button>
               <button
@@ -605,7 +615,8 @@ export default function Watchlist() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
