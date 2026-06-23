@@ -212,7 +212,7 @@ export default function Calendar() {
   }
 
   return (
-    <div className="page-content">
+    <div className="page-content page-narrow">
       {/* Header */}
       <div className="px-4 pt-12 pb-2">
         <div className="relative flex items-center justify-center">

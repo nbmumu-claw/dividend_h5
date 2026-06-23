@@ -45,7 +45,7 @@ body {
   .disc-list { display: grid; grid-template-columns: 1fr 1fr; }
   .disc-list > .stock-item-wrapper:nth-child(odd) { border-right: 1px solid #F3F4F6; }
 
-  /* 表单 / 设置类子页：桌面约束宽度居中，避免大屏拉伸空旷（手机端无此类、全宽不变） */
+  /* 表单 / 设置 / 日历类子页：桌面约束宽度居中，避免大屏拉伸空旷（手机端无此类、全宽不变） */
   .page-narrow { max-width: 640px; margin-left: auto; margin-right: auto; }
 
   /* PC 端弹窗改为垂直居中的对话框（手机端仍贴底 sheet） */

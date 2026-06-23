@@ -202,7 +202,7 @@ export default function Portfolio() {
 
 
   return (
-    <div className="page-content">
+    <div className="page-content page-narrow">
       <div className="px-4 pt-12 pb-3">
         <h1 className="text-xl font-bold text-gray-900 text-center">收益</h1>
       </div>

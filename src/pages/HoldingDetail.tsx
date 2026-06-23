@@ -71,7 +71,7 @@ export default function HoldingDetail() {
 
   if (!stock) {
     return (
-      <div className="page-content">
+      <div className="page-content page-narrow">
         <div className="px-4 pt-12 text-center text-gray-400 text-sm">记录不存在</div>
         <button onClick={() => navigate(-1)} className="mt-4 mx-auto block text-red-500 text-sm">返回</button>
       </div>
@@ -159,7 +159,7 @@ export default function HoldingDetail() {
   const sectorOptions = [...new Set([...customSectors, stock.sector].filter(Boolean))]
 
   return (
-    <div className="page-content">
+    <div className="page-content page-narrow">
       {/* Header */}
       <div className="relative flex items-center px-4 pt-12 pb-3">
         <button onClick={() => navigate(-1)} className="p-1.5 text-gray-500">
