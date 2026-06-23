@@ -7,6 +7,8 @@ import { computeHolding, ensureTransactions, sharesAsOf, dividendShares, TX_LABE
 import { makeFeeCalc } from '../utils/fees'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
+import DividendReminderCard from '../components/DividendReminderCard'
+import { usePendingDividends } from '../utils/dividendReminder'
 
 const TAX_OPTIONS: { value: 'h' | 'n' | 'a'; label: string }[] = [
   { value: 'a', label: '港户' },
@@ -65,6 +67,7 @@ export default function HoldingDetail() {
     () => computeHolding(txs, stock ? makeFeeCalc(stock, feeConfig) : null),
     [txs, stock, feeConfig]
   )
+  const pendingDiv = usePendingDividends(useMemo(() => (stock ? [stock] : []), [stock]))
 
   if (!stock) {
     return (
@@ -265,6 +268,12 @@ export default function HoldingDetail() {
 
       {/* 记录管理 */}
       <div className="px-4 pb-28">
+        <DividendReminderCard
+          items={pendingDiv.items}
+          onConfirm={(it) => { pendingDiv.confirm(it); showToast('已录入分红') }}
+          onDismiss={pendingDiv.dismiss}
+          variant="single"
+        />
         <div className="card">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
             <span className="text-sm font-semibold text-gray-800">记录管理</span>

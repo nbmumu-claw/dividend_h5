@@ -7,6 +7,8 @@ import { afterTax } from '../utils/tax'
 import type { WatchlistStock } from '../types'
 import { Toast, useToast } from '../components/Toast'
 import Modal from '../components/Modal'
+import DividendReminderCard from '../components/DividendReminderCard'
+import { usePendingDividends } from '../utils/dividendReminder'
 
 const TAX_OPTIONS: { value: WatchlistStock['taxType']; label: string }[] = [
   { value: 'h', label: 'H股 20%' },
@@ -90,6 +92,7 @@ export default function Watchlist() {
   const [ownerTypes, setOwnerTypes] = useState<Record<string, string>>({})
   const { message, showToast } = useToast()
   const navigate = useNavigate()
+  const pendingDiv = usePendingDividends(watchlist)
 
   // Pull-to-refresh
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -300,6 +303,14 @@ export default function Watchlist() {
           ))}
         </div>
       </div>
+
+      {/* 待确认分红提示 */}
+      <DividendReminderCard
+        items={pendingDiv.items}
+        onConfirm={(it) => { pendingDiv.confirm(it); showToast(`已录入 ${it.name} 分红`) }}
+        onDismiss={pendingDiv.dismiss}
+        variant="list"
+      />
 
       {/* Income summary */}
       {totalAnnual > 0 && (
