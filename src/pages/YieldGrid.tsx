@@ -46,6 +46,7 @@ const ALL = '全部'
 
 // 板块顺序（localStorage）：保留已保存且仍存在的板块，新板块追加到末尾
 const ORDER_KEY = 'yg-sector-order'
+const MAX_CUSTOM = 10
 function loadOrder(): string[] {
   let saved: string[] = []
   try { saved = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]') } catch { /* ignore */ }
@@ -269,7 +270,7 @@ export default function YieldGrid() {
       showToast(`${exist?.name || addForm.name} 已在「${exist?.sector || ''}」中`)
       return
     }
-    if (Math.max(custom.length, loadCustom().length) >= 6) { showToast('最多添加 6 个自定义标的'); return }
+    if (Math.max(custom.length, loadCustom().length) >= MAX_CUSTOM) { showToast(`最多添加 ${MAX_CUSTOM} 个自定义标的，删除后再加`); return }
     const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive, isHK: addForm.isHK }]
     setCustom(next); saveCustom(next)
     setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false })
@@ -395,8 +396,8 @@ export default function YieldGrid() {
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
-        <button className={`yg-addbar${custom.length >= 6 ? ' opacity-40 pointer-events-none' : ''}`} onClick={() => setShowAdd(true)} disabled={custom.length >= 6}>
-          {custom.length >= 6 ? <><span className="plus">✓</span> 已达上限 6 个</> : <><span className="plus">＋</span> 添加标的</>}
+        <button className="yg-addbar" onClick={() => setShowAdd(true)}>
+          <span className="plus">＋</span> 添加标的{custom.length > 0 ? ` ${custom.length}/${MAX_CUSTOM}` : ''}{custom.length >= MAX_CUSTOM ? '（已满，删除后可再加）' : ''}
         </button>
         <div className="toolbar">
           <div className="filter">
@@ -496,6 +497,7 @@ export default function YieldGrid() {
           title="添加标的（A股 / 港股）"
         >
           <div className="space-y-3 pb-2">
+            <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">最多添加 {MAX_CUSTOM} 个自定义标的（当前 {custom.length}/{MAX_CUSTOM}），不需要的可在下方删除后再加。</div>
             <div>
               <input className="input-field" placeholder="输入名称或代码搜索 A 股 / 港股" value={q} onChange={e => setQ(e.target.value)} />
               {searching && (
