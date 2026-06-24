@@ -20,7 +20,7 @@ export default function Support() {
 
         <div className="card p-4">
           <p className="text-sm text-gray-600 leading-relaxed">
-            如果这个工具对你有帮助，欢迎请我喝杯咖啡 ☕ 你的支持是我持续更新的动力。
+            如果这个工具对你有帮助，欢迎为这个工具提供一些支持。
           </p>
         </div>
 
