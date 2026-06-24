@@ -152,6 +152,26 @@ function saveHidden(s: Set<string>) {
   try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
 }
 
+// 标的排序：组内排序指标（localStorage）。默认现股息率倒序
+type SortKey = 'cy' | 'chg' | 'price' | 'name'
+type SortState = { key: SortKey; dir: 'asc' | 'desc' }
+const SORT_LS_KEY = 'yg-sort'
+const DEFAULT_SORT: SortState = { key: 'cy', dir: 'desc' }
+const SORT_OPTS: { key: SortKey; label: string }[] = [
+  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'price', label: '现价' }, { key: 'name', label: '名称' },
+]
+function loadSort(): SortState {
+  try { const s = JSON.parse(localStorage.getItem(SORT_LS_KEY) || 'null'); return s && s.key ? s : DEFAULT_SORT } catch { return DEFAULT_SORT }
+}
+function saveSort(s: SortState) { try { localStorage.setItem(SORT_LS_KEY, JSON.stringify(s)) } catch { /* ignore */ } }
+
+// 手动置顶排序（localStorage）：记录用户手排过的 code 顺序，固定在所属板块最前
+const STOCK_ORDER_KEY = 'yg-stock-order'
+function loadStockOrder(): string[] {
+  try { const a = JSON.parse(localStorage.getItem(STOCK_ORDER_KEY) || '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
+}
+function saveStockOrder(a: string[]) { try { localStorage.setItem(STOCK_ORDER_KEY, JSON.stringify(a)) } catch { /* ignore */ } }
+
 // 行情缓存（localStorage）：盘后/非交易时段直接读缓存不刷新
 type PriceSnap = { price: number; pctChg: number; tradeDate: string; tradeTime: string }
 type PriceCache = { fetchedAt: number; latestDate: string; data: Record<string, PriceSnap> }
@@ -235,6 +255,27 @@ export default function YieldGrid() {
   // 被隐藏的默认标的（用于「恢复」列表）
   const hiddenStocks = useMemo(() => STOCKS.filter(s => hidden.has(s.code)), [hidden])
 
+  // 标的排序：指标 + 手动置顶
+  const [sort, setSort] = useState<SortState>(loadSort)
+  const chooseSort = (key: SortKey) => setSort(prev => {
+    const next: SortState = prev.key === key
+      ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
+      : { key, dir: key === 'name' ? 'asc' : 'desc' }
+    saveSort(next); return next
+  })
+  const [stockOrder, setStockOrder] = useState<string[]>(loadStockOrder)
+  // 手动上/下移：把该板块当前显示顺序（含本次交换）整体固定为手排
+  const moveStock = (sectorItems: Row[], code: string, dir: -1 | 1) => {
+    const codes = sectorItems.map(r => r.code)
+    const i = codes.indexOf(code), j = i + dir
+    if (i < 0 || j < 0 || j >= codes.length) return
+    ;[codes[i], codes[j]] = [codes[j], codes[i]]
+    const inSector = new Set(codes)
+    const next = [...stockOrder.filter(c => !inSector.has(c)), ...codes]
+    setStockOrder(next); saveStockOrder(next)
+  }
+  const clearStockOrder = () => { setStockOrder([]); saveStockOrder([]) }
+
   // 添加标的弹窗
   const [showAdd, setShowAdd] = useState(false)
   const [q, setQ] = useState('')
@@ -295,8 +336,9 @@ export default function YieldGrid() {
     setRows(null); setError('')
   }
 
-  // 删除标的：自定义的直接移除，内置默认的记入隐藏（可恢复）
+  // 删除标的：自定义的直接移除，内置默认的记入隐藏（可恢复）；一并清掉手排记录
   const removeStock = (code: string) => {
+    if (stockOrder.includes(code)) { const o = stockOrder.filter(c => c !== code); setStockOrder(o); saveStockOrder(o) }
     if (custom.some(c => c.code === code)) { deleteCustom(code); return }
     const next = new Set(hidden); next.add(code); setHidden(next); saveHidden(next)
     setRows(null); setError('')
@@ -378,14 +420,27 @@ export default function YieldGrid() {
     return () => { alive = false }
   }, [custom, hidden])
 
-  // 按板块分组（保持配置中板块出现顺序），组内按现股息率倒序
+  // 按板块分组（保持配置中板块出现顺序）
   const sectors: { sector: string; items: Row[] }[] = []
   for (const r of rows || []) {
     let g = sectors.find(x => x.sector === r.sector)
     if (!g) { g = { sector: r.sector, items: [] }; sectors.push(g) }
     g.items.push(r)
   }
-  for (const g of sectors) g.items.sort((a, b) => b.cy - a.cy)
+  // 组内排序：手排过的固定在前（按手排顺序），其余按所选指标
+  const pinPos = new Map(stockOrder.map((c, i) => [c, i]))
+  const cmpBy = (a: Row, b: Row) => {
+    const m = sort.dir === 'desc' ? -1 : 1
+    if (sort.key === 'name') return a.name.localeCompare(b.name, 'zh') * m
+    const va = sort.key === 'cy' ? a.cy : sort.key === 'chg' ? a.pctChg : a.price
+    const vb = sort.key === 'cy' ? b.cy : sort.key === 'chg' ? b.pctChg : b.price
+    return (va - vb) * m
+  }
+  for (const g of sectors) {
+    const pinned = g.items.filter(r => pinPos.has(r.code)).sort((a, b) => pinPos.get(a.code)! - pinPos.get(b.code)!)
+    const rest = g.items.filter(r => !pinPos.has(r.code)).sort(cmpBy)
+    g.items = [...pinned, ...rest]
+  }
   sectors.sort((a, b) => order.indexOf(a.sector) - order.indexOf(b.sector))
 
   // 盘中（行情日期=今天 且 处于 A 股交易时段 9:30–15:00）显示「盘中价」，否则「收盘价」
@@ -440,7 +495,18 @@ export default function YieldGrid() {
             </button>
           )}
         </div>
-        {editOrder && <div className="state edit-tip">编辑模式：↑↓ 调整板块顺序，✕ 删除标的（默认标的删除后可在「添加标的」里恢复）</div>}
+        {!error && rows && (
+          <div className="sortbar">
+            <span className="lbl">排序</span>
+            {SORT_OPTS.map(o => (
+              <button key={o.key} className={`chip${sort.key === o.key ? ' active' : ''}`} onClick={() => chooseSort(o.key)}>
+                {o.label}{sort.key === o.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+              </button>
+            ))}
+            {stockOrder.length > 0 && <button className="chip clear" onClick={clearStockOrder}>清除手排</button>}
+          </div>
+        )}
+        {editOrder && <div className="state edit-tip">编辑模式：板块 ↑↓ 调顺序；标的 ↑↓ 手动置顶（手排后该板块按你排的固定，其余按上方排序）；✕ 删除（默认标的可在「添加标的」里恢复）</div>}
         {error && <div className="state">{error}</div>}
         {!error && !rows && <div className="state">加载中…</div>}
         {!error && rows && active === FAV && visible.length === 0 && (
@@ -469,7 +535,13 @@ export default function YieldGrid() {
                   {items.map(r => (
                     <div className="card" key={r.name}>
                       <div className="chead">
-                        {editOrder && <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>}
+                        {editOrder && (
+                          <span className="rowops">
+                            <button type="button" className="yg-mv" disabled={items[0].code === r.code} onClick={() => moveStock(items, r.code, -1)} aria-label="上移">↑</button>
+                            <button type="button" className="yg-mv" disabled={items[items.length - 1].code === r.code} onClick={() => moveStock(items, r.code, 1)} aria-label="下移">↓</button>
+                            <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
+                          </span>
+                        )}
                         <span className="cnm">{r.name}</span>
                         <span className="cpx">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
@@ -500,7 +572,13 @@ export default function YieldGrid() {
                     <tbody>
                       {items.map(r => (
                         <tr key={r.name}>
-                          <td className="nm">{editOrder && <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
+                          <td className="nm">{editOrder && (
+                            <span className="rowops">
+                              <button type="button" className="yg-mv" disabled={items[0].code === r.code} onClick={() => moveStock(items, r.code, -1)} aria-label="上移">↑</button>
+                              <button type="button" className="yg-mv" disabled={items[items.length - 1].code === r.code} onClick={() => moveStock(items, r.code, 1)} aria-label="下移">↓</button>
+                              <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
+                            </span>
+                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
                           <td className="px">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
@@ -739,7 +817,17 @@ const CSS = `
 .yg-page .yg-del { flex: 0 0 auto; width: 20px; height: 20px; border: 0; border-radius: 50%;
   background: #fee2e2; color: #dc2626; font-size: 12px; line-height: 1; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; }
-.yg-page td.nm .yg-del { margin-right: 6px; vertical-align: middle; }
+.yg-page .rowops { display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; vertical-align: middle; }
+.yg-page td.nm .rowops { vertical-align: middle; }
+.yg-page .yg-mv { flex: 0 0 auto; width: 20px; height: 20px; border: 1px solid #e5e7eb; border-radius: 6px;
+  background: #fff; color: #374151; font-size: 12px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.yg-page .yg-mv:disabled { color: #d1d5db; cursor: default; }
+.yg-page .yg-mv:active:not(:disabled) { background: #f0f1f4; }
+.yg-page .sortbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+.yg-page .sortbar .lbl { font-size: 12.5px; color: #9ca3af; margin-right: 2px; }
+.yg-page .sortbar .chip { padding: 4px 11px; font-size: 12.5px; }
+.yg-page .sortbar .chip.clear { color: #dc2626; border-color: #fecaca; }
 .yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
 .yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
