@@ -6,6 +6,7 @@ import { predictSector } from '../utils/sectorPredictor'
 import { pickDividendForFill } from '../utils/dividendFill'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
+import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -275,6 +276,22 @@ export default function YieldGrid() {
     setStockOrder(next); saveStockOrder(next)
   }
   const clearStockOrder = () => { setStockOrder([]); saveStockOrder([]) }
+
+  // 全局点赞（CloudBase 累加计数，localStorage 一人一次）
+  const [likes, setLikes] = useState<number | null>(null)
+  const [liked, setLiked] = useState(hasLiked)
+  const [liking, setLiking] = useState(false)
+  useEffect(() => { getLikes().then(setLikes).catch(() => {}) }, [])
+  const onLike = () => {
+    if (liked || liking) return
+    setLiking(true)
+    setLiked(true)
+    setLikes(n => (n ?? 0) + 1) // 乐观 +1
+    addLike()
+      .then(n => setLikes(n))
+      .catch(() => { setLiked(false); setLikes(n => (n != null ? n - 1 : n)); showToast('点赞失败，请稍后再试') })
+      .finally(() => setLiking(false))
+  }
 
   // 添加标的弹窗
   const [showAdd, setShowAdd] = useState(false)
@@ -594,6 +611,16 @@ export default function YieldGrid() {
           )
         })}
 
+        {!error && rows && (
+          <div className="yg-like">
+            <button type="button" className={`like-btn${liked ? ' liked' : ''}`} onClick={onLike} disabled={liked || liking} aria-label="点赞">
+              <span className="ic">👍</span>
+              <span className="n">{likes == null ? '…' : likes}</span>
+            </button>
+            <div className="lt">{liked ? '感谢点赞 ❤' : '觉得有用？点个赞鼓励一下'}</div>
+          </div>
+        )}
+
         <Modal
           open={showAdd}
           onClose={() => { setShowAdd(false); setQ(''); setResults([]); setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false }) }}
@@ -828,6 +855,15 @@ const CSS = `
 .yg-page .sortbar .lbl { font-size: 12.5px; color: #9ca3af; margin-right: 2px; }
 .yg-page .sortbar .chip { padding: 4px 11px; font-size: 12.5px; }
 .yg-page .sortbar .chip.clear { color: #dc2626; border-color: #fecaca; }
+.yg-page .yg-like { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 6px 0 28px; }
+.yg-page .like-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 22px; border-radius: 999px;
+  border: 1px solid #fecaca; background: #fff; color: #dc2626; font-size: 15px; font-family: inherit; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(220,38,38,.08); transition: transform .08s ease, background .15s ease; }
+.yg-page .like-btn .ic { font-size: 17px; line-height: 1; }
+.yg-page .like-btn .n { font-weight: 700; font-variant-numeric: tabular-nums; }
+.yg-page .like-btn:active:not(:disabled) { transform: scale(.95); }
+.yg-page .like-btn.liked { background: #fef2f2; border-color: #fca5a5; cursor: default; }
+.yg-page .yg-like .lt { font-size: 12.5px; color: #9ca3af; }
 .yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
 .yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
