@@ -269,6 +269,7 @@ export default function YieldGrid() {
       showToast(`${exist?.name || addForm.name} 已在「${exist?.sector || ''}」中`)
       return
     }
+    if (custom.length >= 6) { showToast('最多添加 6 个自定义标的'); return }
     const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive, isHK: addForm.isHK }]
     setCustom(next); saveCustom(next)
     setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false })
