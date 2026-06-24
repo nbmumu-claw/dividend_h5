@@ -1,0 +1,18 @@
+import cloudbase from '@cloudbase/js-sdk'
+
+// ⚠️ Publishable Key 是「客户端公开密钥」，设计上就可安全出现在前端代码中：
+// 它只能访问显式授权过的资源 + 登录后本人数据（userData 集合为 PRIVATE 权限，仅本人可读写）。
+// 切勿在此填入「服务端 API Key」。
+const PUBLISHABLE_KEY = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMWRjMzFlLWI0ZDAtNDQ4Yi1hNzZmLWIwY2M2M2Q4MTQ5OCJ9.eyJpc3MiOiJodHRwczovL3ZlcmNlbC1kaXZpZGVuZC1kOGZhcWVnZjAzNDQyYjZjLmFwLXNoYW5naGFpLnRjYi1hcGkudGVuY2VudGNsb3VkYXBpLmNvbSIsInN1YiI6ImFub24iLCJhdWQiOiJ2ZXJjZWwtZGl2aWRlbmQtZDhmYXFlZ2YwMzQ0MmI2YyIsImV4cCI6NDA4NTk1NTQ0MCwiaWF0IjoxNzgyMjcyMjQwLCJub25jZSI6IjlLX3d4MWFsUi1LQkh6Tk5teGhnX1EiLCJhdF9oYXNoIjoiOUtfd3gxYWxSLUtCSHpOTm14aGdfUSIsIm5hbWUiOiJBbm9ueW1vdXMiLCJzY29wZSI6ImFub255bW91cyIsInByb2plY3RfaWQiOiJ2ZXJjZWwtZGl2aWRlbmQtZDhmYXFlZ2YwMzQ0MmI2YyIsIm1ldGEiOnsicGxhdGZvcm0iOiJQdWJsaXNoYWJsZUtleSJ9LCJ1c2VyX3R5cGUiOiIiLCJjbGllbnRfdHlwZSI6ImNsaWVudF91c2VyIiwiaXNfc3lzdGVtX2FkbWluIjpmYWxzZX0.oh-4mevuF18KRjoDvNhrOMVemIxJ9gbDeeXmC0ZNHPhI-m1Kj3Z3ZW_YeMlhhkCvBhgKqR0MDYqUaZfxHBUVpBO3gUVAMBZAN9cFCB1gtr_oR4FomtNPe0J7uOoD-SdEW0l4RhEaMXjYqhij3Zcv4kdWvzGlleJvPkGAZv0LlYjkMF1_sHEeHRXWw4mQ0_F0prKGBCfGj4FAY72kEoRZFHGLtxzPw2cKhBGgt1b5owxCgcNBYR5kXACajxsg1psAGIlvj2znHanOTZazbXxacmEsy3YHHMJUTghhO8cg8Qx2wvWTyuCk1-mtspPXFjk3_8ohHB9fUx9aOo0HtRS-sg'
+
+const app = cloudbase.init({
+  env: 'vercel-dividend-d8faqegf03442b6c',
+  region: 'ap-shanghai',
+  accessKey: PUBLISHABLE_KEY,
+  auth: { detectSessionInUrl: true },
+})
+
+// 登录态持久化到 localStorage（刷新/重开仍保持登录）
+export const cbAuth = app.auth({ persistence: 'local' })
+export const cbDb = app.database()
+export const USER_DATA_COLLECTION = 'userData'
