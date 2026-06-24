@@ -1,6 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
+import AuthModal from '../components/AuthModal'
+import { cbAuth } from '../utils/cloudbase'
+import { syncOnLogin, resolveConflict, startAutoPush, stopAutoPush } from '../utils/cloudSync'
 import { cacheClear } from '../utils/cache'
 import type { BackupData } from '../types'
 import { Toast, useToast } from '../components/Toast'
@@ -85,6 +88,49 @@ export default function Settings() {
   const [showAgreement, setShowAgreement] = useState(false)
   const [showAchievements, setShowAchievements] = useState(false)
   const { message, showToast } = useToast()
+
+  // 账户 / 云同步
+  const [showAuth, setShowAuth] = useState(false)
+  const [authUser, setAuthUser] = useState<{ email?: string; user_metadata?: { nickName?: string } } | null>(null)
+  useEffect(() => {
+    cbAuth.getSession().then(({ data }) => {
+      const s = data?.session
+      setAuthUser(s && !s.user?.is_anonymous ? s.user : null)
+    }).catch(() => {})
+  }, [])
+  const handleAuthed = async () => {
+    const { data } = await cbAuth.getSession()
+    setAuthUser(data?.session?.user ?? null)
+    try {
+      const r = await syncOnLogin()
+      if (r.action === 'conflict') {
+        const useCloud = window.confirm('云端已有数据。\n\n点「确定」用云端数据覆盖本机；点「取消」用本机数据覆盖云端。')
+        await resolveConflict(useCloud, r.cloud)
+        showToast(useCloud ? '已用云端数据覆盖本机' : '已用本机数据覆盖云端')
+      } else if (r.action === 'pulled') showToast('已从云端恢复数据')
+      else showToast('已同步到云端')
+    } catch { showToast('同步失败，稍后重试') }
+    startAutoPush()
+  }
+  const handleLogout = async () => {
+    if (!window.confirm('确定退出登录？\n本机数据会保留，重新登录可恢复云端数据。')) return
+    try { await cbAuth.signOut() } catch { /* ignore */ }
+    stopAutoPush()
+    setAuthUser(null)
+    showToast('已退出（本机数据保留）')
+  }
+  const handleRename = async () => {
+    const name = window.prompt('设置昵称', authUser?.user_metadata?.nickName || '')
+    if (name == null) return
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const { error } = await cbAuth.updateUser({ nickname: trimmed })
+    if (error) { showToast('改名失败'); return }
+    try { await cbAuth.refreshUser() } catch { /* ignore */ }
+    const { data } = await cbAuth.getSession()
+    setAuthUser(data?.session?.user ?? null)
+    showToast('昵称已更新')
+  }
 
   const stats = (() => {
     const withHoldings = watchlist.filter(s => s.shares && s.shares > 0)
@@ -183,7 +229,7 @@ export default function Settings() {
   }
 
   const handleClearWatchlist = () => {
-    if (window.confirm('确定清空自选列表？此操作不可恢复。')) {
+    if (window.confirm('确定清空「当前账户」的自选列表？\n\n· 仅清空当前账户，其他账户不受影响\n· 若已登录，会同步删除云端该账户数据\n· 此操作不可恢复')) {
       setWatchlist([])
       showToast('自选列表已清空')
     }
@@ -216,6 +262,30 @@ export default function Settings() {
     <div className="page-content page-narrow">
       <div className="px-4 pt-12 pb-3">
         <h1 className="text-xl font-bold text-gray-900 text-center">我的</h1>
+      </div>
+
+      {/* 账户 / 云同步 */}
+      <div className="mx-4 mb-4 card p-4">
+        {authUser ? (
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-gray-800 truncate">{authUser.user_metadata?.nickName || authUser.email}</div>
+              <div className="text-xs text-gray-400 mt-0.5">已登录 · 数据自动云同步</div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={handleRename} className="text-xs text-gray-500 border border-gray-200 rounded-full px-3 py-1">改名</button>
+              <button onClick={handleLogout} className="text-xs text-gray-500 border border-gray-200 rounded-full px-3 py-1">退出</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setShowAuth(true)} className="w-full flex items-center justify-between">
+            <div className="text-left">
+              <div className="text-sm font-semibold text-gray-800">登录 / 注册以云端同步</div>
+              <div className="text-xs text-gray-400 mt-0.5">多设备同步你的自选与持仓</div>
+            </div>
+            <svg className="w-4 h-4 text-gray-300 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -480,6 +550,7 @@ export default function Settings() {
       </Modal>
 
       <Toast message={message} />
+      <AuthModal open={showAuth} onClose={() => setShowAuth(false)} onAuthed={handleAuthed} />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/react'
 import TabBar from './components/TabBar'
 import { fetchExchangeRate, fetchUsdRate } from './utils/api'
 import { useStore } from './store'
+import { getSession, syncOnLogin, startAutoPush } from './utils/cloudSync'
 import Discovery from './pages/Discovery'
 import Watchlist from './pages/Watchlist'
 import Portfolio from './pages/Portfolio'
@@ -33,6 +34,16 @@ export default function App() {
     fetchUsdRate().then(rate => setUsdRate(rate)).catch(() => {})
     // 启动时把未手动改过的自选股每股红利同步为发现页权威值
     syncWatchlistDividends()
+    // 已登录则恢复云同步（启动恢复不会触发首登冲突，conflict 仅在 Settings 登录时处理）
+    ;(async () => {
+      try {
+        const session = await getSession()
+        if (session && !session.user?.is_anonymous) {
+          await syncOnLogin()
+          startAutoPush()
+        }
+      } catch { /* 离线/未登录忽略 */ }
+    })()
   }, [])
 
   return (
