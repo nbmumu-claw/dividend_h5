@@ -143,6 +143,15 @@ function saveCustom(list: Custom[]) {
   try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)) } catch { /* ignore */ }
 }
 
+// 用户隐藏的默认标的（localStorage）：删除内置标的不改源数据，仅记隐藏 code，可恢复
+const HIDDEN_KEY = 'yg-hidden'
+function loadHidden(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')) } catch { return new Set() }
+}
+function saveHidden(s: Set<string>) {
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
+}
+
 // 行情缓存（localStorage）：盘后/非交易时段直接读缓存不刷新
 type PriceSnap = { price: number; pctChg: number; tradeDate: string; tradeTime: string }
 type PriceCache = { fetchedAt: number; latestDate: string; data: Record<string, PriceSnap> }
@@ -216,12 +225,15 @@ export default function YieldGrid() {
     return next
   })
 
-  // 自定义添加的标的，与静态列表合并（去重）
+  // 自定义添加的标的，与静态列表合并（去重）；隐藏的默认标的过滤掉
   const [custom, setCustom] = useState<Custom[]>(loadCustom)
+  const [hidden, setHidden] = useState<Set<string>>(loadHidden)
   const allStocks = useMemo<Custom[]>(() => {
     const seen = new Set(STOCKS.map(s => s.code))
-    return [...STOCKS, ...custom.filter(c => !seen.has(c.code))]
-  }, [custom])
+    return [...STOCKS, ...custom.filter(c => !seen.has(c.code))].filter(s => !hidden.has(s.code))
+  }, [custom, hidden])
+  // 被隐藏的默认标的（用于「恢复」列表）
+  const hiddenStocks = useMemo(() => STOCKS.filter(s => hidden.has(s.code)), [hidden])
 
   // 添加标的弹窗
   const [showAdd, setShowAdd] = useState(false)
@@ -280,6 +292,17 @@ export default function YieldGrid() {
   const deleteCustom = (code: string) => {
     const next = custom.filter(c => c.code !== code)
     setCustom(next); saveCustom(next)
+    setRows(null); setError('')
+  }
+
+  // 删除标的：自定义的直接移除，内置默认的记入隐藏（可恢复）
+  const removeStock = (code: string) => {
+    if (custom.some(c => c.code === code)) { deleteCustom(code); return }
+    const next = new Set(hidden); next.add(code); setHidden(next); saveHidden(next)
+    setRows(null); setError('')
+  }
+  const restoreStock = (code: string) => {
+    const next = new Set(hidden); next.delete(code); setHidden(next); saveHidden(next)
     setRows(null); setError('')
   }
 
@@ -353,7 +376,7 @@ export default function YieldGrid() {
         else setError('行情获取失败，请稍后刷新。')
       })
     return () => { alive = false }
-  }, [custom])
+  }, [custom, hidden])
 
   // 按板块分组（保持配置中板块出现顺序），组内按现股息率倒序
   const sectors: { sector: string; items: Row[] }[] = []
@@ -411,12 +434,13 @@ export default function YieldGrid() {
             <button
               className={`orderbtn${editOrder ? ' on' : ''}`}
               onClick={() => { setEditOrder(e => !e); if (!editOrder) setActive(ALL) }}
-              aria-label={editOrder ? '完成排序' : '调整板块顺序'}
+              aria-label={editOrder ? '完成编辑' : '编辑（排序/删除）'}
             >
-              {editOrder ? (isMobile ? '✓' : '✓ 完成') : (isMobile ? '⇅' : '⇅ 调整板块顺序')}
+              {editOrder ? (isMobile ? '✓' : '✓ 完成') : (isMobile ? '✎' : '✎ 编辑')}
             </button>
           )}
         </div>
+        {editOrder && <div className="state edit-tip">编辑模式：↑↓ 调整板块顺序，✕ 删除标的（默认标的删除后可在「添加标的」里恢复）</div>}
         {error && <div className="state">{error}</div>}
         {!error && !rows && <div className="state">加载中…</div>}
         {!error && rows && active === FAV && visible.length === 0 && (
@@ -445,6 +469,7 @@ export default function YieldGrid() {
                   {items.map(r => (
                     <div className="card" key={r.name}>
                       <div className="chead">
+                        {editOrder && <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>}
                         <span className="cnm">{r.name}</span>
                         <span className="cpx">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
@@ -475,7 +500,7 @@ export default function YieldGrid() {
                     <tbody>
                       {items.map(r => (
                         <tr key={r.name}>
-                          <td className="nm"><Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
+                          <td className="nm">{editOrder && <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
                           <td className="px">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
@@ -547,6 +572,20 @@ export default function YieldGrid() {
                     <div key={c.code} className="flex items-center justify-between text-sm px-2 py-1.5 bg-gray-50 rounded-lg">
                       <span className="text-gray-700">{c.name} <span className="text-gray-400 text-xs">{c.code} · {c.sector} · {symOf(c.isHK)}{c.dive}</span></span>
                       <button className="text-red-500 text-xs px-2" onClick={() => deleteCustom(c.code)}>删除</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hiddenStocks.length > 0 && (
+              <div>
+                <div className="text-xs text-gray-400 mb-1">已删除的默认标的（{hiddenStocks.length}）</div>
+                <div className="space-y-1">
+                  {hiddenStocks.map(s => (
+                    <div key={s.code} className="flex items-center justify-between text-sm px-2 py-1.5 bg-gray-50 rounded-lg">
+                      <span className="text-gray-700">{s.name} <span className="text-gray-400 text-xs">{s.code} · {s.sector} · ¥{s.dive}</span></span>
+                      <button className="text-blue-500 text-xs px-2" onClick={() => restoreStock(s.code)}>恢复</button>
                     </div>
                   ))}
                 </div>
@@ -696,6 +735,11 @@ const CSS = `
 .yg-page .yg-addbar .plus { font-size: 16px; line-height: 1; }
 .yg-page .yg-addbar:active { background: #fff5f5; }
 .yg-page .state { color: #9ca3af; font-size: 13px; padding: 8px 2px; }
+.yg-page .edit-tip { color: #6b7280; background: #f3f4f6; border-radius: 8px; padding: 7px 10px; margin: -4px 0 10px; }
+.yg-page .yg-del { flex: 0 0 auto; width: 20px; height: 20px; border: 0; border-radius: 50%;
+  background: #fee2e2; color: #dc2626; font-size: 12px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.yg-page td.nm .yg-del { margin-right: 6px; vertical-align: middle; }
 .yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
 .yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
@@ -765,6 +809,7 @@ const CSS = `
 .yg-page .cards { display: flex; flex-direction: column; gap: 10px; }
 .yg-page .card { border: 1px solid #f0f1f4; border-radius: 10px; padding: 10px 11px 11px; }
 .yg-page .chead { display: flex; align-items: baseline; gap: 8px; }
+.yg-page .chead .yg-del { align-self: center; }
 .yg-page .chead .cnm { font-weight: 700; font-size: 15px; }
 .yg-page .chead .cpx { font-size: 13px; color: #374151; font-variant-numeric: tabular-nums; }
 .yg-page .chead .ccy { margin-left: auto; font-size: 14px; font-variant-numeric: tabular-nums; }
