@@ -138,7 +138,17 @@ function saveFavs(s: Set<string>) {
 type Custom = { sector: string; name: string; code: string; dive: number; isHK?: boolean }
 const CUSTOM_KEY = 'yg-custom'
 function loadCustom(): Custom[] {
-  try { const a = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
+  try {
+    const a = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]')
+    if (!Array.isArray(a)) return []
+    let migrated = false
+    const result = a.map((c: Custom) => {
+      if (c.isHK && !c.name.endsWith('(HK)')) { migrated = true; return { ...c, name: c.name + '(HK)' } }
+      return c
+    })
+    if (migrated) saveCustom(result)
+    return result
+  } catch { return [] }
 }
 function saveCustom(list: Custom[]) {
   try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)) } catch { /* ignore */ }
@@ -323,7 +333,7 @@ export default function YieldGrid() {
   const selectResult = (r: SearchResult) => {
     const mkt = r.isHK ? 'HK' : 'A'
     const predicted = predictSector(r.name, r.code, mkt)
-    setAddForm({ name: r.name, code: r.code, sector: SECTORS.includes(predicted) ? predicted : '其他', dive: '', isHK: !!r.isHK })
+    setAddForm({ name: r.isHK ? r.name + '(HK)' : r.name, code: r.code, sector: SECTORS.includes(predicted) ? predicted : '其他', dive: '', isHK: !!r.isHK })
     setQ(''); setResults([])
     fetchDividendHistory(r.code, !!r.isHK, false).then(h => {
       if (!h?.records?.length) return
@@ -640,7 +650,7 @@ export default function YieldGrid() {
                 <div className="mt-1 border border-gray-100 rounded-lg overflow-hidden">
                   {results.map(r => (
                     <button key={r.code} className="w-full text-left px-3 py-2 text-sm flex justify-between active:bg-gray-50" onClick={() => selectResult(r)}>
-                      <span className="text-gray-800">{r.name}</span><span className="text-gray-400">{r.code}</span>
+                      <span className="text-gray-800">{r.name}{r.isHK ? <span className="text-gray-400 ml-1">HK</span> : null}</span><span className="text-gray-400">{r.code}</span>
                     </button>
                   ))}
                 </div>
