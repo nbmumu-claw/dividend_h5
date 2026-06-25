@@ -163,6 +163,13 @@ function saveHidden(s: Set<string>) {
   try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
 }
 
+// 记住用户上次选择的标签页（板块/全部/自选），刷新不重置
+const ACTIVE_KEY = 'yg-active'
+function loadActive(): string {
+  try { return localStorage.getItem(ACTIVE_KEY) || ALL } catch { return ALL }
+}
+function saveActive(v: string) { try { localStorage.setItem(ACTIVE_KEY, v) } catch { /* ignore */ } }
+
 // 标的排序：组内排序指标（localStorage）。默认现股息率倒序
 type SortKey = 'cy' | 'chg' | 'price' | 'name'
 type SortState = { key: SortKey; dir: 'asc' | 'desc' }
@@ -237,7 +244,8 @@ export default function YieldGrid() {
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
-  const [active, setActive] = useState<string>(ALL)
+  const [active, setActive] = useState<string>(loadActive)
+  const switchActive = (v: string) => { setActive(v); saveActive(v) }
   const [favs, setFavs] = useState<Set<string>>(loadFavs)
   const toggleFav = (code: string) => setFavs(prev => {
     const next = new Set(prev)
@@ -506,10 +514,10 @@ export default function YieldGrid() {
         </button>
         <div className="toolbar">
           <div className="filter">
-            <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => setActive(ALL)}>{ALL}</button>
-            <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => setActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
+            <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
+            <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
             {order.map(s => (
-              <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => setActive(s)}>{s}</button>
+              <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
             ))}
           </div>
           {!error && rows && (
