@@ -8,6 +8,7 @@ import { pickDividendForFill } from '../utils/dividendFill'
 import Disclaimer from '../components/Disclaimer'
 import type { SearchResult } from '../utils/api'
 import { STATIC_STOCKS } from '../data/stocks'
+import { toCnyPrice, currencySymbol, isBShare } from '../utils/market'
 import type { Stock } from '../types'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
@@ -130,8 +131,8 @@ export default function Discovery() {
       displayStocks.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+        const priceCny = toCnyPrice(pd.price, s, exchangeRate, usdRate)
+        const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         const yieldRate = rawYield > 30 ? s.yieldRate : rawYield
         const patch = { price: pd.price, pctChg: pd.pctChg, yieldRate }
@@ -150,8 +151,8 @@ export default function Discovery() {
         const pd = priceMap[s.code]
         if (!pd) return s
         const price = pd.price
-        const priceCny = s.isHK ? price * exchangeRate : s.isUS ? price * usdRate : price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+        const priceCny = toCnyPrice(price, s, exchangeRate, usdRate)
+        const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         return { ...s, price, priceCny, yieldRate: rawYield > 30 ? s.yieldRate : rawYield, pctChg: pd.pctChg }
       })
@@ -274,8 +275,8 @@ export default function Discovery() {
       return
     }
     setFormErrors({})
-    const priceCny = form.isHK ? price * exchangeRate : form.isUS ? price * usdRate : price
-    const divCny = form.isHK ? div * exchangeRate : form.isUS ? div * usdRate : div
+    const priceCny = toCnyPrice(price, form, exchangeRate, usdRate)
+    const divCny = toCnyPrice(div, form, exchangeRate, usdRate)
     const yieldRate = priceCny > 0 ? (divCny / priceCny) * 100 : 0
     const code = form.isHK
       ? form.code.replace(/^0+/, '').padStart(4, '0')
@@ -470,10 +471,11 @@ export default function Discovery() {
                         {stock.isETF && <span className="tag tag-blue">ETF</span>}
                         {stock.isHK && <span className="tag tag-yellow">港股</span>}
                         {stock.isUS && <span className="tag tag-blue">美股</span>}
+                        {isBShare(stock.code) && <span className="tag tag-yellow">B股</span>}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{stock.code}</span>
-                        <span>{stock.isETF ? '每份红利' : '每股红利'} {stock.isUS ? '$' : '¥'}{stock.dividendPerShare.toFixed(3)}</span>
+                        <span>{stock.isETF ? '每份红利' : '每股红利'} {currencySymbol(stock)}{stock.dividendPerShare.toFixed(3)}</span>
                         {stock.pctChg != null && (
                           <span className={stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}>
                             {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
@@ -538,6 +540,7 @@ export default function Discovery() {
                         <span className="text-xs text-gray-400">{r.code}</span>
                         {r.isHK && <span className="tag tag-yellow">港股</span>}
                         {r.isUS && <span className="tag tag-blue">美股</span>}
+                        {isBShare(r.code) && <span className="tag tag-yellow">B股</span>}
                       </div>
                     </button>
                   ))}
@@ -602,8 +605,8 @@ export default function Discovery() {
                 {(() => {
                   const p = parseFloat(form.price)
                   const d = parseFloat(form.dividendPerShare)
-                  const pCny = form.isHK ? p * exchangeRate : form.isUS ? p * usdRate : p
-                  const dCny = form.isHK ? d * exchangeRate : form.isUS ? d * usdRate : d
+                  const pCny = toCnyPrice(p, form, exchangeRate, usdRate)
+                  const dCny = toCnyPrice(d, form, exchangeRate, usdRate)
                   return pCny > 0 ? ((dCny / pCny) * 100).toFixed(2) + '%' : '-'
                 })()}
               </span>

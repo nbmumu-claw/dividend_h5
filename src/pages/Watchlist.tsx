@@ -5,6 +5,7 @@ import { fetchStockPrices, fetchOwnerType } from '../utils/api'
 import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
 import type { WatchlistStock } from '../types'
+import { toCnyPrice, currencySymbol, isBShare } from '../utils/market'
 import { Toast, useToast } from '../components/Toast'
 import Modal from '../components/Modal'
 import DividendReminderCard from '../components/DividendReminderCard'
@@ -112,8 +113,8 @@ export default function Watchlist() {
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+        const priceCny = toCnyPrice(pd.price, s, exchangeRate, usdRate)
+        const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         updates[s.code] = {
           price: pd.price,
@@ -130,7 +131,7 @@ export default function Watchlist() {
 
   // 首次加载企业性质（仅A股非ETF），切账户后重新加载
   useEffect(() => {
-    const aShares = watchlist.filter(s => !s.isHK && !s.isUS && !s.isETF)
+    const aShares = watchlist.filter(s => !s.isHK && !s.isUS && !s.isETF && !isBShare(s.code))
     if (!aShares.length) return
     Promise.all(aShares.map(s => fetchOwnerType(s.code).then(t => [s.code, t] as [string, string])))
       .then(results => setOwnerTypes(Object.fromEntries(results)))
@@ -170,8 +171,8 @@ export default function Watchlist() {
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+        const priceCny = toCnyPrice(pd.price, s, exchangeRate, usdRate)
+        const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         updates[s.code] = {
           price: pd.price,
@@ -195,7 +196,7 @@ export default function Watchlist() {
   const getAnnualDividend = (stock: WatchlistStock): number => {
     const shares = Number(stock.shares) || 0
     if (!shares) return 0
-    const divCny = stock.isHK ? stock.dividendPerShare * exchangeRate : stock.isUS ? stock.dividendPerShare * usdRate : stock.dividendPerShare
+    const divCny = toCnyPrice(stock.dividendPerShare, stock, exchangeRate, usdRate)
     return afterTax(divCny * shares, stock)
   }
 
@@ -209,7 +210,7 @@ export default function Watchlist() {
       const getCostCny = (s: WatchlistStock) => {
         const cost = Number(s.costPrice)
         if (!cost) return null
-        return s.isHK ? cost * exchangeRate : s.isUS ? cost * usdRate : cost
+        return toCnyPrice(cost, s, exchangeRate, usdRate)
       }
       const costA = getCostCny(a), costB = getCostCny(b)
       const negA = costA !== null && costA < 0
@@ -223,8 +224,8 @@ export default function Watchlist() {
       if (costA === null) return 1
       if (costB === null) return -1
       // 正成本按盈亏%降序
-      const priceCnyA = a.isHK ? a.price * exchangeRate : a.isUS ? a.price * usdRate : a.price
-      const priceCnyB = b.isHK ? b.price * exchangeRate : b.isUS ? b.price * usdRate : b.price
+      const priceCnyA = toCnyPrice(a.price, a, exchangeRate, usdRate)
+      const priceCnyB = toCnyPrice(b.price, b, exchangeRate, usdRate)
       const pnlA = (priceCnyA - costA) / costA * 100
       const pnlB = (priceCnyB - costB) / costB * 100
       return pnlB - pnlA
@@ -237,7 +238,7 @@ export default function Watchlist() {
 
   // 总市值用全部自选（不随板块筛选变化）
   const totalMarketValue = watchlist.reduce((sum, s) => {
-    const pCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
+    const pCny = toCnyPrice(s.price, s, exchangeRate, usdRate)
     const sh = Number(s.shares) || 0
     return sum + (pCny > 0 && sh > 0 ? pCny * sh : 0)
   }, 0)
@@ -358,13 +359,13 @@ export default function Watchlist() {
           <div className="wl-list">
             {sortedFiltered.map(stock => {
               const annualDiv = getAnnualDividend(stock)
-              const priceCny = stock.isHK ? stock.price * exchangeRate : stock.isUS ? stock.price * usdRate : stock.price
+              const priceCny = toCnyPrice(stock.price, stock, exchangeRate, usdRate)
               const shares = Number(stock.shares) || 0
               // 成本由记录摊薄算出，可为负(已回本)；空串=无持仓/清仓
               const costRaw = stock.costPrice !== undefined && stock.costPrice !== '' ? Number(stock.costPrice) : null
               const hasCost = costRaw != null && !Number.isNaN(costRaw) && shares > 0
               const costPriceCny = hasCost
-                ? (stock.isHK ? costRaw! * exchangeRate : stock.isUS ? costRaw! * usdRate : costRaw!)
+                ? toCnyPrice(costRaw!, stock, exchangeRate, usdRate)
                 : null
               const unrealized = costPriceCny != null && shares ? (priceCny - costPriceCny) * shares : null
               const unrealizedPct = costPriceCny != null && costPriceCny > 0 ? ((priceCny - costPriceCny) / costPriceCny) * 100 : null
@@ -387,14 +388,15 @@ export default function Watchlist() {
                           {stock.isETF && <span className="tag tag-blue">ETF</span>}
                           {stock.isHK && <span className="tag tag-yellow">港股</span>}
                           {stock.isUS && <span className="tag tag-blue">美股</span>}
-                          {!stock.isHK && !stock.isUS && !stock.isETF && ownerTypes[stock.code] && ownerTypes[stock.code] !== '未知' && (
+                          {isBShare(stock.code) && <span className="tag tag-yellow">B股</span>}
+                          {!stock.isHK && !stock.isUS && !isBShare(stock.code) && !stock.isETF && ownerTypes[stock.code] && ownerTypes[stock.code] !== '未知' && (
                             <span className={`tag ${ownerTypes[stock.code] === '央企' ? 'tag-blue' : ownerTypes[stock.code] === '地方国企' ? 'tag-yellow' : 'tag-gray'}`}>
                               {ownerTypes[stock.code]}
                             </span>
                           )}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          {stock.isETF ? '每份红利' : '每股红利'} {stock.isUS ? '$' : '¥'}{stock.dividendPerShare.toFixed(3)}
+                          {stock.isETF ? '每份红利' : '每股红利'} {currencySymbol(stock)}{stock.dividendPerShare.toFixed(3)}
                           {stock.isHK && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * exchangeRate).toFixed(3)} CNY)</span>}
                           {stock.isUS && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * usdRate).toFixed(3)} CNY)</span>}
                         </div>

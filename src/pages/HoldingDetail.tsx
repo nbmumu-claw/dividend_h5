@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store'
 import { fetchStockPrices } from '../utils/api'
 import { afterTax } from '../utils/tax'
+import { currencySymbol, isBShare } from '../utils/market'
 import { computeHolding, ensureTransactions, sharesAsOf, dividendShares, TX_LABEL, type TxType, type Transaction } from '../utils/holdings'
 import { makeFeeCalc } from '../utils/fees'
 import Modal from '../components/Modal'
@@ -78,7 +79,7 @@ export default function HoldingDetail() {
     )
   }
 
-  const curSym = stock.isUS ? '$' : stock.isHK ? 'HK$' : '¥'
+  const curSym = currencySymbol(stock)
   const price = Number(stock.price) || 0
   const dividend = Number(stock.dividendPerShare) || 0
   const yieldRate = price > 0 && dividend > 0 ? (dividend / price) * 100 : 0
@@ -353,7 +354,7 @@ export default function HoldingDetail() {
             </label>
           )}
           {txType === 'dividend' && (
-            <div className="text-xs text-gray-400">分红按 {txDate} 当时持仓 {sharesAsOf(editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs, txDate ? new Date(txDate + 'T12:00:00').getTime() : Date.now())} 股计；{stock.isHK ? '港股按所选税率扣税后' : 'A股免税'}冲减成本。</div>
+            <div className="text-xs text-gray-400">分红按 {txDate} 当时持仓 {sharesAsOf(editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs, txDate ? new Date(txDate + 'T12:00:00').getTime() : Date.now())} 股计；{stock.isHK ? '港股按所选税率扣税后' : isBShare(stock.code) ? 'B股按10%扣税后' : 'A股免税'}冲减成本。</div>
           )}
 
           {(() => {

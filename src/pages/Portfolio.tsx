@@ -6,6 +6,7 @@ import Disclaimer from '../components/Disclaimer'
 import Modal from '../components/Modal'
 import { afterTax } from '../utils/tax'
 import { fetchStockPrices } from '../utils/api'
+import { toCnyPrice, isBShare } from '../utils/market'
 import { isIncluded, resolveCategory, labelOf, colorOf, CATEGORIES, type Category } from '../utils/categories'
 import type { WatchlistStock } from '../types'
 
@@ -35,8 +36,8 @@ export default function Portfolio() {
       watchlist.forEach(s => {
         const pd = priceMap[s.code]
         if (!pd) return
-        const priceCny = s.isHK ? pd.price * exchangeRate : s.isUS ? pd.price * usdRate : pd.price
-        const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+        const priceCny = toCnyPrice(pd.price, s, exchangeRate, usdRate)
+        const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         updates[s.code] = {
           price: pd.price,
@@ -58,7 +59,7 @@ export default function Portfolio() {
     for (const s of holdings) nameCounts[s.name] = (nameCounts[s.name] || 0) + 1
     return holdings.map(s => ({
       stock: s,
-      displayName: nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : s.isUS ? '美' : 'A'})` : s.name,
+      displayName: nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : s.isUS ? '美' : isBShare(s.code) ? 'B' : 'A'})` : s.name,
     }))
   }, [holdings])
 
@@ -74,22 +75,22 @@ export default function Portfolio() {
     holdings.forEach(s => {
       const shares = Number(s.shares) || 0
       const costPrice = Number(s.costPrice) || 0
-      const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
-      const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+      const priceCny = toCnyPrice(s.price, s, exchangeRate, usdRate)
+      const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
       const annualDiv = afterTax(divCny * shares, s)
       const market = priceCny * shares
 
       totalAnnual += annualDiv
       totalMarket += market
       // 沪深细分：境内标的(非港非美)，6/9 开头沪市(含沪B 900) / 0、2、3 开头深市(含深B 200)
-      if (!s.isHK && !s.isUS && market > 0) {
+      if (!s.isHK && !s.isUS && !isBShare(s.code) && market > 0) {
         const head = String(s.code).charAt(0)
         if (head === '6' || head === '9') { shMarket += market; shItems.push({ name: s.name, value: market }) }
         else if (head === '0' || head === '2' || head === '3') { szMarket += market; szItems.push({ name: s.name, value: market }) }
       }
       const hasCost = s.costPrice !== undefined && s.costPrice !== null && s.costPrice !== ''
       const costPriceCny = hasCost
-        ? (s.isHK ? costPrice * exchangeRate : s.isUS ? costPrice * usdRate : costPrice)
+        ? toCnyPrice(costPrice, s, exchangeRate, usdRate)
         : priceCny
       totalCost += costPriceCny * shares
     })
@@ -120,10 +121,10 @@ export default function Portfolio() {
   const valOf = useCallback((s: WatchlistStock) => {
     const shares = Number(s.shares) || 0
     if (chartType === 'cost') {
-      const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
+      const priceCny = toCnyPrice(s.price, s, exchangeRate, usdRate)
       return priceCny * shares
     }
-    const divCny = s.isHK ? s.dividendPerShare * exchangeRate : s.isUS ? s.dividendPerShare * usdRate : s.dividendPerShare
+    const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
     return afterTax(divCny * shares, s)
   }, [chartType, exchangeRate, usdRate])
 
@@ -180,11 +181,11 @@ export default function Portfolio() {
     return holdingsWithDisplay
       .map(({ stock: s, displayName }) => {
         const shares = Number(s.shares) || 0
-        const priceCny = s.isHK ? s.price * exchangeRate : s.isUS ? s.price * usdRate : s.price
+        const priceCny = toCnyPrice(s.price, s, exchangeRate, usdRate)
         const market = priceCny * shares
         const hasCost = s.costPrice !== undefined && s.costPrice !== '' && !Number.isNaN(Number(s.costPrice))
         const cost = hasCost
-          ? (s.isHK ? Number(s.costPrice) * exchangeRate : s.isUS ? Number(s.costPrice) * usdRate : Number(s.costPrice)) * shares
+          ? toCnyPrice(Number(s.costPrice), s, exchangeRate, usdRate) * shares
           : market
         const pl = market - cost
         const pct = cost > 0 ? (pl / cost) * 100 : null

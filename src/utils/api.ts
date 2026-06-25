@@ -30,6 +30,8 @@ function toTxCode(code: string, isHK?: boolean): string {
   if (first === '8' || first === '4') return `bj${str}`
   if (first === '5') return `sh${str}` // 5xxxxx ETF → 腾讯均用 sh 前缀
   if (first === '1') return `sz${str}` // 159xxx 深交所ETF
+  if (first === '9') return `sh${str}` // 900xxx 沪市B股
+  if (first === '2') return `sz${str}` // 200xxx 深市B股
   return `sh${str}`
 }
 

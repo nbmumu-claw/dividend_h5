@@ -122,7 +122,7 @@ const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
 
 type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number; isHK: boolean }
 // 币种符号：港股 HK$，A 股 ¥
-const symOf = (isHK?: boolean) => (isHK ? 'HK$' : '¥')
+const symOf = (isHK?: boolean, code?: string) => (isHK ? 'HK$' : code && /^900/.test(String(code)) ? '$' : code && /^200/.test(String(code)) ? 'HK$' : '¥')
 
 // 网格页自选（localStorage，独立于主自选页）
 const FAV = '自选'
@@ -144,6 +144,7 @@ function loadCustom(): Custom[] {
     let migrated = false
     const result = a.map((c: Custom) => {
       if (c.isHK && !c.name.endsWith('(HK)')) { migrated = true; return { ...c, name: c.name + '(HK)' } }
+      if (!c.isHK && /^[29]00/.test(String(c.code)) && !c.name.includes('(B)')) { migrated = true; return { ...c, name: c.name + '(B)' } }
       return c
     })
     if (migrated) saveCustom(result)
@@ -341,7 +342,8 @@ export default function YieldGrid() {
   const selectResult = (r: SearchResult) => {
     const mkt = r.isHK ? 'HK' : 'A'
     const predicted = predictSector(r.name, r.code, mkt)
-    setAddForm({ name: r.isHK ? r.name + '(HK)' : r.name, code: r.code, sector: SECTORS.includes(predicted) ? predicted : '其他', dive: '', isHK: !!r.isHK })
+    const bTag = !r.isHK && /^[29]00/.test(String(r.code)) ? '(B)' : ''
+    setAddForm({ name: r.isHK ? r.name + '(HK)' : r.name + bTag, code: r.code, sector: SECTORS.includes(predicted) ? predicted : '其他', dive: '', isHK: !!r.isHK })
     setQ(''); setResults([])
     fetchDividendHistory(r.code, !!r.isHK, false).then(h => {
       if (!h?.records?.length) return
@@ -578,7 +580,7 @@ export default function YieldGrid() {
                           </span>
                         )}
                         <span className="cnm">{r.name}</span>
-                        <span className="cpx">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
+                        <span className="cpx">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                         <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
@@ -614,7 +616,7 @@ export default function YieldGrid() {
                               <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
                             </span>
                           )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
-                          <td className="px">{symOf(r.isHK)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
+                          <td className="px">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -658,7 +660,7 @@ export default function YieldGrid() {
                 <div className="mt-1 border border-gray-100 rounded-lg overflow-hidden">
                   {results.map(r => (
                     <button key={r.code} className="w-full text-left px-3 py-2 text-sm flex justify-between active:bg-gray-50" onClick={() => selectResult(r)}>
-                      <span className="text-gray-800">{r.name}{r.isHK ? <span className="text-gray-400 ml-1">HK</span> : null}</span><span className="text-gray-400">{r.code}</span>
+                      <span className="text-gray-800">{r.name}{r.isHK ? <span className="text-gray-400 ml-1">HK</span> : /^[29]00/.test(String(r.code)) ? <span className="text-gray-400 ml-1">B</span> : null}</span><span className="text-gray-400">{r.code}</span>
                     </button>
                   ))}
                 </div>
@@ -693,7 +695,7 @@ export default function YieldGrid() {
                 <div className="space-y-1">
                   {custom.map(c => (
                     <div key={c.code} className="flex items-center justify-between text-sm px-2 py-1.5 bg-gray-50 rounded-lg">
-                      <span className="text-gray-700">{c.name} <span className="text-gray-400 text-xs">{c.code} · {c.sector} · {symOf(c.isHK)}{c.dive}</span></span>
+                      <span className="text-gray-700">{c.name} <span className="text-gray-400 text-xs">{c.code} · {c.sector} · {symOf(c.isHK, c.code)}{c.dive}</span></span>
                       <button className="text-red-500 text-xs px-2" onClick={() => deleteCustom(c.code)}>删除</button>
                     </div>
                   ))}
@@ -798,12 +800,12 @@ function Cell({ r, y, kind, sep, cfg }: { r: Row; y: number; kind: 'buy' | 'sell
   const t = tier(r, y, kind)
   // 广核/核电卖出：仅显示价格，不着色、不判已达
   if (kind === 'sell' && SELL_MUTED.has(r.name)) {
-    return <td className={`g sell muted${sep ? ' sep' : ''}`}><b>{symOf(r.isHK)}{t.target.toFixed(2)}</b></td>
+    return <td className={`g sell muted${sep ? ' sep' : ''}`}><b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b></td>
   }
   const cls = `g${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
   return (
     <td className={cls} style={t.reached ? { background: hitBg(kind, y, grid) } : undefined}>
-      <b>{symOf(r.isHK)}{t.target.toFixed(2)}</b><span>{t.label}</span>
+      <b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b><span>{t.label}</span>
     </td>
   )
 }
@@ -816,7 +818,7 @@ function Chip({ r, y, kind, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; cf
     return (
       <div className="tier sell muted">
         <i>{fmtPct(y)}</i>
-        <b>{symOf(r.isHK)}{t.target.toFixed(2)}</b>
+        <b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b>
       </div>
     )
   }
@@ -826,7 +828,7 @@ function Chip({ r, y, kind, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; cf
   return (
     <div className={cls} style={t.reached ? { background: bg, borderColor: bg } : undefined}>
       <i>{fmtPct(y)}</i>
-      <b>{symOf(r.isHK)}{t.target.toFixed(2)}</b>
+      <b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b>
       <span>{t.label}</span>
     </div>
   )

@@ -1,13 +1,16 @@
 import type { WatchlistStock } from '../types'
+import { isBShare, B_TAX_RATE } from './market'
 
 export const TAX_RATES = {
   aStock: 0,
+  bStock: B_TAX_RATE,
   hkAccount: 0.10,
   hkConnectH: 0.20,
   hkConnectNonH: 0.28,
 }
 
 export function getTaxRate(stock: WatchlistStock): number {
+  if (isBShare(stock.code)) return TAX_RATES.bStock
   if (!stock.isHK) return TAX_RATES.aStock
   if (stock.taxType === 'a') return TAX_RATES.hkAccount
   if (stock.taxType === 'n') return TAX_RATES.hkConnectNonH
@@ -15,6 +18,7 @@ export function getTaxRate(stock: WatchlistStock): number {
 }
 
 export function getTaxLabel(stock: WatchlistStock): string {
+  if (isBShare(stock.code)) return 'B股 10%'
   if (!stock.isHK) return '免税'
   if (stock.taxType === 'a') return '港户 10%'
   if (stock.taxType === 'n') return '非H股 28%'
