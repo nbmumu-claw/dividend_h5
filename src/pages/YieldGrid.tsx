@@ -364,13 +364,13 @@ export default function YieldGrid() {
     const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive, isHK: addForm.isHK }]
     setCustom(next); saveCustom(next)
     setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false })
-    setRows(null); setError('')
+    // 新标的需要拉行情（不直接 setRows(null)，靠 useEffect 自动触发）
   }
 
   const deleteCustom = (code: string) => {
     const next = custom.filter(c => c.code !== code)
     setCustom(next); saveCustom(next)
-    setRows(null); setError('')
+    setRows(prev => prev?.filter(r => r.code !== code) ?? null)
   }
 
   // 删除标的：自定义的直接移除，内置默认的记入隐藏（可恢复）；一并清掉手排记录
@@ -378,11 +378,12 @@ export default function YieldGrid() {
     if (stockOrder.includes(code)) { const o = stockOrder.filter(c => c !== code); setStockOrder(o); saveStockOrder(o) }
     if (custom.some(c => c.code === code)) { deleteCustom(code); return }
     const next = new Set(hidden); next.add(code); setHidden(next); saveHidden(next)
-    setRows(null); setError('')
+    setRows(prev => prev?.filter(r => r.code !== code) ?? null)
   }
   const restoreStock = (code: string) => {
     const next = new Set(hidden); next.delete(code); setHidden(next); saveHidden(next)
-    setRows(null); setError('')
+    // 恢复后需要重新拉取行情（标的之前被隐藏，rows 里没有它的数据）
+    setRows(null)
   }
 
   useEffect(() => {
