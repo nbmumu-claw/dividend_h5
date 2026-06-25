@@ -35,8 +35,10 @@ function toTxCode(code: string, isHK?: boolean): string {
   return `sh${str}`
 }
 
-function parseTxBody(body: string): Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; tradeTime: string; marketCap?: number }> {
-  const result: Record<string, { price: number; preClose: number; pctChg: number; tradeDate: string; tradeTime: string; marketCap?: number }> = {}
+type ParsedPrice = { price: number; preClose: number; pctChg: number; tradeDate: string; tradeTime: string; marketCap?: number; name?: string }
+
+function parseTxBody(body: string): Record<string, ParsedPrice> {
+  const result: Record<string, ParsedPrice> = {}
   const lines = body.split('\n')
   for (const line of lines) {
     const match = line.match(/v_[a-z]{2}(\d{5,6})="([^"]*)"/)
@@ -47,12 +49,13 @@ function parseTxBody(body: string): Record<string, { price: number; preClose: nu
     const price = parseFloat(fields[3])
     const preClose = parseFloat(fields[4])
     if (!price || price <= 0) continue
+    const name = fields[1] || undefined  // 股票名称
     const pctChg = parseFloat(fields[32]) || 0
     const raw = (fields[30] || '').replace(/\D/g, '')  // yyyymmddHHMMSS
     const tradeDate = raw.slice(0, 8)
     const tradeTime = raw.length >= 12 ? raw.slice(0, 14) : ''  // 行情时间（含时分秒）
     const marketCap = fields.length > 45 ? parseFloat(fields[45]) || undefined : undefined
-    result[code] = { price, preClose, pctChg, tradeDate, tradeTime, marketCap }
+    result[code] = { price, preClose, pctChg, tradeDate, tradeTime, marketCap, name }
   }
   return result
 }
@@ -280,7 +283,7 @@ async function searchViaEastMoney(keyword: string): Promise<SearchResult[]> {
   const list: Array<{ Code: string; Name: string; Classify: string }> =
     json?.QuotationCodeTable?.Data || []
   return list
-    .filter(item => item.Classify === 'AStock' || item.Classify === 'HK' || item.Classify === 'Fund')
+    .filter(item => item.Classify === 'AStock' || item.Classify === 'BStock' || item.Classify === 'HK' || item.Classify === 'Fund')
     .slice(0, 8)
     .map(item => ({
       name: item.Name,
@@ -323,7 +326,8 @@ function parseCloudResults(raw: string, source: 'tencent' | 'sina'): SearchResul
       if (!name || !code) continue
       const isHK = type === '31'
       const isA = ['11', '12', '13', '14', '15'].includes(type)
-      if (!isHK && !isA) continue
+      const isB = ['21', '22'].includes(type)  // 21=沪B, 22=深B
+      if (!isHK && !isA && !isB) continue
       results.push({ name, code: isHK ? code.replace(/^0+/, '').padStart(4, '0') : code.padStart(6, '0'), isHK })
     }
     if (results.length >= 8) break
@@ -465,7 +469,8 @@ export async function searchStocks(keyword: string, forceCloud = false): Promise
       const code = keyword.padStart(6, '0')
       const priceMap = await fetchStockPrices([{ code }], true)
       if (priceMap[code]?.price) {
-        return [{ name: code, code, isHK: false }]
+        const stockName = (priceMap[code] as { name?: string })?.name || code
+        return [{ name: stockName, code, isHK: false }]
       }
     } catch { /* ignore */ }
   }

@@ -37,6 +37,7 @@ export interface PriceData {
   tradeTime?: string  // 行情时间 yyyymmddHHMMSS（股价对应的时刻，非抓取时刻）
   source?: string
   marketCap?: number
+  name?: string  // 股票名称（仅兜底搜索时用到）
 }
 
 export interface PriceMap {
