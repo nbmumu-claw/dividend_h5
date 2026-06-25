@@ -122,22 +122,43 @@ async function fetchTxPrices(stocks: StockInput[], forceRefresh: boolean): Promi
 }
 
 async function fetchYfPrices(stocks: StockInput[], forceRefresh: boolean): Promise<PriceMap> {
-  const cacheKey = 'yfPrice:' + stocks.map(s => s.code).sort().join(',')
+  // 先查内存缓存
+  const result: PriceMap = {}
+  const toFetch: StockInput[] = []
+  for (const s of stocks) {
+    if (forceRefresh) { toFetch.push(s); continue }
+    const m = memGet(s.code)
+    if (m) { result[s.code] = m.data; continue }
+    toFetch.push(s)
+  }
+  if (!toFetch.length) return result
+
+  // 未命中的查 localStorage 批量缓存
+  const cacheKey = 'yfPrice:' + toFetch.map(s => s.code).sort().join(',')
   if (!forceRefresh) {
     const cached = cacheGet<PriceMap>(cacheKey)
-    if (cached) return cached
+    if (cached) {
+      for (const s of toFetch) {
+        const d = cached[s.code]
+        if (d && d.price) { result[s.code] = d; memSet(s.code, d) }
+      }
+      return result
+    }
   }
 
-  const result: PriceMap = {}
-  await Promise.all(stocks.map(async s => {
-    try {
-      const res = await fetch(`/api/stock-price-us?${new URLSearchParams({ symbol: s.code })}`)
-      const json = await res.json()
-      const meta = json?.chart?.result?.[0]?.meta
-      if (!meta?.regularMarketPrice) { result[s.code] = null; return }
+  // 批量请求：一次 Vercel Function 调用拉取全部美股
+  try {
+    const symbols = toFetch.map(s => s.code).join(',')
+    const res = await fetch(`/api/stock-price-us?${new URLSearchParams({ symbols })}`)
+    const json = await res.json()
+    const fresh: PriceMap = {}
+    for (const s of toFetch) {
+      const raw = json[s.code]
+      const meta = raw?.chart?.result?.[0]?.meta
+      if (!meta?.regularMarketPrice) { fresh[s.code] = null; continue }
       const price = meta.regularMarketPrice as number
       const preClose = (meta.chartPreviousClose ?? meta.previousClose ?? price) as number
-      result[s.code] = {
+      fresh[s.code] = {
         price,
         preClose,
         pctChg: preClose > 0 ? ((price - preClose) / preClose) * 100 : 0,
@@ -146,13 +167,14 @@ async function fetchYfPrices(stocks: StockInput[], forceRefresh: boolean): Promi
           : '',
         source: 'yahoo',
       }
-    } catch {
-      result[s.code] = null
+      memSet(s.code, fresh[s.code]!)
     }
-  }))
-
-  cacheSet(cacheKey, result, PRICE_TTL)
-  return result
+    cacheSet(cacheKey, fresh, PRICE_TTL)
+    return { ...result, ...fresh }
+  } catch {
+    for (const s of toFetch) result[s.code] = null
+    return result
+  }
 }
 
 export async function fetchStockPrices(stocks: StockInput[], forceRefresh = false): Promise<PriceMap> {

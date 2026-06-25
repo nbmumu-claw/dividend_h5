@@ -334,7 +334,7 @@ export default function YieldGrid() {
         setResults(rs.filter(r => !r.isUS).slice(0, 8))  // 网格支持 A 股 / 港股（不含美股）
         setSearching(false)
       }).catch(() => { if (alive) { setResults([]); setSearching(false) } })
-    }, 300)
+    }, 500)
     return () => { alive = false; clearTimeout(t) }
   }, [q])
 

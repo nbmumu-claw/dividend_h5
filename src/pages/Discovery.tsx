@@ -224,7 +224,7 @@ export default function Discovery() {
         return [...prev, ...newOnes].slice(0, 6)
       })
       setSearching(false)
-    }, 350)
+    }, 500)
   }
 
   const selectSearchResult = (r: SearchResult) => {
