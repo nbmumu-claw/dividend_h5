@@ -2,10 +2,9 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import TabBar from './components/TabBar'
-import { fetchExchangeRate, fetchUsdRate, warmPrices, type StockInput } from './utils/api'
+import { fetchExchangeRate, fetchUsdRate } from './utils/api'
 import { useStore } from './store'
 import { getSession, syncOnLogin, startAutoPush } from './utils/cloudSync'
-import { STATIC_STOCKS } from './data/stocks'
 import Discovery from './pages/Discovery'
 import Watchlist from './pages/Watchlist'
 import Portfolio from './pages/Portfolio'
@@ -25,7 +24,6 @@ export default function App() {
   const setExchangeRate = useStore(s => s.setExchangeRate)
   const setUsdRate = useStore(s => s.setUsdRate)
   const syncWatchlistDividends = useStore(s => s.syncWatchlistDividends)
-  const watchlist = useStore(s => s.watchlist)
   const pathname = useLocation().pathname
   const hideTabBar = pathname === '/yield-grid'
   // PC 端这几页用更宽的容器以容纳多列布局
@@ -48,31 +46,6 @@ export default function App() {
     })()
   }, [])
 
-  // 全局股价预热：每 8 分钟拉取全部持仓+静态标的+网格自定义标的，页面间共享内存缓存
-  useEffect(() => {
-    const buildCodes = (): StockInput[] => {
-      const seen = new Set<string>()
-      const out: StockInput[] = []
-      const add = (code: string, isHK?: boolean, isUS?: boolean) => {
-        if (seen.has(code)) return; seen.add(code); out.push({ code, isHK, isUS })
-      }
-      // 全部持仓
-      for (const w of watchlist) add(w.code, w.isHK, w.isUS)
-      // 静态标的（发现页 + 网格页内置）
-      for (const s of STATIC_STOCKS) add(s.code, s.isHK, s.isUS)
-      // 网格页自定义标的
-      try {
-        const custom = JSON.parse(localStorage.getItem('yg-custom') || '[]') as { code: string; isHK?: boolean }[]
-        for (const c of custom) { if (c?.code) add(c.code, c.isHK) }
-      } catch { /* ignore */ }
-      return out
-    }
-
-    const poll = () => { warmPrices(buildCodes()) }
-    poll() // 立即拉第一次
-    const t = setInterval(poll, 8 * 60 * 1000)
-    return () => clearInterval(t)
-  }, [watchlist])
 
   return (
     <div className={`app-shell${hideTabBar ? ' app-shell--wide' : ''}${roomy ? ' app-shell--roomy' : ''}`}>
