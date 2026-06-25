@@ -5,6 +5,19 @@ import { STATIC_STOCKS } from '../data/stocks'
 const PRICE_TTL = 8 * 60 * 1000
 const RATE_TTL = 6 * 60 * 60 * 1000
 
+// 内存级股价缓存（per-code），页面间共享，无需反复读 localStorage
+type MemEntry = { data: Exclude<PriceMap[string], null>; expiresAt: number }
+const priceMemCache = new Map<string, MemEntry>()
+function memGet(code: string): MemEntry | undefined {
+  const e = priceMemCache.get(code)
+  if (!e) return undefined
+  if (Date.now() > e.expiresAt) { priceMemCache.delete(code); return undefined }
+  return e
+}
+function memSet(code: string, data: Exclude<PriceMap[string], null>) {
+  priceMemCache.set(code, { data, expiresAt: Date.now() + PRICE_TTL })
+}
+
 function toTxCode(code: string, isHK?: boolean): string {
   if (isHK) {
     const digits = String(code).replace(/^0+/, '') || '0'
@@ -49,14 +62,33 @@ export interface StockInput {
 }
 
 async function fetchTxPrices(stocks: StockInput[], forceRefresh: boolean): Promise<PriceMap> {
-  const cacheKey = 'txPrice:' + stocks.map(s => s.code).sort().join(',')
+  // 1) 先查内存缓存 (per-code), 收集已缓存的
+  const result: PriceMap = {}
+  const toFetch: StockInput[] = []
+  for (const s of stocks) {
+    if (forceRefresh) { toFetch.push(s); continue }
+    const m = memGet(s.code)
+    if (m) { result[s.code] = m.data; continue }
+    toFetch.push(s)
+  }
+  if (!toFetch.length) return result
+
+  // 2) 未命中的查 localStorage 批量缓存
+  const cacheKey = 'txPrice:' + toFetch.map(s => s.code).sort().join(',')
   if (!forceRefresh) {
     const cached = cacheGet<PriceMap>(cacheKey)
-    if (cached) return cached
+    if (cached) {
+      for (const s of toFetch) {
+        const d = cached[s.code]
+        if (d && d.price) { result[s.code] = d; memSet(s.code, d) }
+      }
+      return result
+    }
   }
 
+  // 3) API 拉取
   const reverseMap: Record<string, string> = {}
-  const txCodes = stocks.map(s => {
+  const txCodes = toFetch.map(s => {
     const tx = toTxCode(s.code, s.isHK)
     const numeric = tx.replace(/^[a-z]+/, '')
     reverseMap[numeric] = s.code
@@ -68,22 +100,24 @@ async function fetchTxPrices(stocks: StockInput[], forceRefresh: boolean): Promi
     const body = await res.text()
     const parsed = parseTxBody(body)
 
-    const result: PriceMap = {}
+    const fresh: PriceMap = {}
     for (const [parsedCode, data] of Object.entries(parsed)) {
       const origCode = reverseMap[parsedCode]
-        ?? reverseMap[parsedCode.replace(/^0+/, '')]  // hk02318 → 2318 fallback
+        ?? reverseMap[parsedCode.replace(/^0+/, '')]
         ?? parsedCode
-      result[origCode] = { ...data, source: 'txzq' }
+      fresh[origCode] = { ...data, source: 'txzq' }
+      memSet(origCode, fresh[origCode]!)
     }
 
-    for (const s of stocks) {
-      if (!(s.code in result)) result[s.code] = null
+    for (const s of toFetch) {
+      if (!(s.code in fresh)) fresh[s.code] = null
     }
 
-    cacheSet(cacheKey, result, PRICE_TTL)
-    return result
+    cacheSet(cacheKey, fresh, PRICE_TTL)
+    return { ...result, ...fresh }
   } catch {
-    return Object.fromEntries(stocks.map(s => [s.code, null]))
+    for (const s of toFetch) result[s.code] = null
+    return result
   }
 }
 
@@ -133,6 +167,11 @@ export async function fetchStockPrices(stocks: StockInput[], forceRefresh = fals
   ])
 
   return { ...txResult, ...yfResult }
+}
+
+/** 后台预热缓存：拉取价格存入内存缓存，不返回数据。用于全局定时轮询，让页面间切换秒开。 */
+export async function warmPrices(stocks: StockInput[]): Promise<void> {
+  await fetchStockPrices(stocks).catch(() => {})
 }
 
 export async function fetchExchangeRate(forceRefresh = false): Promise<number> {
