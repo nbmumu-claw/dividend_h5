@@ -260,8 +260,11 @@ export default function Settings() {
 
   return (
     <div className="page-content page-narrow">
-      <div className="px-4 pt-12 pb-3">
-        <h1 className="text-xl font-bold text-gray-900 text-center">我的</h1>
+      <div className="px-4 pt-12 pb-3 text-center">
+        <h1 className="text-xl font-bold text-gray-900">我的</h1>
+        {authUser && (
+          <div className="text-xs text-gray-400 mt-0.5">{authUser.user_metadata?.nickName || authUser.email}</div>
+        )}
       </div>
 
       {/* 账户 / 云同步 */}
