@@ -642,6 +642,23 @@ export default function YieldGrid() {
           </div>
         )}
 
+        {!error && rows && (
+          <div className="yg-support">
+            <button onClick={() => navigate('/support')} className="card-link">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">☕</span>
+                <div className="text-left">
+                  <div className="text-sm font-semibold text-gray-800">支持与联系</div>
+                  <div className="text-xs text-gray-400">如果这个工具对你有帮助，欢迎提供一些支持</div>
+                </div>
+              </div>
+              <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        )}
+
         <Modal
           open={showAdd}
           onClose={() => { setShowAdd(false); setQ(''); setResults([]); setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false }) }}
@@ -885,6 +902,10 @@ const CSS = `
 .yg-page .like-btn:active:not(:disabled) { transform: scale(.95); }
 .yg-page .like-btn.liked { background: #fef2f2; border-color: #fca5a5; cursor: default; }
 .yg-page .yg-like .lt { font-size: 12.5px; color: #9ca3af; }
+.yg-page .yg-support { margin-bottom: 28px; }
+.yg-page .card-link { width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: #fff; border: 0; border-radius: 14px; padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06); font-family: inherit; cursor: pointer; text-align: left; }
 .yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
 .yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
