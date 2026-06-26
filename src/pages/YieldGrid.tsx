@@ -633,25 +633,18 @@ export default function YieldGrid() {
         })}
 
         {!error && rows && (
-          <div className="yg-like">
-            <button type="button" className={`like-btn${liked ? ' liked' : ''}`} onClick={onLike} disabled={liked || liking} aria-label="点赞">
-              <span className="ic">👍</span>
-              <span className="n">{likes == null ? '…' : likes}</span>
-            </button>
-            <div className="lt">{liked ? '感谢点赞 ❤' : '觉得有用？点个赞鼓励一下'}</div>
-          </div>
-        )}
-
-        {!error && rows && (
-          <div className="yg-support">
-            <button onClick={() => navigate('/support')} className="card-link">
-              <div className="flex items-center gap-3">
-                <span className="text-xl">☕</span>
-                <div className="text-left">
-                  <div className="text-sm font-semibold text-gray-800">支持与联系</div>
-                  <div className="text-xs text-gray-400">如果这个工具对你有帮助，欢迎提供一些支持</div>
-                </div>
-              </div>
+          <div className="yg-footer">
+            <div className="ft-left">
+              <button type="button" className={`like-btn${liked ? ' liked' : ''}`} onClick={onLike} disabled={liked || liking} aria-label="点赞">
+                <span className="ic">👍</span>
+                <span className="n">{likes == null ? '…' : likes}</span>
+              </button>
+              <div className="lt">{liked ? '感谢点赞 ❤' : '觉得有用？点个赞'}</div>
+            </div>
+            <div className="ft-div" />
+            <button onClick={() => navigate('/support')} className="ft-right">
+              <span className="text-base">☕</span>
+              <span className="text-sm text-gray-500">支持与联系</span>
               <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -893,19 +886,20 @@ const CSS = `
 .yg-page .sortbar .lbl { font-size: 12.5px; color: #9ca3af; margin-right: 2px; }
 .yg-page .sortbar .chip { padding: 4px 11px; font-size: 12.5px; }
 .yg-page .sortbar .chip.clear { color: #dc2626; border-color: #fecaca; }
-.yg-page .yg-like { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 6px 0 28px; }
-.yg-page .like-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 22px; border-radius: 999px;
-  border: 1px solid #fecaca; background: #fff; color: #dc2626; font-size: 15px; font-family: inherit; cursor: pointer;
+.yg-page .yg-footer { display: flex; align-items: center; margin: 10px 0 28px;
+  background: #fff; border-radius: 14px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.yg-page .ft-left { display: flex; align-items: center; gap: 10px; }
+.yg-page .like-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px;
+  border: 1px solid #fecaca; background: #fff; color: #dc2626; font-size: 14px; font-family: inherit; cursor: pointer;
   box-shadow: 0 1px 3px rgba(220,38,38,.08); transition: transform .08s ease, background .15s ease; }
-.yg-page .like-btn .ic { font-size: 17px; line-height: 1; }
+.yg-page .like-btn .ic { font-size: 16px; line-height: 1; }
 .yg-page .like-btn .n { font-weight: 700; font-variant-numeric: tabular-nums; }
 .yg-page .like-btn:active:not(:disabled) { transform: scale(.95); }
 .yg-page .like-btn.liked { background: #fef2f2; border-color: #fca5a5; cursor: default; }
-.yg-page .yg-like .lt { font-size: 12.5px; color: #9ca3af; }
-.yg-page .yg-support { margin-bottom: 28px; }
-.yg-page .card-link { width: 100%; display: flex; align-items: center; justify-content: space-between;
-  background: #fff; border: 0; border-radius: 14px; padding: 14px 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06); font-family: inherit; cursor: pointer; text-align: left; }
+.yg-page .ft-left .lt { font-size: 12.5px; color: #9ca3af; }
+.yg-page .ft-div { flex: 1 1 0; min-width: 16px; }
+.yg-page .ft-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  border: 0; background: none; font-family: inherit; cursor: pointer; color: inherit; text-align: left; }
 .yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
 .yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
