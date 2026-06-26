@@ -30,7 +30,7 @@ export default function Support() {
           <img
             src="/shang.jpg"
             alt="微信赞赏码"
-            className="w-48 mx-auto rounded-xl"
+            className="w-56 mx-auto rounded-xl"
           />
         </div>
 
@@ -40,7 +40,7 @@ export default function Support() {
           <img
             src="/xhs.jpg"
             alt="小红书二维码"
-            className="w-48 mx-auto rounded-xl"
+            className="w-56 mx-auto rounded-xl"
           />
         </div>
 
