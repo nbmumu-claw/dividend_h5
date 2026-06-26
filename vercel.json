@@ -1,5 +1,18 @@
 {
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "manmanbianfu.top"
+        }
+      ],
+      "destination": "https://www.manmanbianfu.top/$1",
+      "permanent": true
+    }
   ]
 }
