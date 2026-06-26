@@ -8,6 +8,7 @@ export default function Support() {
   const copyXhs = () => {
     navigator.clipboard.writeText(xhsLink).then(() => { setXhsCopied(true); setTimeout(() => setXhsCopied(false), 2000) }).catch(() => {})
   }
+  const [zoomedImg, setZoomedImg] = useState<string | null>(null)
 
   return (
     <div className="page-content page-narrow">
@@ -32,11 +33,12 @@ export default function Support() {
 
         <div className="card p-4">
           <div className="text-xs font-medium text-gray-500 mb-1">微信赞赏</div>
-          <p className="text-sm text-gray-600 mb-3">扫码即可赞赏，感谢支持！</p>
+          <p className="text-sm text-gray-600 mb-3">扫码即可赞赏，感谢支持！点击图片可放大</p>
           <img
             src="/shang.jpg"
             alt="微信赞赏码"
-            className="w-56 mx-auto rounded-xl"
+            className="w-56 mx-auto rounded-xl cursor-pointer"
+            onClick={() => setZoomedImg('/shang.jpg')}
           />
         </div>
 
@@ -52,12 +54,20 @@ export default function Support() {
           <img
             src="/xhs.jpg"
             alt="小红书二维码"
-            className="w-56 mx-auto rounded-xl"
+            className="w-56 mx-auto rounded-xl cursor-pointer"
+            onClick={() => setZoomedImg('/xhs.jpg')}
           />
         </div>
 
         <p className="text-center text-xs text-gray-400 pt-2">感谢每一位使用者的支持与反馈 🙏</p>
       </div>
+
+      {zoomedImg && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setZoomedImg(null)}>
+          <button className="absolute top-4 right-4 text-white text-2xl w-10 h-10 flex items-center justify-center" onClick={() => setZoomedImg(null)}>✕</button>
+          <img src={zoomedImg} alt="放大预览" className="max-w-full max-h-full rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   )
 }
