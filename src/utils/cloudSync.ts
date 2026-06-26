@@ -12,6 +12,7 @@ interface Backup {
   discoveryStaticEdits: unknown
   discoveryHiddenStocks: unknown
   discoveryCustomSectors: unknown
+  gridPrefs?: unknown
 }
 
 function loadMeta(): SyncMeta {
@@ -31,6 +32,7 @@ function buildBackup(): Backup {
     discoveryStaticEdits: s.staticEdits,
     discoveryHiddenStocks: s.hiddenStocks,
     discoveryCustomSectors: s.customSectors,
+    gridPrefs: s.gridPrefs,
   }
 }
 function backupHasData(b?: Backup | null): boolean {

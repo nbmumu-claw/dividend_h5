@@ -7,6 +7,7 @@ import { pickDividendForFill } from '../utils/dividendFill'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
 import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
+import { useStore, type GridPrefs } from '../store'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -46,17 +47,13 @@ const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.se
 const ALL = '全部'
 
 // 板块顺序（localStorage）：保留已保存且仍存在的板块，新板块追加到末尾
-const ORDER_KEY = 'yg-sector-order'
 const MAX_CUSTOM = 10
 function loadOrder(): string[] {
-  let saved: string[] = []
-  try { saved = JSON.parse(localStorage.getItem(ORDER_KEY) || '[]') } catch { /* ignore */ }
+  const saved = gp().sectorOrder
   const valid = saved.filter(s => SECTORS.includes(s))
   return [...valid, ...SECTORS.filter(s => !valid.includes(s))]
 }
-function saveOrder(o: string[]) {
-  try { localStorage.setItem(ORDER_KEY, JSON.stringify(o)) } catch { /* ignore */ }
-}
+function saveOrder(o: string[]) { saveGp({ sectorOrder: o }) }
 
 // 水电（低息、估值另算）：买入档从 4% 起、卖出档从 3% 起；其余股票买入从 5% 起、卖出从 4% 起
 const HYDRO = new Set(['国投电力', '长江电力'])
@@ -70,25 +67,21 @@ type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount:
 const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4 }
 const STEP_OPTIONS = [0.0025, 0.005]
 const COUNT_OPTIONS = [2, 4, 6, 8]
-const CFG_KEY = 'yg-grid-cfg'
 function loadCfg(): GridCfg {
-  try {
-    const c = JSON.parse(localStorage.getItem(CFG_KEY) || 'null')
-    if (c && typeof c === 'object') {
-      const okStep = (v: unknown) => (STEP_OPTIONS.includes(v as number) ? (v as number) : undefined)
-      const okCnt = (v: unknown) => (COUNT_OPTIONS.includes(v as number) ? (v as number) : undefined)
-      // 兼容旧版 {step,count} / {step,buyCount,sellCount}
-      return {
-        buyStep: okStep(c.buyStep) ?? okStep(c.step) ?? DEFAULT_CFG.buyStep,
-        sellStep: okStep(c.sellStep) ?? okStep(c.step) ?? DEFAULT_CFG.sellStep,
-        buyCount: okCnt(c.buyCount) ?? okCnt(c.count) ?? DEFAULT_CFG.buyCount,
-        sellCount: okCnt(c.sellCount) ?? okCnt(c.count) ?? DEFAULT_CFG.sellCount,
-      }
+  const c = gp().cfg as Record<string, unknown> | undefined
+  if (c && typeof c === 'object') {
+    const okStep = (v: unknown) => (STEP_OPTIONS.includes(v as number) ? (v as number) : undefined)
+    const okCnt = (v: unknown) => (COUNT_OPTIONS.includes(v as number) ? (v as number) : undefined)
+    return {
+      buyStep: okStep(c.buyStep) ?? okStep(c.step) ?? DEFAULT_CFG.buyStep,
+      sellStep: okStep(c.sellStep) ?? okStep(c.step) ?? DEFAULT_CFG.sellStep,
+      buyCount: okCnt(c.buyCount) ?? okCnt(c.count) ?? DEFAULT_CFG.buyCount,
+      sellCount: okCnt(c.sellCount) ?? okCnt(c.count) ?? DEFAULT_CFG.sellCount,
     }
-  } catch { /* ignore */ }
+  }
   return DEFAULT_CFG
 }
-function saveCfg(c: GridCfg) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)) } catch { /* ignore */ } }
+function saveCfg(c: GridCfg) { saveGp({ cfg: c }) }
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000
 // 动态生成档位：买入从基准向上 buyCount 档（升序）；卖出从基准向下 sellCount 档、过滤 ≤0 后升序
@@ -124,72 +117,33 @@ type Row = { sector: string; name: string; code: string; dive: number; price: nu
 // 币种符号：港股 HK$，A 股 ¥
 const symOf = (isHK?: boolean, code?: string) => (isHK ? 'HK$' : code && /^900/.test(String(code)) ? '$' : code && /^200/.test(String(code)) ? 'HK$' : '¥')
 
-// 网格页自选（localStorage，独立于主自选页）
+// 网格页自选（独立于主自选页，纳入账号云同步）
 const FAV = '自选'
-const FAV_KEY = 'yg-favs'
-function loadFavs(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')) } catch { return new Set() }
-}
-function saveFavs(s: Set<string>) {
-  try { localStorage.setItem(FAV_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
-}
-
-// 网格页自定义添加的标的（localStorage，仅 A 股，板块限网格已有板块）
 type Custom = { sector: string; name: string; code: string; dive: number; isHK?: boolean }
-const CUSTOM_KEY = 'yg-custom'
-function loadCustom(): Custom[] {
-  try {
-    const a = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]')
-    if (!Array.isArray(a)) return []
-    let migrated = false
-    const result = a.map((c: Custom) => {
-      if (c.isHK && !c.name.endsWith('(HK)')) { migrated = true; return { ...c, name: c.name + '(HK)' } }
-      if (!c.isHK && /^[29]00/.test(String(c.code)) && !c.name.includes('(B)')) { migrated = true; return { ...c, name: c.name + '(B)' } }
-      return c
-    })
-    if (migrated) saveCustom(result)
-    return result
-  } catch { return [] }
-}
-function saveCustom(list: Custom[]) {
-  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)) } catch { /* ignore */ }
-}
 
-// 用户隐藏的默认标的（localStorage）：删除内置标的不改源数据，仅记隐藏 code，可恢复
-const HIDDEN_KEY = 'yg-hidden'
-function loadHidden(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')) } catch { return new Set() }
-}
-function saveHidden(s: Set<string>) {
-  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
-}
+// 从 store 读取/写入网格偏好（替代旧 localStorage 直读直写）
+const gp = () => useStore.getState().gridPrefs
+const saveGp = (p: Partial<GridPrefs>) => useStore.getState().setGridPrefs(p)
+function loadFavs(): Set<string> { return new Set(gp().favs) }
+function saveFavs(s: Set<string>) { saveGp({ favs: [...s] }) }
+function loadCustom(): Custom[] { return gp().custom }
+function saveCustom(list: Custom[]) { saveGp({ custom: list }) }
+function loadHidden(): Set<string> { return new Set(gp().hidden) }
+function saveHidden(s: Set<string>) { saveGp({ hidden: [...s] }) }
+function loadActive(): string { return gp().active || ALL }
+function saveActive(v: string) { saveGp({ active: v }) }
 
-// 记住用户上次选择的标签页（板块/全部/自选），刷新不重置
-const ACTIVE_KEY = 'yg-active'
-function loadActive(): string {
-  try { return localStorage.getItem(ACTIVE_KEY) || ALL } catch { return ALL }
-}
-function saveActive(v: string) { try { localStorage.setItem(ACTIVE_KEY, v) } catch { /* ignore */ } }
-
-// 标的排序：组内排序指标（localStorage）。默认现股息率倒序
+// 标的排序
 type SortKey = 'cy' | 'chg' | 'price' | 'name'
 type SortState = { key: SortKey; dir: 'asc' | 'desc' }
-const SORT_LS_KEY = 'yg-sort'
 const DEFAULT_SORT: SortState = { key: 'cy', dir: 'desc' }
 const SORT_OPTS: { key: SortKey; label: string }[] = [
   { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'price', label: '现价' }, { key: 'name', label: '名称' },
 ]
-function loadSort(): SortState {
-  try { const s = JSON.parse(localStorage.getItem(SORT_LS_KEY) || 'null'); return s && s.key ? s : DEFAULT_SORT } catch { return DEFAULT_SORT }
-}
-function saveSort(s: SortState) { try { localStorage.setItem(SORT_LS_KEY, JSON.stringify(s)) } catch { /* ignore */ } }
-
-// 手动置顶排序（localStorage）：记录用户手排过的 code 顺序，固定在所属板块最前
-const STOCK_ORDER_KEY = 'yg-stock-order'
-function loadStockOrder(): string[] {
-  try { const a = JSON.parse(localStorage.getItem(STOCK_ORDER_KEY) || '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
-}
-function saveStockOrder(a: string[]) { try { localStorage.setItem(STOCK_ORDER_KEY, JSON.stringify(a)) } catch { /* ignore */ } }
+function loadSort(): SortState { const s = gp().sort; return s?.key ? (s as SortState) : DEFAULT_SORT }
+function saveSort(s: SortState) { saveGp({ sort: s }) }
+function loadStockOrder(): string[] { return gp().stockOrder }
+function saveStockOrder(a: string[]) { saveGp({ stockOrder: a }) }
 
 // 行情缓存（localStorage）：盘后/非交易时段直接读缓存不刷新
 type PriceSnap = { price: number; pctChg: number; tradeDate: string; tradeTime: string }
@@ -241,6 +195,40 @@ export default function YieldGrid() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const { message, showToast } = useToast()
+
+  // 一次性迁移：旧 localStorage 数据 → Zustand store（纳入账号云同步）
+  useEffect(() => {
+    const prefs = useStore.getState().gridPrefs
+    if (prefs.custom.length > 0 || prefs.favs.length > 0 || prefs.hidden.length > 0) return
+    try {
+      const oldCustom = JSON.parse(localStorage.getItem('yg-custom') || 'null')
+      const oldFavs = JSON.parse(localStorage.getItem('yg-favs') || 'null')
+      const oldHidden = JSON.parse(localStorage.getItem('yg-hidden') || 'null')
+      const oldOrder = localStorage.getItem('yg-sector-order')
+      const oldCfg = localStorage.getItem('yg-grid-cfg')
+      const oldSort = localStorage.getItem('yg-sort')
+      const oldStockOrder = localStorage.getItem('yg-stock-order')
+      const oldActive = localStorage.getItem('yg-active')
+      if (!oldCustom && !oldFavs && !oldHidden) return
+      const patch: Partial<GridPrefs> = {}
+      if (Array.isArray(oldCustom) && oldCustom.length) {
+        patch.custom = oldCustom.map((c: Custom) => {
+          if (c.isHK && !c.name.endsWith('(HK)')) return { ...c, name: c.name + '(HK)' }
+          if (!c.isHK && /^[29]00/.test(String(c.code)) && !c.name.includes('(B)')) return { ...c, name: c.name + '(B)' }
+          return c
+        })
+      }
+      if (Array.isArray(oldFavs) && oldFavs.length) patch.favs = oldFavs
+      if (Array.isArray(oldHidden) && oldHidden.length) patch.hidden = oldHidden
+      if (oldOrder) { try { const o = JSON.parse(oldOrder); if (Array.isArray(o)) patch.sectorOrder = o } catch { /* */ } }
+      if (oldCfg) { try { const c = JSON.parse(oldCfg); if (c && typeof c === 'object') patch.cfg = c } catch { /* */ } }
+      if (oldSort) { try { const s = JSON.parse(oldSort); if (s && s.key) patch.sort = s } catch { /* */ } }
+      if (oldStockOrder) { try { const o = JSON.parse(oldStockOrder); if (Array.isArray(o)) patch.stockOrder = o } catch { /* */ } }
+      if (oldActive) patch.active = oldActive
+      useStore.getState().setGridPrefs(patch)
+    } catch { /* ignore */ }
+  }, [])
+
   const [rows, setRows] = useState<Row[] | null>(null)
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
@@ -360,7 +348,7 @@ export default function YieldGrid() {
       showToast(`${exist?.name || addForm.name} 已在「${exist?.sector || ''}」中`)
       return
     }
-    if (Math.max(custom.length, loadCustom().length) >= MAX_CUSTOM) { showToast(`最多添加 ${MAX_CUSTOM} 个自定义标的，删除后再加`); return }
+    if (custom.length >= MAX_CUSTOM) { showToast(`最多添加 ${MAX_CUSTOM} 个自定义标的，删除后再加`); return }
     const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive, isHK: addForm.isHK }]
     setCustom(next); saveCustom(next)
     setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false })

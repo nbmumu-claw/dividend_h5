@@ -5,6 +5,28 @@ import { DEFAULT_SECTORS, STATIC_STOCKS } from '../data/stocks'
 import { applyHolding, ensureTransactions, type Transaction } from '../utils/holdings'
 import { makeFeeCalc, DEFAULT_FEE_CONFIG, type FeeConfig } from '../utils/fees'
 
+// 网格页偏好（纳入账号体系，跟随云同步）
+export interface GridPrefs {
+  custom: { sector: string; name: string; code: string; dive: number; isHK?: boolean }[]
+  favs: string[]
+  hidden: string[]
+  sectorOrder: string[]
+  stockOrder: string[]
+  cfg: { buyStep: number; buyCount: number; sellStep: number; sellCount: number }
+  sort: { key: string; dir: 'asc' | 'desc' }
+  active: string
+}
+const DEFAULT_GRID_PREFS: GridPrefs = {
+  custom: [],
+  favs: [],
+  hidden: [],
+  sectorOrder: ['电力', '水电', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他'],
+  stockOrder: [],
+  cfg: { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4 },
+  sort: { key: 'cy', dir: 'desc' },
+  active: '全部',
+}
+
 const MAX_ACCOUNTS = 3
 const DEFAULT_ACCOUNT_ID = 'default'
 const DEFAULT_ACCOUNT_NAME = '我的账户'
@@ -78,6 +100,10 @@ interface AppState {
   setUsdRate: (rate: number) => void
   agreementAccepted: boolean
   setAgreementAccepted: (v: boolean) => void
+
+  // 网格页偏好（纳入云同步）
+  gridPrefs: GridPrefs
+  setGridPrefs: (patch: Partial<GridPrefs>) => void
 
   // Import/export
   importBackup: (data: AppState['watchlist'] extends unknown ? Record<string, unknown> : never) => void
@@ -287,6 +313,10 @@ export const useStore = create<AppState>()(
       agreementAccepted: false,
       setAgreementAccepted: (v) => set({ agreementAccepted: v }),
 
+      // 网格页偏好
+      gridPrefs: { ...DEFAULT_GRID_PREFS },
+      setGridPrefs: (patch) => set(s => ({ gridPrefs: { ...s.gridPrefs, ...patch } })),
+
       importBackup: (data) => {
         const d = data as {
           watchlist?: WatchlistStock[]
@@ -295,6 +325,7 @@ export const useStore = create<AppState>()(
           discoveryStaticEdits?: Record<string, Partial<Stock>>
           discoveryHiddenStocks?: string[]
           discoveryCustomSectors?: string[]
+          gridPrefs?: GridPrefs
           // 旧版格式兼容
           manualStocks?: Stock[]
           staticEdits?: Record<string, Partial<Stock>>
@@ -334,6 +365,10 @@ export const useStore = create<AppState>()(
           watchlist = d.watchlist || []
         }
 
+        // 网格页偏好：云端同步或旧备份恢复
+        const gridPrefs = d.gridPrefs as GridPrefs | undefined
+        const mergedGridPrefs = gridPrefs ? { ...DEFAULT_GRID_PREFS, ...gridPrefs } : get().gridPrefs
+
         set({
           watchlist,
           accounts,
@@ -346,6 +381,8 @@ export const useStore = create<AppState>()(
           customSectors: d.discoveryCustomSectors || d.customSectors || [...DEFAULT_SECTORS],
           // 备份含账户费率则恢复活动账户费率（旧备份无则保持当前）
           ...(activeFeeConfig ? { feeConfig: activeFeeConfig } : {}),
+          // 云端有网格偏好则恢复（合并默认值补缺字段），否则保持本地
+          gridPrefs: mergedGridPrefs,
         })
       },
     }),
