@@ -864,8 +864,8 @@ const CSS = `
 .yg-page .yg-cfgbtn { flex: 0 0 auto; padding: 5px 12px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #6b7280; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .yg-cfgbtn:active { background: #f0f1f4; }
-.yg-page .yg-auth { flex: 0 0 auto; padding: 5px 10px; border: 1px solid #e5e7eb; border-radius: 999px;
-  background: #fff; color: #6b7280; font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.yg-page .yg-auth { flex: 0 0 auto; padding: 5px 16px; border: 1px solid #e5e7eb; border-radius: 999px;
+  background: #fff; color: #6b7280; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .yg-auth.on { border-color: #fecaca; color: #dc2626; background: #fef2f2; cursor: default; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
