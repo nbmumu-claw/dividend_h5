@@ -233,29 +233,34 @@ export default function YieldGrid() {
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
-  const [active, setActive] = useState<string>(loadActive)
-  const switchActive = (v: string) => { setActive(v); saveActive(v) }
-  const [favs, setFavs] = useState<Set<string>>(loadFavs)
-  const toggleFav = (code: string) => setFavs(prev => {
-    const next = new Set(prev)
+  // 网格偏好全部从 store 读取（而非 useState 初始化），云同步后自动刷新
+  const active = useStore(s => s.gridPrefs.active || ALL)
+  const switchActive = (v: string) => saveActive(v)
+  const favsArr = useStore(s => s.gridPrefs.favs)
+  const favs = useMemo(() => new Set(favsArr), [favsArr])
+  const toggleFav = (code: string) => {
+    const next = new Set(favsArr)
     next.has(code) ? next.delete(code) : next.add(code)
     saveFavs(next)
-    return next
-  })
-  const [order, setOrder] = useState<string[]>(loadOrder)
+  }
+  const orderRaw = useStore(s => s.gridPrefs.sectorOrder)
+  const DEF_ORDER = ['电力', '水电', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他']
+  const order = useMemo(() => orderRaw.length ? orderRaw : DEF_ORDER, [orderRaw])
   const [editOrder, setEditOrder] = useState(false)
-  const moveSector = (sector: string, dir: -1 | 1) => setOrder(prev => {
-    const i = prev.indexOf(sector); const j = i + dir
-    if (i < 0 || j < 0 || j >= prev.length) return prev
-    const next = [...prev]
+  const moveSector = (sector: string, dir: -1 | 1) => {
+    const i = order.indexOf(sector); const j = i + dir
+    if (i < 0 || j < 0 || j >= order.length) return
+    const next = [...order]
     ;[next[i], next[j]] = [next[j], next[i]]
     saveOrder(next)
-    return next
-  })
+  }
 
   // 自定义添加的标的，与静态列表合并（去重）；隐藏的默认标的过滤掉
-  const [custom, setCustom] = useState<Custom[]>(loadCustom)
-  const [hidden, setHidden] = useState<Set<string>>(loadHidden)
+  const custom = useStore(s => s.gridPrefs.custom)
+  const setCustom = (list: Custom[]) => saveCustom(list)
+  const hiddenArr = useStore(s => s.gridPrefs.hidden)
+  const hidden = useMemo(() => new Set(hiddenArr), [hiddenArr])
+  const setHidden = (s: Set<string>) => saveHidden(s)
   const allStocks = useMemo<Custom[]>(() => {
     const seen = new Set(STOCKS.map(s => s.code))
     return [...STOCKS, ...custom.filter(c => !seen.has(c.code))].filter(s => !hidden.has(s.code))
@@ -264,14 +269,16 @@ export default function YieldGrid() {
   const hiddenStocks = useMemo(() => STOCKS.filter(s => hidden.has(s.code)), [hidden])
 
   // 标的排序：指标 + 手动置顶
-  const [sort, setSort] = useState<SortState>(loadSort)
-  const chooseSort = (key: SortKey) => setSort(prev => {
-    const next: SortState = prev.key === key
-      ? { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
+  const sortRaw = useStore(s => s.gridPrefs.sort)
+  const sort: SortState = useMemo(() => sortRaw?.key ? sortRaw as SortState : DEFAULT_SORT, [sortRaw])
+  const chooseSort = (key: SortKey) => {
+    const next: SortState = sort.key === key
+      ? { key, dir: sort.dir === 'desc' ? 'asc' : 'desc' }
       : { key, dir: key === 'name' ? 'asc' : 'desc' }
-    saveSort(next); return next
-  })
-  const [stockOrder, setStockOrder] = useState<string[]>(loadStockOrder)
+    saveSort(next)
+  }
+  const stockOrder = useStore(s => s.gridPrefs.stockOrder)
+  const setStockOrder = (a: string[]) => saveStockOrder(a)
   // 手动上/下移：把该板块当前显示顺序（含本次交换）整体固定为手排
   const moveStock = (sectorItems: Row[], code: string, dir: -1 | 1) => {
     const codes = sectorItems.map(r => r.code)
@@ -280,9 +287,9 @@ export default function YieldGrid() {
     ;[codes[i], codes[j]] = [codes[j], codes[i]]
     const inSector = new Set(codes)
     const next = [...stockOrder.filter(c => !inSector.has(c)), ...codes]
-    setStockOrder(next); saveStockOrder(next)
+    setStockOrder(next)
   }
-  const clearStockOrder = () => { setStockOrder([]); saveStockOrder([]) }
+  const clearStockOrder = () => { saveStockOrder([]) }
 
   // 全局点赞（CloudBase 累加计数，localStorage 一人一次）
   const [likes, setLikes] = useState<number | null>(null)
@@ -307,9 +314,9 @@ export default function YieldGrid() {
   const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string; isHK: boolean }>({ name: '', code: '', sector: '', dive: '', isHK: false })
 
   // 网格设置
-  const [cfg, setCfg] = useState<GridCfg>(loadCfg)
+  const cfg = useStore(s => s.gridPrefs.cfg)
   const [showCfg, setShowCfg] = useState(false)
-  const updateCfg = (partial: Partial<GridCfg>) => setCfg(prev => { const n = { ...prev, ...partial }; saveCfg(n); return n })
+  const updateCfg = (partial: Partial<GridCfg>) => { saveCfg({ ...cfg, ...partial }) }
 
   const [searching, setSearching] = useState(false)
   useEffect(() => {
@@ -350,26 +357,26 @@ export default function YieldGrid() {
     }
     if (custom.length >= MAX_CUSTOM) { showToast(`最多添加 ${MAX_CUSTOM} 个自定义标的，删除后再加`); return }
     const next = [...custom, { sector: addForm.sector, name: addForm.name, code: addForm.code, dive, isHK: addForm.isHK }]
-    setCustom(next); saveCustom(next)
+    saveCustom(next)
     setAddForm({ name: '', code: '', sector: '', dive: '', isHK: false })
     // 新标的需要拉行情（不直接 setRows(null)，靠 useEffect 自动触发）
   }
 
   const deleteCustom = (code: string) => {
     const next = custom.filter(c => c.code !== code)
-    setCustom(next); saveCustom(next)
+    saveCustom(next)
     setRows(prev => prev?.filter(r => r.code !== code) ?? null)
   }
 
   // 删除标的：自定义的直接移除，内置默认的记入隐藏（可恢复）；一并清掉手排记录
   const removeStock = (code: string) => {
-    if (stockOrder.includes(code)) { const o = stockOrder.filter(c => c !== code); setStockOrder(o); saveStockOrder(o) }
+    if (stockOrder.includes(code)) { saveStockOrder(stockOrder.filter(c => c !== code)) }
     if (custom.some(c => c.code === code)) { deleteCustom(code); return }
-    const next = new Set(hidden); next.add(code); setHidden(next); saveHidden(next)
+    const next = new Set(hidden); next.add(code); saveHidden(next)
     setRows(prev => prev?.filter(r => r.code !== code) ?? null)
   }
   const restoreStock = (code: string) => {
-    const next = new Set(hidden); next.delete(code); setHidden(next); saveHidden(next)
+    const next = new Set(hidden); next.delete(code); saveHidden(next)
     // 恢复后需要重新拉取行情（标的之前被隐藏，rows 里没有它的数据）
     setRows(null)
   }
@@ -514,7 +521,7 @@ export default function YieldGrid() {
           {!error && rows && (
             <button
               className={`orderbtn${editOrder ? ' on' : ''}`}
-              onClick={() => { setEditOrder(e => !e); if (!editOrder) setActive(ALL) }}
+              onClick={() => { setEditOrder(e => !e); if (!editOrder) switchActive(ALL) }}
               aria-label={editOrder ? '完成编辑' : '编辑（排序/删除）'}
             >
               {editOrder ? (isMobile ? '✓' : '✓ 完成') : (isMobile ? '✎' : '✎ 编辑')}
