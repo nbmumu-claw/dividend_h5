@@ -8,6 +8,7 @@ import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
 import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
 import { useStore, type GridPrefs } from '../store'
+import { cbAuth } from '../utils/cloudbase'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -291,6 +292,10 @@ export default function YieldGrid() {
   }
   const clearStockOrder = () => { saveStockOrder([]) }
 
+  // 登录状态
+  const [authUser, setAuthUser] = useState<{ email?: string; user_metadata?: { nickName?: string } } | null>(null)
+  useEffect(() => { cbAuth.getSession().then(({ data }) => setAuthUser(data?.session?.user ?? null)).catch(() => {}) }, [])
+
   // 全局点赞（CloudBase 累加计数，localStorage 一人一次）
   const [likes, setLikes] = useState<number | null>(null)
   const [liked, setLiked] = useState(hasLiked)
@@ -502,6 +507,11 @@ export default function YieldGrid() {
             </svg>
             <span>返回</span>
           </button>
+          {authUser ? (
+            <span className="yg-auth on">{authUser.user_metadata?.nickName || authUser.email?.split('@')[0] || '已登录'}</span>
+          ) : (
+            <button className="yg-auth" onClick={() => navigate('/settings')}>登录同步</button>
+          )}
           <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
         </div>
         <h1>股息率网格买卖价位表</h1>
@@ -854,6 +864,9 @@ const CSS = `
 .yg-page .yg-cfgbtn { flex: 0 0 auto; padding: 5px 12px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #6b7280; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .yg-cfgbtn:active { background: #f0f1f4; }
+.yg-page .yg-auth { flex: 0 0 auto; padding: 5px 10px; border: 1px solid #e5e7eb; border-radius: 999px;
+  background: #fff; color: #6b7280; font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.yg-page .yg-auth.on { border-color: #bbf7d0; color: #16a34a; background: #f0fdf4; cursor: default; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }
