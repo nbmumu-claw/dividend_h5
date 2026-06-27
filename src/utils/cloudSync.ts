@@ -4,7 +4,7 @@ import { useStore } from '../store'
 // 本地同步元信息：记录上次同步时间与云端文档 id（与登录账号无关，按设备存）
 const META_KEY = 'cloud-sync-meta'
 
-interface SyncMeta { updatedAt: number; docId: string | null; localChangeAt: number }
+interface SyncMeta { updatedAt: number; docId: string | null }
 interface Backup {
   watchlist: unknown[]
   accounts: unknown
@@ -17,11 +17,10 @@ interface Backup {
 }
 
 function loadMeta(): SyncMeta {
-  try { const m = JSON.parse(localStorage.getItem(META_KEY) || ''); return { updatedAt: m.updatedAt || 0, docId: m.docId || null, localChangeAt: m.localChangeAt || 0 } }
-  catch { return { updatedAt: 0, docId: null, localChangeAt: 0 } }
+  try { const m = JSON.parse(localStorage.getItem(META_KEY) || ''); return { updatedAt: m.updatedAt || 0, docId: m.docId || null } }
+  catch { return { updatedAt: 0, docId: null } }
 }
-// 合并写入，保留未在 patch 中的字段（如 localChangeAt 不被 updatedAt/docId 的写入冲掉）
-function saveMeta(patch: Partial<SyncMeta>) { try { localStorage.setItem(META_KEY, JSON.stringify({ ...loadMeta(), ...patch })) } catch { /* ignore */ } }
+function saveMeta(m: SyncMeta) { try { localStorage.setItem(META_KEY, JSON.stringify(m)) } catch { /* ignore */ } }
 export function clearMeta() { try { localStorage.removeItem(META_KEY) } catch { /* ignore */ } }
 
 // 构造与「设置→导出备份」一致的数据快照
@@ -126,14 +125,6 @@ export async function syncOnLogin(): Promise<SyncOutcome> {
     return { action: 'conflict', cloud, local }
   }
 
-  // 本地有比上次成功上传更晚、且不旧于云端的未上传改动 → 先上传本地，
-  // 避免「编辑后未过 debounce 就刷新」时被云端旧快照覆盖（修复模拟加仓等改动丢失）。
-  if (meta.localChangeAt > meta.updatedAt && meta.localChangeAt >= cloud.updatedAt && backupHasData(local)) {
-    const now = Date.now()
-    await saveToCloud(local, now)
-    return { action: 'pushed' }
-  }
-
   // 云端更新、或时间相等（本地可能被异常清空但 meta 没更新）→ 一律以云端为准拉取，
   // 绝不用「时间相等的本地」覆盖云端，避免清空/异常状态把云端真实数据冲掉。
   // 仅当本地确有更晚的、已记录的改动（cloud < meta）才上传。
@@ -163,8 +154,6 @@ let lastPushedJson = ''
 let unsub: (() => void) | null = null
 
 function schedulePush() {
-  // 立即（同步）记录本地有未上传改动的时刻，刷新/关页也能在 localStorage 留痕
-  saveMeta({ localChangeAt: Date.now() })
   if (pushTimer) clearTimeout(pushTimer)
   pushTimer = setTimeout(async () => {
     const session = await getSession()
