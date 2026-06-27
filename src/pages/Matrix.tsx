@@ -5,8 +5,22 @@ import { fetchDividendHistory } from '../utils/dividendHistory'
 import type { DividendHistory } from '../utils/dividendHistory'
 import { fetchListingYear } from '../utils/listingDate'
 import { isBShare } from '../utils/market'
+import { useStore } from '../store'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
+const SIM_STEP = 0.5 // 模拟加仓档间隔（股息率 %）
+// 水电（低息、估值另算）起步门槛 4%，其余 5%（与网格页 YieldGrid 的 HYDRO 一致）
+const HYDRO = new Set(['国投电力', '长江电力'])
+const simBaseYield = (name: string) => (HYDRO.has(name) ? 4 : 5)
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg className="w-4 h-4 text-gray-400 shrink-0" style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}
+      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 export default function Matrix() {
   const [params] = useSearchParams()
@@ -64,6 +78,74 @@ export default function Matrix() {
     const sum = recs.reduce((s, r) => s + r.perShare, 0)
     return { avg: sum / recs.length, years: recs.length }
   }, [divHistory])
+
+  // ── 模拟加仓策略 ──────────────────────────────────────────────
+  const held = useStore(s => s.watchlist.find(w => w.code === code))
+  const strat = useStore(s => s.simStrategy[code])
+  const setSimStrategy = useStore(s => s.setSimStrategy)
+  const [simOpen, setSimOpen] = useState(false)  // 默认折叠
+  const [histOpen, setHistOpen] = useState(true) // 默认展开
+
+  const sim = useMemo(() => {
+    const shares = Number(held?.shares) || 0
+    const costStr = held?.costPrice
+    const cost = costStr != null && costStr !== '' ? parseFloat(costStr) : NaN
+    const hasHolding = shares > 0 && isFinite(cost)
+
+    // 现价对应股息率（加仓只能从现价起，不可能在比现价更高的价位买）
+    const curYield = currentPrice > 0 && dividend > 0 ? (dividend / currentPrice) * 100 : 0
+
+    // 加仓档：首档 +「现价档之后 3 个默认整档」+「再 3 个可选整档（用户延长）」
+    //  · 现价股息率 < 门槛：尚未到价，首档=门槛档（等跌到 4%/5%）
+    //  · 现价股息率 ≥ 门槛：当下可买，首档=现价（按真实股息率/现价），之后取现价上方最近整档起每 +0.5%
+    const base = simBaseYield(name) // 起步门槛：水电 4%，其余 5%
+    type Step = { key: string; rate: number; targetPrice: number; isCurrent: boolean; optional: boolean }
+    const allSteps: Step[] = []
+    if (curYield > 0) {
+      let firstCheckpoint: number
+      if (curYield < base) {
+        allSteps.push({ key: base.toFixed(1), rate: base, targetPrice: dividend / (base / 100), isCurrent: false, optional: false })
+        firstCheckpoint = base + SIM_STEP
+      } else {
+        allSteps.push({ key: 'cur', rate: curYield, targetPrice: currentPrice, isCurrent: true, optional: false })
+        firstCheckpoint = Math.floor(curYield / SIM_STEP + 1e-9) * SIM_STEP + SIM_STEP // 严格上方最近整档
+      }
+      // 前 3 档默认显示，后 3 档可选（用户延长）
+      for (let i = 0; i < 6; i++) {
+        const rate = Math.round((firstCheckpoint + i * SIM_STEP) * 10) / 10
+        allSteps.push({ key: rate.toFixed(1), rate, targetPrice: dividend / (rate / 100), isCurrent: false, optional: i >= 3 })
+      }
+    }
+    // 可延长的 3 档股息率；延长终点存 simStrategy.end（≤该值的可选档才显示）
+    const optionalRates = allSteps.filter(s => s.optional).map(s => s.rate)
+    const extendTo = strat?.end && optionalRates.includes(strat.end) ? strat.end : 0
+    const steps = allSteps.filter(s => !s.optional || s.rate <= extendTo)
+
+    // 种子：有持仓用现有股数 + 除权后成本（绝不改真实数据，仅作推演起点）
+    let cumShares = hasHolding ? shares : 0
+    let cumAmount = hasHolding ? shares * cost : 0
+    const ladder = steps.map((s, i) => {
+      // 默认：首档（现价 / 5%）100 股，其余档 0 股，用户按需填
+      const stepShares = strat?.shares?.[s.key] ?? (i === 0 ? 100 : 0)
+      cumShares += stepShares
+      cumAmount += stepShares * s.targetPrice
+      return { ...s, stepShares, cumShares, avgCost: cumShares > 0 ? cumAmount / cumShares : 0 }
+    })
+    // 较现成本：有持仓比现成本；无持仓比首档摊薄成本；摊薄未变（如本档 0 股）记 —
+    const baseline = hasHolding ? cost : (ladder[0]?.avgCost ?? 0)
+    const rows = ladder.map(r => ({
+      ...r,
+      deltaPct: baseline > 0 && Math.abs(r.avgCost - baseline) > 1e-9 ? ((r.avgCost - baseline) / baseline) * 100 : null,
+    }))
+
+    return { shares, cost, hasHolding, curYield, base, rows, optionalRates, extendTo }
+  }, [held, dividend, currentPrice, strat, name])
+
+  const setStepShares = (key: string, val: string, snap = false) => {
+    let n = Math.max(0, Math.floor(Number(val) || 0))
+    if (snap) n = Math.round(n / 100) * 100 // 失焦时吸附到 100 的整数倍
+    setSimStrategy(code, { shares: { ...(strat?.shares ?? {}), [key]: n } })
+  }
 
   return (
     <div className="page-content page-narrow">
@@ -166,15 +248,122 @@ export default function Matrix() {
           左右滑动查看不同股息率目标下的买入价参考，当前价格对应的股息率已高亮标注。
         </p>
 
-        {/* 历史分红 */}
-        {(
-          <div className="card p-4 mt-4">
-            <div className="mb-3">
-              <div className="text-sm font-semibold text-gray-800">历史分红</div>
+        {/* 模拟加仓（默认折叠） */}
+        <div className="card mt-4">
+          <button onClick={() => setSimOpen(o => !o)} className="w-full flex items-center justify-between p-4 text-left">
+            <div>
+              <div className="text-sm font-semibold text-gray-800">模拟加仓</div>
               <div className="text-xs text-gray-400 mt-0.5">
-                {isHK ? '近10年历史派息记录（HKD，税前）' : isUS ? '近10年历史派息记录（USD，税前）' : isBShare(code) ? '近10年历史派息记录（税前）' : '近10年已实施 / 已通过分配记录，每股派息为税前金额'}
+                {sim.hasHolding
+                  ? '在现有持仓上，从现价起逐档加仓，推演摊薄成本'
+                  : '当前无持仓，从现价起逐档建仓，推演摊薄成本'}
               </div>
             </div>
+            <Chevron open={simOpen} />
+          </button>
+          {simOpen && (
+            <div className="px-4 pb-4">
+              {sim.rows.length === 0 ? (
+                <div className="text-xs text-gray-400 text-center py-4">暂无现价或每股红利数据，无法推演</div>
+              ) : (
+                <>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-xs text-gray-500">
+                        <th className="text-left py-1.5 font-medium">股息率</th>
+                        <th className="text-right py-1.5 font-medium">目标价</th>
+                        <th className="text-right py-1.5 font-medium">本档股数</th>
+                        <th className="text-right py-1.5 font-medium">累计</th>
+                        <th className="text-right py-1.5 font-medium">摊薄成本</th>
+                        <th className="text-right py-1.5 font-medium">较现成本</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sim.hasHolding && (
+                        <tr className="border-b border-gray-100 bg-gray-50/60">
+                          <td className="py-2 text-gray-700">
+                            {sim.cost > 0 ? `${((dividend / sim.cost) * 100).toFixed(2)}%` : '持仓'}
+                            <span className="text-xs text-gray-400">（成本）</span>
+                          </td>
+                          <td className="py-2 text-right text-gray-700">{cs}{sim.cost.toFixed(2)}</td>
+                          <td className="py-2 text-right text-gray-400">{sim.shares}</td>
+                          <td className="py-2 text-right text-gray-700">{sim.shares}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">{cs}{sim.cost.toFixed(2)}</td>
+                          <td className="py-2 text-right text-gray-300">—</td>
+                        </tr>
+                      )}
+                      {sim.rows.map(r => (
+                        <tr key={r.key} className={`border-b border-gray-50 last:border-0 ${r.isCurrent ? 'bg-red-50/60' : ''}`}>
+                          <td className="py-2 text-gray-700">
+                            {r.isCurrent ? r.rate.toFixed(2) : r.rate.toFixed(1)}%
+                            {r.isCurrent && <span className="text-xs text-gray-400">（现价）</span>}
+                          </td>
+                          <td className="py-2 text-right text-gray-700">{cs}{r.targetPrice.toFixed(2)}</td>
+                          <td className="py-1 text-right">
+                            <input
+                              type="number" inputMode="numeric" min={0} step={100} value={r.stepShares}
+                              onChange={e => setStepShares(r.key, e.target.value)}
+                              onBlur={e => setStepShares(r.key, e.target.value, true)}
+                              className="w-16 text-right border border-gray-200 rounded-md px-1.5 py-1 text-sm focus:border-red-400 focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-2 text-right text-gray-700">{r.cumShares}</td>
+                          <td className="py-2 text-right font-semibold text-gray-900">{cs}{r.avgCost.toFixed(2)}</td>
+                          <td className="py-2 text-right text-xs">
+                            {r.deltaPct == null ? (
+                              <span className="text-gray-300">—</span>
+                            ) : (
+                              <span className={r.deltaPct <= 0 ? 'text-green-600' : 'text-red-500'}>
+                                {r.deltaPct <= 0 ? '↓' : '↑'}{Math.abs(r.deltaPct).toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* 延长：默认 3 档之后再给 3 档可选 */}
+                  {sim.optionalRates.length > 0 && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className="text-xs text-gray-500 shrink-0">延长</span>
+                      <div className="flex gap-1.5">
+                        {sim.optionalRates.map(o => (
+                          <button
+                            key={o}
+                            onClick={() => setSimStrategy(code, { end: sim.extendTo === o ? 0 : o })}
+                            className={`px-2.5 py-1 rounded-lg text-xs border ${sim.extendTo >= o && sim.extendTo > 0 ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}
+                          >
+                            {o.toFixed(1)}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-400 mt-3">
+                    首档为现价（现价股息率 ≥ {sim.base}% 时可当下买入，否则等跌到 {sim.base}%），之后每 0.5% 股息率为一档（目标价 = 每股红利 ÷ 股息率）；默认 3 档，可再延长 3 档。每档股数可改，仅用于推演，不含手续费、不影响真实持仓。
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 历史分红（默认展开） */}
+        {(
+          <div className="card mt-4">
+            <button onClick={() => setHistOpen(o => !o)} className="w-full flex items-center justify-between p-4 text-left">
+              <div>
+                <div className="text-sm font-semibold text-gray-800">历史分红</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {isHK ? '近10年历史派息记录（HKD，税前）' : isUS ? '近10年历史派息记录（USD，税前）' : isBShare(code) ? '近10年历史派息记录（税前）' : '近10年已实施 / 已通过分配记录，每股派息为税前金额'}
+                </div>
+              </div>
+              <Chevron open={histOpen} />
+            </button>
+            {histOpen && (
+            <div className="px-4 pb-4">
             {historyLoading ? (
               <div className="text-xs text-gray-400 text-center py-4">加载中…</div>
             ) : !divHistory || divHistory.records.length === 0 ? (
@@ -232,6 +421,8 @@ export default function Matrix() {
                   </tbody>
                 </table>
               </>
+            )}
+            </div>
             )}
           </div>
         )}

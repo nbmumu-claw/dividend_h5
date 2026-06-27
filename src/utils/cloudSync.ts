@@ -13,6 +13,7 @@ interface Backup {
   discoveryHiddenStocks: unknown
   discoveryCustomSectors: unknown
   gridPrefs?: unknown
+  simStrategy?: unknown
 }
 
 function loadMeta(): SyncMeta {
@@ -33,6 +34,7 @@ function buildBackup(): Backup {
     discoveryHiddenStocks: s.hiddenStocks,
     discoveryCustomSectors: s.customSectors,
     gridPrefs: s.gridPrefs,
+    simStrategy: s.simStrategy,
   }
 }
 function backupHasData(b?: Backup | null): boolean {

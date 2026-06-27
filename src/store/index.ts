@@ -105,6 +105,11 @@ interface AppState {
   gridPrefs: GridPrefs
   setGridPrefs: (patch: Partial<GridPrefs>) => void
 
+  // 模拟加仓策略（决策矩阵页·纯推演偏好，按股票存，绝不影响真实持仓数据）
+  // 结构：{ [code]: { end: 终点股息率, shares: { [档位股息率.toFixed(1)]: 该档股数 } } }
+  simStrategy: Record<string, { end: number; shares: Record<string, number> }>
+  setSimStrategy: (code: string, patch: Partial<{ end: number; shares: Record<string, number> }>) => void
+
   // Import/export
   importBackup: (data: AppState['watchlist'] extends unknown ? Record<string, unknown> : never) => void
 }
@@ -317,6 +322,16 @@ export const useStore = create<AppState>()(
       gridPrefs: { ...DEFAULT_GRID_PREFS },
       setGridPrefs: (patch) => set(s => ({ gridPrefs: { ...s.gridPrefs, ...patch } })),
 
+      // 模拟加仓策略（纯页面推演偏好，绝不生成交易、不改 shares/costPrice）
+      simStrategy: {},
+      setSimStrategy: (code, patch) =>
+        set(s => ({
+          simStrategy: {
+            ...s.simStrategy,
+            [code]: { ...(s.simStrategy[code] ?? { end: 0, shares: {} }), ...patch },
+          },
+        })),
+
       importBackup: (data) => {
         const d = data as {
           watchlist?: WatchlistStock[]
@@ -331,6 +346,7 @@ export const useStore = create<AppState>()(
           staticEdits?: Record<string, Partial<Stock>>
           hiddenStocks?: string[]
           customSectors?: string[]
+          simStrategy?: Record<string, { end: number; shares: Record<string, number> }>
         }
 
         // 账户：新格式 data.accounts；否则旧格式单账户落到默认账户
@@ -383,6 +399,8 @@ export const useStore = create<AppState>()(
           ...(activeFeeConfig ? { feeConfig: activeFeeConfig } : {}),
           // 云端有网格偏好则恢复（合并默认值补缺字段），否则保持本地
           gridPrefs: mergedGridPrefs,
+          // 模拟加仓策略：云端有则恢复，否则保持本地
+          simStrategy: d.simStrategy ?? get().simStrategy,
         })
       },
     }),
