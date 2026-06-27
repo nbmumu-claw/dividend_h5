@@ -15,6 +15,7 @@ export interface GridPrefs {
   cfg: { buyStep: number; buyCount: number; sellStep: number; sellCount: number }
   sort: { key: string; dir: 'asc' | 'desc' }
   active: string
+  collapsed: Record<string, string[]> // 各 tab（筛选）下已折叠的板块名，互不影响
 }
 const DEFAULT_GRID_PREFS: GridPrefs = {
   custom: [],
@@ -25,6 +26,7 @@ const DEFAULT_GRID_PREFS: GridPrefs = {
   cfg: { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4 },
   sort: { key: 'cy', dir: 'desc' },
   active: '全部',
+  collapsed: {},
 }
 
 const MAX_ACCOUNTS = 3

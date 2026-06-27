@@ -280,6 +280,16 @@ export default function YieldGrid() {
   }
   const stockOrder = useStore(s => s.gridPrefs.stockOrder)
   const setStockOrder = (a: string[]) => saveStockOrder(a)
+  // 板块折叠（遮挡）：按 tab（active 筛选）分桶持久化，互不影响；默认不折叠
+  const collapsedMap = useStore(s => s.gridPrefs.collapsed)
+  const collapsed = useMemo(() => new Set(collapsedMap?.[active] ?? []), [collapsedMap, active])
+  const toggleCollapse = (sector: string) => {
+    const next = new Set(collapsed)
+    next.has(sector) ? next.delete(sector) : next.add(sector)
+    const map = { ...(gp().collapsed ?? {}) }
+    map[active] = [...next]
+    saveGp({ collapsed: map })
+  }
   // 手动上/下移：把该板块当前显示顺序（含本次交换）整体固定为手排
   const moveStock = (sectorItems: Row[], code: string, dir: -1 | 1) => {
     const codes = sectorItems.map(r => r.code)
@@ -562,18 +572,20 @@ export default function YieldGrid() {
           // 板块内各股票档位取并集，保证表头列对齐（仅电力含水电会出现空档）
           const sellCols = [...new Set(items.flatMap(r => sellGridFor(r.name, cfg)))].sort((a, b) => a - b)
           const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name, cfg)))].sort((a, b) => a - b)
+          const isCollapsed = collapsed.has(sector)
           return (
             <section key={sector}>
-              <h2>
+              <h2 className="sec-h2" onClick={() => { if (!editOrder) toggleCollapse(sector) }}>
+                <span className={`sec-caret${isCollapsed ? ' off' : ''}`} aria-hidden>▾</span>
                 {sector} <em>{items.length}</em>
                 {editOrder && (
-                  <span className="moves">
+                  <span className="moves" onClick={e => e.stopPropagation()}>
                     <button disabled={order.indexOf(sector) === 0} onClick={() => moveSector(sector, -1)} aria-label="上移">↑</button>
                     <button disabled={order.indexOf(sector) === order.length - 1} onClick={() => moveSector(sector, 1)} aria-label="下移">↓</button>
                   </span>
                 )}
               </h2>
-              {isMobile ? (
+              {isCollapsed ? null : isMobile ? (
                 <div className="cards">
                   {items.map(r => (
                     <div className="card" key={r.name}>
@@ -919,6 +931,9 @@ const CSS = `
 .yg-page section { background: #fff; border-radius: 14px; padding: 14px 16px 18px;
   margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .yg-page h2 { font-size: 17px; margin: 4px 2px 12px; display: flex; align-items: center; gap: 8px; }
+.yg-page h2.sec-h2 { cursor: pointer; user-select: none; }
+.yg-page .sec-caret { font-size: 11px; color: #9ca3af; display: inline-block; transition: transform .15s; }
+.yg-page .sec-caret.off { transform: rotate(-90deg); }
 .yg-page h2 em { font-style: normal; font-size: 12px; color: #6b7280; background: #eef0f3;
   padding: 1px 8px; border-radius: 10px; }
 .yg-page .orderbtn { position: relative; flex: 0 0 auto; white-space: nowrap; padding: 5px 12px;
