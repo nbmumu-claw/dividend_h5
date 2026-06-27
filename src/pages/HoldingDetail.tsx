@@ -64,6 +64,14 @@ export default function HoldingDetail() {
   }, [code])
 
   const txs = useMemo(() => stock?.transactions ?? [], [stock])
+  // 交易 ts：日期取所选日，时刻取「录入当下」(新增) 或「原记录时刻」(编辑)，精确到毫秒。
+  // 同一天多笔据此按录入先后排序，分红不会算进当天「之后」录入的买入；显示仍只到日。
+  const previewTs = useMemo(() => {
+    if (!txDate) return Date.now()
+    const src = editingIdx >= 0 && txs[editingIdx]?.ts ? new Date(txs[editingIdx].ts as number) : new Date()
+    const [y, m, d] = txDate.split('-').map(Number)
+    return new Date(y, m - 1, d, src.getHours(), src.getMinutes(), src.getSeconds(), src.getMilliseconds()).getTime()
+  }, [txDate, editingIdx, txs])
   const holding = useMemo(
     () => computeHolding(txs, stock ? makeFeeCalc(stock, feeConfig) : null),
     [txs, stock, feeConfig]
@@ -120,7 +128,7 @@ export default function HoldingDetail() {
 
   const confirmTx = () => {
     const p = parseFloat(txPrice) || 0
-    const ts = txDate ? new Date(txDate + 'T12:00:00').getTime() : Date.now()
+    const ts = previewTs
     const base = editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs
     const curShares = computeHolding(base).shares
 
@@ -354,7 +362,7 @@ export default function HoldingDetail() {
             </label>
           )}
           {txType === 'dividend' && (
-            <div className="text-xs text-gray-400">分红按 {txDate} 当时持仓 {sharesAsOf(editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs, txDate ? new Date(txDate + 'T12:00:00').getTime() : Date.now())} 股计；{stock.isHK ? '港股按所选税率扣税后' : isBShare(stock.code) ? 'B股按10%扣税后' : 'A股免税'}冲减成本。</div>
+            <div className="text-xs text-gray-400">分红按 {txDate} 当时持仓 {sharesAsOf(editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs, previewTs)} 股计；{stock.isHK ? '港股按所选税率扣税后' : isBShare(stock.code) ? 'B股按10%扣税后' : 'A股免税'}冲减成本。</div>
           )}
 
           {(() => {
