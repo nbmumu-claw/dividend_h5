@@ -85,7 +85,7 @@ export default function Matrix() {
   const held = useStore(s => s.watchlist.find(w => w.code === code))
   const strat = useStore(s => s.simStrategy[code])
   const setSimStrategy = useStore(s => s.setSimStrategy)
-  const [simOpen, setSimOpen] = useState(false)  // 默认折叠
+  const [simOpen, setSimOpen] = useState(true)  // 默认展开
   const [histOpen, setHistOpen] = useState(true) // 默认展开
 
   const sim = useMemo(() => {
@@ -269,7 +269,8 @@ export default function Matrix() {
                 <div className="text-xs text-gray-400 text-center py-4">暂无现价或每股红利数据，无法推演</div>
               ) : (
                 <>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="w-full text-sm whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-gray-100 text-xs text-gray-500">
                         <th className="text-left py-1.5 font-medium">股息率</th>
@@ -284,8 +285,8 @@ export default function Matrix() {
                       {sim.hasHolding && (
                         <tr className="border-b border-gray-100 bg-gray-50/60">
                           <td className="py-2 text-gray-700">
-                            {sim.cost > 0 ? `${((dividend / sim.cost) * 100).toFixed(2)}%` : '持仓'}
-                            <span className="text-xs text-gray-400">（成本）</span>
+                            <div>{sim.cost > 0 ? `${((dividend / sim.cost) * 100).toFixed(2)}%` : '持仓'}</div>
+                            <div className="text-[10px] text-gray-400 leading-none mt-0.5">成本</div>
                           </td>
                           <td className="py-2 text-right text-gray-700">{cs}{sim.cost.toFixed(2)}</td>
                           <td className="py-2 text-right text-gray-400">{sim.shares}</td>
@@ -297,8 +298,8 @@ export default function Matrix() {
                       {sim.rows.map(r => (
                         <tr key={r.key} className={`border-b border-gray-50 last:border-0 ${r.isCurrent ? 'bg-red-50/60' : ''}`}>
                           <td className="py-2 text-gray-700">
-                            {r.isCurrent ? r.rate.toFixed(2) : r.rate.toFixed(1)}%
-                            {r.isCurrent && <span className="text-xs text-gray-400">（现价）</span>}
+                            <div>{r.isCurrent ? r.rate.toFixed(2) : r.rate.toFixed(1)}%</div>
+                            {r.isCurrent && <div className="text-[10px] text-gray-400 leading-none mt-0.5">现价</div>}
                           </td>
                           <td className="py-2 text-right text-gray-700">{cs}{r.targetPrice.toFixed(2)}</td>
                           <td className="py-1 text-right">
@@ -325,6 +326,7 @@ export default function Matrix() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
 
                   {/* 延长：默认 3 档之后再给 3 档可选 */}
                   {sim.optionalRates.length > 0 && (
