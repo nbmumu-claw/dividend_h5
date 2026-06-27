@@ -12,6 +12,8 @@ const SIM_STEP = 0.5 // 模拟加仓档间隔（股息率 %）
 // 水电（低息、估值另算）起步门槛 4%，其余 5%（与网格页 YieldGrid 的 HYDRO 一致）
 const HYDRO = new Set(['国投电力', '长江电力'])
 const simBaseYield = (name: string) => (HYDRO.has(name) ? 4 : 5)
+// 档位股数键：用无点形式（CloudBase NoSQL 会把键里的 "." 当嵌套路径，"6.0" 会被存坏）
+const simKey = (rate: number) => rate.toFixed(1).replace('.', '_')
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -104,7 +106,7 @@ export default function Matrix() {
     if (curYield > 0) {
       let firstCheckpoint: number
       if (curYield < base) {
-        allSteps.push({ key: base.toFixed(1), rate: base, targetPrice: dividend / (base / 100), isCurrent: false, optional: false })
+        allSteps.push({ key: simKey(base), rate: base, targetPrice: dividend / (base / 100), isCurrent: false, optional: false })
         firstCheckpoint = base + SIM_STEP
       } else {
         allSteps.push({ key: 'cur', rate: curYield, targetPrice: currentPrice, isCurrent: true, optional: false })
@@ -113,7 +115,7 @@ export default function Matrix() {
       // 前 3 档默认显示，后 3 档可选（用户延长）
       for (let i = 0; i < 6; i++) {
         const rate = Math.round((firstCheckpoint + i * SIM_STEP) * 10) / 10
-        allSteps.push({ key: rate.toFixed(1), rate, targetPrice: dividend / (rate / 100), isCurrent: false, optional: i >= 3 })
+        allSteps.push({ key: simKey(rate), rate, targetPrice: dividend / (rate / 100), isCurrent: false, optional: i >= 3 })
       }
     }
     // 可延长的 3 档股息率；延长终点存 simStrategy.end（≤该值的可选档才显示）

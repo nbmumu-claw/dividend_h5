@@ -38,6 +38,38 @@ const genAccountId = () => 'acc_' + Date.now().toString(36) + Math.floor(Math.ra
 const recomputeList = (list: WatchlistStock[], cfg: FeeConfig): WatchlistStock[] =>
   list.map(w => applyHolding({ ...w }, Array.isArray(w.transactions) ? w.transactions : ensureTransactions(w), makeFeeCalc(w, cfg)))
 
+// CloudBase NoSQL（类 MongoDB）会把对象键里的 "." 当作嵌套路径，导致 simStrategy.shares
+// 的费率键 "6.0" 被存成 {"6":{"0":...}}，同步回来读不到就像丢了。统一改用无点键 "6_0"，
+// 并把历史的「本地点号键 6.0」「云端嵌套键 6→{0:..}」「已是新键 6_0」三种都规整还原。
+function normalizeShares(shares: unknown): Record<string, number> {
+  if (!shares || typeof shares !== 'object') return {}
+  const out: Record<string, number> = {}
+  const put = (rate: number, val: unknown) => {
+    if (isFinite(rate)) out[rate.toFixed(1).replace('.', '_')] = Number(val) || 0
+  }
+  for (const [k, v] of Object.entries(shares as Record<string, unknown>)) {
+    if (v !== null && typeof v === 'object') {
+      // 云端被点号拆成的嵌套：k + '.' + sub = 原费率
+      for (const [sub, val] of Object.entries(v as Record<string, unknown>)) put(parseFloat(`${k}.${sub}`), val)
+    } else if (k === 'cur') {
+      out.cur = Number(v) || 0
+    } else if (k.includes('.')) {
+      put(parseFloat(k), v) // 本地旧点号键 "6.0"
+    } else {
+      out[k] = Number(v) || 0 // 已是新无点键 "6_0" / "cur"
+    }
+  }
+  return out
+}
+function normalizeSimStrategy(sim: unknown): Record<string, { end: number; shares: Record<string, number> }> {
+  if (!sim || typeof sim !== 'object') return {}
+  const out: Record<string, { end: number; shares: Record<string, number> }> = {}
+  for (const [code, v] of Object.entries(sim as Record<string, { end?: number; shares?: unknown }>)) {
+    out[code] = { end: Number(v?.end) || 0, shares: normalizeShares(v?.shares) }
+  }
+  return out
+}
+
 // 发现页（静态 + 手动）对某代码的权威每股红利；找不到返回 undefined
 function discoveryDividendOf(code: string, staticEdits: Record<string, Partial<Stock>>, manualStocks: Stock[]): number | undefined {
   const edit = staticEdits[code]
@@ -401,14 +433,14 @@ export const useStore = create<AppState>()(
           ...(activeFeeConfig ? { feeConfig: activeFeeConfig } : {}),
           // 云端有网格偏好则恢复（合并默认值补缺字段），否则保持本地
           gridPrefs: mergedGridPrefs,
-          // 模拟加仓策略：云端有则恢复，否则保持本地
-          simStrategy: d.simStrategy ?? get().simStrategy,
+          // 模拟加仓策略：云端有则恢复，否则保持本地；规整还原被点号拆坏的费率键
+          simStrategy: normalizeSimStrategy(d.simStrategy ?? get().simStrategy),
         })
       },
     }),
     {
       name: 'xuxu-efu-store',
-      version: 6,
+      version: 7,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[]; accounts?: unknown }
         if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
@@ -452,6 +484,8 @@ export const useStore = create<AppState>()(
           if (fc) for (const a of accts) { if (a.id !== active) map[a.id] = fc }
           m.accountFeeConfigs = map
         }
+        // v7：simStrategy.shares 费率键去点号，并还原历史被点号拆坏的数据
+        if (m.simStrategy) m.simStrategy = normalizeSimStrategy(m.simStrategy)
         return s
       },
     }
