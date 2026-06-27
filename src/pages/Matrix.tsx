@@ -307,7 +307,7 @@ export default function Matrix() {
                               value={r.stepShares || ''}
                               onChange={e => setStepShares(r.key, e.target.value)}
                               onBlur={e => setStepShares(r.key, e.target.value, true)}
-                              className="w-16 text-right border border-gray-200 rounded-md px-1.5 py-1 text-base focus:border-red-400 focus:outline-none"
+                              className="w-20 text-right border border-gray-200 rounded-md px-2 py-1 text-base focus:border-red-400 focus:outline-none"
                             />
                           </td>
                           <td className="py-2 text-right text-gray-700">{r.cumShares}</td>
