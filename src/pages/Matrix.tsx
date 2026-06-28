@@ -330,42 +330,42 @@ export default function Matrix() {
                   </table>
                   </div>
 
-                  {/* 步长：0.25% / 0.5%（默认 0.5%，档数不变） */}
-                  <div className="flex items-center gap-2 mt-3">
-                    <span className="text-xs text-gray-500 shrink-0">步长</span>
-                    <div className="flex gap-1.5">
-                      {[0.5, 0.25].map(st => (
-                        <button
-                          key={st}
-                          onClick={() => setSimStrategy(code, { step: st })}
-                          className={`px-2.5 py-1 rounded-lg text-xs border ${sim.step === st ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}
-                        >
-                          {st}%
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 延长：默认 3 档之后再给 3 档可选 */}
-                  {sim.optionalRates.length > 0 && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-gray-500 shrink-0">延长</span>
-                      <div className="flex gap-1.5">
-                        {sim.optionalRates.map(o => (
+                  {/* 步长 + 加档（同一行，过窄则横向滚动） */}
+                  <div className="flex items-center gap-x-3 mt-3 overflow-x-auto">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs text-gray-500 shrink-0">步长</span>
+                      <div className="flex gap-1">
+                        {[0.5, 0.25].map(st => (
                           <button
-                            key={o}
-                            onClick={() => setSimStrategy(code, { end: sim.extendTo === o ? 0 : o })}
-                            className={`px-2.5 py-1 rounded-lg text-xs border ${sim.extendTo >= o && sim.extendTo > 0 ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}
+                            key={st}
+                            onClick={() => setSimStrategy(code, { step: st })}
+                            className={`px-2 py-1 rounded-lg text-xs border ${sim.step === st ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}
                           >
-                            {sim.step === 0.25 ? o.toFixed(2) : o.toFixed(1)}%
+                            {st}%
                           </button>
                         ))}
                       </div>
                     </div>
-                  )}
+                    {sim.optionalRates.length > 0 && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs text-gray-500 shrink-0">加档</span>
+                        <div className="flex gap-1">
+                          {sim.optionalRates.map(o => (
+                            <button
+                              key={o}
+                              onClick={() => setSimStrategy(code, { end: sim.extendTo === o ? 0 : o })}
+                              className={`px-2 py-1 rounded-lg text-xs border ${sim.extendTo >= o && sim.extendTo > 0 ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}
+                            >
+                              {sim.step === 0.25 ? o.toFixed(2) : o.toFixed(1)}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <p className="text-xs text-gray-400 mt-3">
-                    首档为现价（现价股息率 ≥ {sim.base}% 时可当下买入，否则等跌到 {sim.base}%），之后每 {sim.step}% 股息率为一档（目标价 = 每股红利 ÷ 股息率）；默认 3 档，可再延长 3 档。每档股数可改，仅用于推演，不含手续费、不影响真实持仓。
+                    首档为现价（现价股息率 ≥ {sim.base}% 时可当下买入，否则等跌到 {sim.base}%），之后每 {sim.step}% 股息率为一档（目标价 = 每股红利 ÷ 股息率）；默认 3 档，可再加 3 档。每档股数可改，仅用于推演，不含手续费、不影响真实持仓。
                   </p>
                 </>
               )}
