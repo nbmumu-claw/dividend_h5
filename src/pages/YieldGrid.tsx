@@ -573,6 +573,10 @@ export default function YieldGrid() {
           const sellCols = [...new Set(items.flatMap(r => sellGridFor(r.name, cfg)))].sort((a, b) => a - b)
           const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name, cfg)))].sort((a, b) => a - b)
           const isCollapsed = collapsed.has(sector)
+          // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
+          const avgCy = items.reduce((s, r) => s + r.cy, 0) / items.length
+          const top = items.reduce((a, b) => (b.cy > a.cy ? b : a), items[0])
+          const buyCount = items.filter(r => r.cy >= buyBase(r.name)).length
           return (
             <section key={sector}>
               <h2 className="sec-h2" onClick={() => { if (!editOrder) toggleCollapse(sector) }}>
@@ -585,6 +589,12 @@ export default function YieldGrid() {
                   </span>
                 )}
               </h2>
+              {isCollapsed && (
+                <div className="sec-brief">
+                  均息 {(avgCy * 100).toFixed(2)}% · 最高 {top.name} {(top.cy * 100).toFixed(2)}%
+                  {buyCount > 0 && <b className="o"> · {buyCount} 只达买点</b>}
+                </div>
+              )}
               {isCollapsed ? null : isMobile ? (
                 <div className="cards">
                   {items.map(r => (
@@ -934,6 +944,8 @@ const CSS = `
 .yg-page h2.sec-h2 { cursor: pointer; user-select: none; }
 .yg-page .sec-caret { font-size: 11px; color: #9ca3af; display: inline-block; transition: transform .15s; }
 .yg-page .sec-caret.off { transform: rotate(-90deg); }
+.yg-page .sec-brief { font-size: 12.5px; color: #6b7280; margin: -6px 2px 2px; padding-left: 22px; }
+.yg-page .sec-brief b.o { font-weight: 600; color: #ea580c; }
 .yg-page h2 em { font-style: normal; font-size: 12px; color: #6b7280; background: #eef0f3;
   padding: 1px 8px; border-radius: 10px; }
 .yg-page .orderbtn { position: relative; flex: 0 0 auto; white-space: nowrap; padding: 5px 12px;
