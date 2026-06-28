@@ -45,7 +45,8 @@ function normalizeShares(shares: unknown): Record<string, number> {
   if (!shares || typeof shares !== 'object') return {}
   const out: Record<string, number> = {}
   const put = (rate: number, val: unknown) => {
-    if (isFinite(rate)) out[rate.toFixed(1).replace('.', '_')] = Number(val) || 0
+    // 与 Matrix 的 simKey 一致：去尾零的无点键（"6.0"→6_0，"5.25"→5_25）
+    if (isFinite(rate)) out[rate.toFixed(2).replace(/0$/, '').replace('.', '_')] = Number(val) || 0
   }
   for (const [k, v] of Object.entries(shares as Record<string, unknown>)) {
     if (v !== null && typeof v === 'object') {
@@ -61,11 +62,11 @@ function normalizeShares(shares: unknown): Record<string, number> {
   }
   return out
 }
-function normalizeSimStrategy(sim: unknown): Record<string, { end: number; shares: Record<string, number> }> {
+function normalizeSimStrategy(sim: unknown): Record<string, { end: number; shares: Record<string, number>; step?: number }> {
   if (!sim || typeof sim !== 'object') return {}
-  const out: Record<string, { end: number; shares: Record<string, number> }> = {}
-  for (const [code, v] of Object.entries(sim as Record<string, { end?: number; shares?: unknown }>)) {
-    out[code] = { end: Number(v?.end) || 0, shares: normalizeShares(v?.shares) }
+  const out: Record<string, { end: number; shares: Record<string, number>; step?: number }> = {}
+  for (const [code, v] of Object.entries(sim as Record<string, { end?: number; shares?: unknown; step?: number }>)) {
+    out[code] = { end: Number(v?.end) || 0, shares: normalizeShares(v?.shares), ...(v?.step ? { step: Number(v.step) } : {}) }
   }
   return out
 }
@@ -141,8 +142,8 @@ interface AppState {
 
   // 模拟加仓策略（决策矩阵页·纯推演偏好，按股票存，绝不影响真实持仓数据）
   // 结构：{ [code]: { end: 终点股息率, shares: { [档位股息率.toFixed(1)]: 该档股数 } } }
-  simStrategy: Record<string, { end: number; shares: Record<string, number> }>
-  setSimStrategy: (code: string, patch: Partial<{ end: number; shares: Record<string, number> }>) => void
+  simStrategy: Record<string, { end: number; shares: Record<string, number>; step?: number }>
+  setSimStrategy: (code: string, patch: Partial<{ end: number; shares: Record<string, number>; step?: number }>) => void
 
   // Import/export
   importBackup: (data: AppState['watchlist'] extends unknown ? Record<string, unknown> : never) => void
@@ -380,7 +381,7 @@ export const useStore = create<AppState>()(
           staticEdits?: Record<string, Partial<Stock>>
           hiddenStocks?: string[]
           customSectors?: string[]
-          simStrategy?: Record<string, { end: number; shares: Record<string, number> }>
+          simStrategy?: Record<string, { end: number; shares: Record<string, number>; step?: number }>
         }
 
         // 账户：新格式 data.accounts；否则旧格式单账户落到默认账户

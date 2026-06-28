@@ -8,12 +8,12 @@ import { isBShare } from '../utils/market'
 import { useStore } from '../store'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
-const SIM_STEP = 0.5 // 模拟加仓档间隔（股息率 %）
 // 水电（低息、估值另算）起步门槛 4%，其余 5%（与网格页 YieldGrid 的 HYDRO 一致）
 const HYDRO = new Set(['国投电力', '长江电力'])
 const simBaseYield = (name: string) => (HYDRO.has(name) ? 4 : 5)
-// 档位股数键：用无点形式（CloudBase NoSQL 会把键里的 "." 当嵌套路径，"6.0" 会被存坏）
-const simKey = (rate: number) => rate.toFixed(1).replace('.', '_')
+// 档位股数键：无点形式（CloudBase NoSQL 会把键里的 "." 当嵌套路径，"6.0" 会被存坏）；
+// 去尾零保证 0.5 步长键与历史一致（6.0→6_0、5.5→5_5），0.25 步长则为 5_25
+const simKey = (rate: number) => rate.toFixed(2).replace(/0$/, '').replace('.', '_')
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -101,20 +101,22 @@ export default function Matrix() {
     //  · 现价股息率 < 门槛：尚未到价，首档=门槛档（等跌到 4%/5%）
     //  · 现价股息率 ≥ 门槛：当下可买，首档=现价（按真实股息率/现价），之后取现价上方最近整档起每 +0.5%
     const base = simBaseYield(name) // 起步门槛：水电 4%，其余 5%
+    const step = strat?.step === 0.25 ? 0.25 : 0.5 // 档间隔（步长），默认 0.5%
+    const r2 = (x: number) => Math.round(x * 100) / 100 // 取两位小数，兼容 0.25 步长
     type Step = { key: string; rate: number; targetPrice: number; isCurrent: boolean; optional: boolean }
     const allSteps: Step[] = []
     if (curYield > 0) {
       let firstCheckpoint: number
       if (curYield < base) {
         allSteps.push({ key: simKey(base), rate: base, targetPrice: dividend / (base / 100), isCurrent: false, optional: false })
-        firstCheckpoint = base + SIM_STEP
+        firstCheckpoint = r2(base + step)
       } else {
         allSteps.push({ key: 'cur', rate: curYield, targetPrice: currentPrice, isCurrent: true, optional: false })
-        firstCheckpoint = Math.floor(curYield / SIM_STEP + 1e-9) * SIM_STEP + SIM_STEP // 严格上方最近整档
+        firstCheckpoint = r2(Math.floor(curYield / step + 1e-9) * step + step) // 严格上方最近档
       }
       // 前 3 档默认显示，后 3 档可选（用户延长）
       for (let i = 0; i < 6; i++) {
-        const rate = Math.round((firstCheckpoint + i * SIM_STEP) * 10) / 10
+        const rate = r2(firstCheckpoint + i * step)
         allSteps.push({ key: simKey(rate), rate, targetPrice: dividend / (rate / 100), isCurrent: false, optional: i >= 3 })
       }
     }
@@ -140,7 +142,7 @@ export default function Matrix() {
       deltaPct: baseline > 0 && Math.abs(r.avgCost - baseline) > 1e-9 ? ((r.avgCost - baseline) / baseline) * 100 : null,
     }))
 
-    return { shares, cost, hasHolding, curYield, base, rows, optionalRates, extendTo }
+    return { shares, cost, hasHolding, curYield, base, step, rows, optionalRates, extendTo }
   }, [held, dividend, currentPrice, strat, name])
 
   const setStepShares = (key: string, val: string, snap = false) => {
@@ -298,7 +300,7 @@ export default function Matrix() {
                       {sim.rows.map(r => (
                         <tr key={r.key} className={`border-b border-gray-50 last:border-0 ${r.isCurrent ? 'bg-red-50/60' : ''}`}>
                           <td className="py-2 text-gray-700">
-                            <div>{r.isCurrent ? r.rate.toFixed(2) : r.rate.toFixed(1)}%</div>
+                            <div>{r.isCurrent || sim.step === 0.25 ? r.rate.toFixed(2) : r.rate.toFixed(1)}%</div>
                             {r.isCurrent && <div className="text-[10px] text-gray-400 leading-none mt-0.5">现价</div>}
                           </td>
                           <td className="py-2 text-right text-gray-700">{cs}{r.targetPrice.toFixed(2)}</td>
@@ -328,9 +330,25 @@ export default function Matrix() {
                   </table>
                   </div>
 
+                  {/* 步长：0.25% / 0.5%（默认 0.5%，档数不变） */}
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className="text-xs text-gray-500 shrink-0">步长</span>
+                    <div className="flex gap-1.5">
+                      {[0.5, 0.25].map(st => (
+                        <button
+                          key={st}
+                          onClick={() => setSimStrategy(code, { step: st })}
+                          className={`px-2.5 py-1 rounded-lg text-xs border ${sim.step === st ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}
+                        >
+                          {st}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* 延长：默认 3 档之后再给 3 档可选 */}
                   {sim.optionalRates.length > 0 && (
-                    <div className="flex items-center gap-2 mt-3">
+                    <div className="flex items-center gap-2 mt-2">
                       <span className="text-xs text-gray-500 shrink-0">延长</span>
                       <div className="flex gap-1.5">
                         {sim.optionalRates.map(o => (
@@ -339,7 +357,7 @@ export default function Matrix() {
                             onClick={() => setSimStrategy(code, { end: sim.extendTo === o ? 0 : o })}
                             className={`px-2.5 py-1 rounded-lg text-xs border ${sim.extendTo >= o && sim.extendTo > 0 ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-600'}`}
                           >
-                            {o.toFixed(1)}%
+                            {sim.step === 0.25 ? o.toFixed(2) : o.toFixed(1)}%
                           </button>
                         ))}
                       </div>
@@ -347,7 +365,7 @@ export default function Matrix() {
                   )}
 
                   <p className="text-xs text-gray-400 mt-3">
-                    首档为现价（现价股息率 ≥ {sim.base}% 时可当下买入，否则等跌到 {sim.base}%），之后每 0.5% 股息率为一档（目标价 = 每股红利 ÷ 股息率）；默认 3 档，可再延长 3 档。每档股数可改，仅用于推演，不含手续费、不影响真实持仓。
+                    首档为现价（现价股息率 ≥ {sim.base}% 时可当下买入，否则等跌到 {sim.base}%），之后每 {sim.step}% 股息率为一档（目标价 = 每股红利 ÷ 股息率）；默认 3 档，可再延长 3 档。每档股数可改，仅用于推演，不含手续费、不影响真实持仓。
                   </p>
                 </>
               )}
