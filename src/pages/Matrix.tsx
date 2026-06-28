@@ -14,6 +14,8 @@ const simBaseYield = (name: string) => (HYDRO.has(name) ? 4 : 5)
 // 档位股数键：无点形式（CloudBase NoSQL 会把键里的 "." 当嵌套路径，"6.0" 会被存坏）；
 // 去尾零保证 0.5 步长键与历史一致（6.0→6_0、5.5→5_5），0.25 步长则为 5_25
 const simKey = (rate: number) => rate.toFixed(2).replace(/0$/, '').replace('.', '_')
+// 金额简写：≥1万显示「X.X万」，否则千分位整数
+const fmtAmt = (a: number) => (a >= 10000 ? (a / 10000).toFixed(1) + '万' : Math.round(a).toLocaleString('en-US'))
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -291,7 +293,10 @@ export default function Matrix() {
                             <div className="text-[10px] text-gray-400 leading-none mt-0.5">成本</div>
                           </td>
                           <td className="py-2 text-right text-gray-700">{cs}{sim.cost.toFixed(2)}</td>
-                          <td className="py-2 text-right text-gray-400">{sim.shares}</td>
+                          <td className="py-2 text-right text-gray-400">
+                            <div>{sim.shares}</div>
+                            {sim.cost > 0 && <div className="text-[10px] leading-none mt-0.5">{cs}{fmtAmt(sim.shares * sim.cost)}</div>}
+                          </td>
                           <td className="py-2 text-right text-gray-700">{sim.shares}</td>
                           <td className="py-2 text-right font-semibold text-gray-900">{cs}{sim.cost.toFixed(2)}</td>
                           <td className="py-2 text-right text-gray-300">—</td>
@@ -312,6 +317,7 @@ export default function Matrix() {
                               onBlur={e => setStepShares(r.key, e.target.value, true)}
                               className="w-20 text-right border border-gray-200 rounded-md px-2 py-1 text-base focus:border-red-400 focus:outline-none"
                             />
+                            {r.stepShares > 0 && <div className="text-[10px] text-gray-400 leading-none mt-1">{cs}{fmtAmt(r.stepShares * r.targetPrice)}</div>}
                           </td>
                           <td className="py-2 text-right text-gray-700">{r.cumShares}</td>
                           <td className="py-2 text-right font-semibold text-gray-900">{cs}{r.avgCost.toFixed(2)}</td>
