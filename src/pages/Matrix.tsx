@@ -315,7 +315,7 @@ export default function Matrix() {
                               value={r.stepShares || ''}
                               onChange={e => setStepShares(r.key, e.target.value)}
                               onBlur={e => setStepShares(r.key, e.target.value, true)}
-                              className="w-20 text-right border border-gray-200 rounded-md px-2 py-1 text-base focus:border-red-400 focus:outline-none"
+                              className="w-16 text-right border border-gray-200 rounded-md px-1.5 py-1 text-base focus:border-red-400 focus:outline-none"
                             />
                             {r.stepShares > 0 && <div className="text-[10px] text-gray-400 leading-none mt-1">{cs}{fmtAmt(r.stepShares * r.targetPrice)}</div>}
                           </td>
