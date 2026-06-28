@@ -86,6 +86,18 @@ export default function Watchlist() {
     sessionStorage.setItem('watchlist-sector', s)
     setActiveSector(s)
   }
+  // 卡片折叠：记录已折叠的股票代码（localStorage 持久化，默认展开）
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('watchlist-collapsed') || '[]')) } catch { return new Set() }
+  })
+  const toggleCollapse = (code: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      next.has(code) ? next.delete(code) : next.add(code)
+      try { localStorage.setItem('watchlist-collapsed', JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }
   const [loading, setLoading] = useState(false)
   const [pricesLoaded, setPricesLoaded] = useState(() => watchlist.every(s => s.price > 0))
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
@@ -376,11 +388,12 @@ export default function Watchlist() {
               const costYield = costPriceCny && costPriceCny > 0 && stock.dividendPerShare > 0
                 ? (stock.dividendPerShare / Number(stock.costPrice)) * 100
                 : null
+              const isCollapsed = collapsed.has(stock.code)
               return (
                 <div key={stock.code} className="card overflow-hidden">
-                  {/* Main row */}
+                  {/* Main row（点击折叠/展开） */}
                   <div className="p-4">
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-3 cursor-pointer" onClick={() => toggleCollapse(stock.code)}>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900">{stock.name}</span>
@@ -401,17 +414,22 @@ export default function Watchlist() {
                           {stock.isUS && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * usdRate).toFixed(3)} CNY)</span>}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-gray-900">
-                          {stock.isUS ? '$' : '¥'}{stock.price.toFixed(2)}
-                          {stock.isHK && <span className="text-xs text-gray-400 ml-1">HKD</span>}
-                          {stock.isUS && <span className="text-xs text-gray-400 ml-1">USD</span>}
-                        </div>
-                        {stock.pctChg != null && (
-                          <div className={`text-xs ${stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}`}>
-                            {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="font-semibold text-gray-900">
+                            {stock.isUS ? '$' : '¥'}{stock.price.toFixed(2)}
+                            {stock.isHK && <span className="text-xs text-gray-400 ml-1">HKD</span>}
+                            {stock.isUS && <span className="text-xs text-gray-400 ml-1">USD</span>}
                           </div>
-                        )}
+                          {stock.pctChg != null && (
+                            <div className={`text-xs ${stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                              {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
+                            </div>
+                          )}
+                        </div>
+                        <svg className="w-4 h-4 text-gray-300 shrink-0" style={{ transform: isCollapsed ? 'rotate(-90deg)' : undefined, transition: 'transform .15s' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
                       </div>
                     </div>
 
@@ -456,6 +474,7 @@ export default function Watchlist() {
                       )}
                     </div>
 
+                    {!isCollapsed && (<>
                     {/* Holdings（只读，按买卖/分红记录算出，点「记录」编辑） */}
                     <div className="flex gap-3" onClick={() => navigate(`/holding/${stock.code}`)}>
                       <div className="flex-1">
@@ -532,9 +551,11 @@ export default function Watchlist() {
                         )}
                       </div>
                     )}
+                    </>)}
                   </div>
 
-                  {/* Actions */}
+                  {/* Actions（折叠时隐藏） */}
+                  {!isCollapsed && (
                   <div className="flex border-t border-gray-50">
                     <button
                       className="flex-1 py-2.5 text-xs text-gray-500 flex items-center justify-center gap-1"
@@ -566,6 +587,7 @@ export default function Watchlist() {
                       移除
                     </button>
                   </div>
+                  )}
                 </div>
               )
             })}
