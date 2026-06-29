@@ -20,6 +20,7 @@ export default function Portfolio() {
   const usdRate = useStore(s => s.usdRate)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
   const categoryOverrides = useStore(s => s.categoryOverrides)
+  const includeUsInStats = useStore(s => s.includeUsInStats)
   const activeAccountId = useStore(s => s.activeAccountId)
   const [chartType, setChartType] = useState<'div' | 'cost'>('div')
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock' | 'category'>('sector')
@@ -52,8 +53,8 @@ export default function Portfolio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAccountId])
   const holdings = useMemo(
-    () => watchlist.filter(s => s.shares && Number(s.shares) > 0),
-    [watchlist]
+    () => watchlist.filter(s => s.shares && Number(s.shares) > 0 && (includeUsInStats || !s.isUS)),
+    [watchlist, includeUsInStats]
   )
 
   const holdingsWithDisplay = useMemo(() => {

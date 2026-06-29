@@ -135,6 +135,9 @@ interface AppState {
   setUsdRate: (rate: number) => void
   agreementAccepted: boolean
   setAgreementAccepted: (v: boolean) => void
+  // 美股是否纳入收益页统计（默认纳入）
+  includeUsInStats: boolean
+  setIncludeUsInStats: (v: boolean) => void
 
   // 网格页偏好（纳入云同步）
   gridPrefs: GridPrefs
@@ -352,6 +355,8 @@ export const useStore = create<AppState>()(
       setUsdRate: (rate) => set({ usdRate: rate }),
       agreementAccepted: false,
       setAgreementAccepted: (v) => set({ agreementAccepted: v }),
+      includeUsInStats: true,
+      setIncludeUsInStats: (v) => set({ includeUsInStats: v }),
 
       // 网格页偏好
       gridPrefs: { ...DEFAULT_GRID_PREFS },
