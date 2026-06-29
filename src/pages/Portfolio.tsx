@@ -27,6 +27,8 @@ export default function Portfolio() {
   const [detail, setDetail] = useState<{ title: string; items: { name: string; value: number }[] } | null>(null)
   const [showPnl, setShowPnl] = useState(false)
   const [pnlDesc, setPnlDesc] = useState(true)
+  // 持仓市值 / 成本金额 明细弹窗（按美股 / AH股分组）
+  const [valueDetail, setValueDetail] = useState<'market' | 'cost' | null>(null)
 
   useEffect(() => {
     if (!watchlist.length) return
@@ -200,6 +202,36 @@ export default function Portfolio() {
     return arr
   }, [pnlDetail, pnlDesc])
 
+  // 持仓市值 / 成本金额 按美股 / AH股分组的明细
+  const valueDetailData = useMemo(() => {
+    if (!valueDetail) return null
+    const key = valueDetail // 'market' | 'cost'
+    const us: typeof pnlDetail = []
+    const ah: typeof pnlDetail = []
+    pnlDetail.forEach(d => {
+      const s = holdings.find(h => h.code === d.code)
+      ;(s?.isUS ? us : ah).push(d)
+    })
+    const groups = [
+      { label: '美股', items: us },
+      { label: 'AH股', items: ah },
+    ]
+      .map(g => ({
+        label: g.label,
+        items: [...g.items].sort((a, b) => b[key] - a[key]),
+        subtotal: g.items.reduce((sum, d) => sum + d[key], 0),
+      }))
+      .filter(g => g.items.length > 0)
+    const total = groups.reduce((sum, g) => sum + g.subtotal, 0)
+    return {
+      key,
+      groups,
+      total,
+      multi: groups.length > 1,
+      title: key === 'market' ? '持仓市值明细' : '成本金额明细',
+    }
+  }, [valueDetail, pnlDetail, holdings])
+
 
 
   return (
@@ -251,14 +283,20 @@ export default function Portfolio() {
                 <span className="text-gray-500">整体股息率</span>
                 <span className="font-medium text-red-600">{metrics.overallYield.toFixed(2)}%</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">持仓市值</span>
+              <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setValueDetail('market')}>
+                <span className="text-gray-500 flex items-center gap-0.5">
+                  持仓市值
+                  <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
                 <span className="font-medium text-red-600">¥{metrics.totalMarket.toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">成本金额</span>
+              </button>
+              <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setValueDetail('cost')}>
+                <span className="text-gray-500 flex items-center gap-0.5">
+                  成本金额
+                  <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
                 <span className="font-medium text-red-600">¥{metrics.totalCost.toFixed(0)}</span>
-              </div>
+              </button>
               {metrics.hasShSz && (
                 <>
                   <button
@@ -469,6 +507,50 @@ export default function Portfolio() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* 持仓市值 / 成本金额明细（美股 / AH股分组） */}
+      <Modal open={!!valueDetail} onClose={() => setValueDetail(null)} title={valueDetailData?.title}>
+        {valueDetailData && (valueDetailData.total <= 0 ? (
+          <div className="py-6 text-center text-sm text-gray-400">暂无持仓</div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-100 text-sm">
+              <span className="text-gray-400">合计</span>
+              <span className="font-bold text-gray-800">¥{valueDetailData.total.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            </div>
+            {valueDetailData.groups.map(g => (
+              <div key={g.label}>
+                {valueDetailData.multi && (
+                  <div className="flex items-center justify-between pt-3 pb-1 text-xs">
+                    <span className="font-semibold text-gray-500">{g.label}</span>
+                    <span className="text-gray-400">
+                      ¥{g.subtotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      <span className="ml-1.5">{((g.subtotal / valueDetailData.total) * 100).toFixed(1)}%</span>
+                    </span>
+                  </div>
+                )}
+                <div className="divide-y divide-gray-50">
+                  {g.items.map(d => {
+                    const v = d[valueDetailData.key]
+                    return (
+                      <div key={d.code} className="flex items-center justify-between py-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-800 truncate">{d.name}</div>
+                          <div className="text-xs text-gray-400">{d.code}</div>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-3">
+                          <div className="text-sm font-bold text-gray-800">¥{v.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                          <div className="text-xs text-gray-400">{((v / valueDetailData.total) * 100).toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </Modal>
       <Disclaimer />
     </div>
