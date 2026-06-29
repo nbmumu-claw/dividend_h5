@@ -8,8 +8,8 @@ import type { WatchlistStock } from '../types'
 
 const DISMISS_KEY = 'dividend-dismissed'
 const DAY = 86400000
-const WINDOW_AHEAD = 7   // 登记日前 7 天起提示
-const WINDOW_BACK = 0    // 下限：今天起（登记日已过的历史分红不再提示）
+const WINDOW_AHEAD = 1   // 登记日前 1 天起提示
+const WINDOW_BACK = 5    // 登记日后 5 天内仍提示
 
 export interface PendingDividend {
   code: string
