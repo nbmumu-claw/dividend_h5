@@ -10,3 +10,4 @@ playground/
 
 # mkcert
 localhost*.pem
+.backups/

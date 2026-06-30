@@ -1,4 +1,5 @@
 import { cbAuth, cbDb, USER_DATA_COLLECTION } from './cloudbase'
+import { pickLatest } from './dedup'
 import { useStore } from '../store'
 
 // 本地同步元信息：记录上次同步时间与云端文档 id（与登录账号无关，按设备存）
@@ -55,13 +56,32 @@ export async function getSession() {
 }
 
 interface CloudDoc { data: Backup; updatedAt: number; _id: string }
+
 async function loadFromCloud(): Promise<CloudDoc | null> {
-  const res = await cbDb.collection(USER_DATA_COLLECTION).get()
-  const doc = (res.data && res.data[0]) as { data: Backup; updatedAt?: number; _id: string } | undefined
-  return doc ? { data: doc.data, updatedAt: doc.updatedAt || 0, _id: doc._id } : null
+  // 历史竞态可能让同一用户存在多条文档：按 updatedAt 倒序取最新，避免读到旧快照
+  const res = await cbDb.collection(USER_DATA_COLLECTION).orderBy('updatedAt', 'desc').limit(100).get()
+  const all = (res.data || []) as Array<{ data: Backup; updatedAt?: number; _id: string }>
+  const { latest, stale } = pickLatest(all)
+  if (!latest) return null
+  // 读时自愈：删除冗余副本（部署前已整体备份；删除失败下次登录再清）
+  for (const d of stale) {
+    try { await cbDb.collection(USER_DATA_COLLECTION).doc(d._id).remove() } catch { /* 下次再清 */ }
+  }
+  return { data: latest.data, updatedAt: latest.updatedAt || 0, _id: latest._id }
 }
 
-async function saveToCloud(payload: Backup, updatedAt: number): Promise<string> {
+// 串行化所有云端保存：同一时刻只允许一个保存在跑，杜绝并发各自 add 造成重复文档（根因修复）
+let saveChain: Promise<unknown> = Promise.resolve()
+function saveToCloud(payload: Backup, updatedAt: number): Promise<string> {
+  const run = saveChain.then(
+    () => doSaveToCloud(payload, updatedAt),
+    () => doSaveToCloud(payload, updatedAt),
+  )
+  saveChain = run.catch(() => { /* 保持链路不因单次失败中断 */ })
+  return run
+}
+
+async function doSaveToCloud(payload: Backup, updatedAt: number): Promise<string> {
   const meta = loadMeta()
   if (meta.docId) {
     const r = await cbDb.collection(USER_DATA_COLLECTION).doc(meta.docId).update({ data: payload, updatedAt }) as { updated?: number }
