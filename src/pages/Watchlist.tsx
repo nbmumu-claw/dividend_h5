@@ -119,7 +119,7 @@ export default function Watchlist() {
   // 首次加载静默拉价格
   useEffect(() => {
     if (!watchlist.length) { setPricesLoaded(true); return }
-    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
+    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS, isFund: s.isFund }))
     fetchStockPrices(inputs, false).then(priceMap => {
       const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {
@@ -177,7 +177,7 @@ export default function Watchlist() {
     if (!watchlist.length) return
     setLoading(true)
     try {
-      const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
+      const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS, isFund: s.isFund }))
       const priceMap = await fetchStockPrices(inputs, true)
       const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {

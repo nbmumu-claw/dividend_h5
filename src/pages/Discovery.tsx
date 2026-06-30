@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { fetchStockPrices, searchStocks, searchStocksLocal } from '../utils/api'
+import { fetchStockPrices, searchStocks, searchStocksLocal, searchFunds } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import { predictSector, type Market } from '../utils/sectorPredictor'
 import { pickDividendForFill } from '../utils/dividendFill'
@@ -100,7 +100,7 @@ export default function Discovery() {
   const dragActions = useRef<HTMLElement | null>(null)
   const dragLocked = useRef<'h' | 'v' | null>(null)
 
-  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: false, confirmed: false })
+  const [form, setForm] = useState({ name: '', code: '', sector: activeSector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: false, isFund: false, confirmed: false })
   const [formErrors, setFormErrors] = useState<{ name?: boolean; code?: boolean; price?: boolean; dividendPerShare?: boolean }>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -126,7 +126,7 @@ export default function Discovery() {
   // 首次加载静默拉价格（含涨跌）
   useEffect(() => {
     if (!displayStocks.length) return
-    const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
+    const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS, isFund: s.isFund }))
     fetchStockPrices(stockInputs, false).then(priceMap => {
       displayStocks.forEach(s => {
         const pd = priceMap[s.code]
@@ -145,7 +145,7 @@ export default function Discovery() {
   const handleRefresh = async () => {
     setLoading(true)
     try {
-      const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
+      const stockInputs = displayStocks.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS, isFund: s.isFund }))
       const priceMap = await fetchStockPrices(stockInputs, true)
       const updated = displayStocks.map(s => {
         const pd = priceMap[s.code]
@@ -187,7 +187,7 @@ export default function Discovery() {
 
   const openAddForm = () => {
     const sector = activeSector || customSectors[0] || ''
-    setForm({ name: '', code: '', sector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: sector === '红利ETF', confirmed: false })
+    setForm({ name: '', code: '', sector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: sector === '红利ETF', isFund: false, confirmed: false })
     setEditStock(null)
     setShowAdd(true)
   }
@@ -203,6 +203,7 @@ export default function Discovery() {
       isHK: stock.isHK || false,
       isUS: stock.isUS || false,
       isETF: stock.isETF || false,
+      isFund: stock.isFund || false,
       confirmed: stock.confirmed,
     })
     setShowAdd(true)
@@ -217,12 +218,21 @@ export default function Discovery() {
     setSearchResults(local.slice(0, 6))
     setSearching(true)
     searchTimer.current = window.setTimeout(async () => {
-      const results = await searchStocks(q, true)
+      const [stockRes, fundRes] = await Promise.all([searchStocks(q, true), searchFunds(q)])
       if (activeQuery.current !== q) return // 查询已变，丢弃过期结果
       setSearchResults(prev => {
-        const existing = new Set(prev.map(r => r.code))
-        const newOnes = results.filter(r => !existing.has(r.code))
-        return [...prev, ...newOnes].slice(0, 6)
+        // 基金代码可能与股票代码重合，按 类型+代码 去重，避免 React key 冲突
+        const keyOf = (r: SearchResult) => (r.isFund ? 'f' : '') + r.code
+        const seen = new Set(prev.map(keyOf))
+        // 已出现的股票/ETF 代码：场内 ETF（如 510880）也会被基金接口收录，去掉重复的基金项
+        const stockCodes = new Set([...prev.filter(r => !r.isFund), ...stockRes].map(r => r.code))
+        const merged = [...prev]
+        for (const r of [...stockRes, ...fundRes]) {
+          if (r.isFund && stockCodes.has(r.code)) continue
+          const k = keyOf(r)
+          if (!seen.has(k)) { seen.add(k); merged.push(r) }
+        }
+        return merged.slice(0, 8)
       })
       setSearching(false)
     }, 500)
@@ -234,23 +244,23 @@ export default function Discovery() {
     const predicted = predictSector(r.name, r.code, mkt)
     setForm(f => ({
       ...f,
-      name: r.name, code: r.code, isHK: r.isHK, isUS: r.isUS || false,
+      name: r.name, code: r.code, isHK: r.isHK, isUS: r.isUS || false, isFund: r.isFund || false,
       price: '', dividendPerShare: '',
       sector: customSectors.includes(predicted) ? predicted : f.sector,
     }))
     setSearchQuery('')
     setSearchResults([])
 
-    // 自动拉现价
-    fetchStockPrices([{ code: r.code, isHK: r.isHK, isUS: r.isUS }], true).then(priceMap => {
+    // 自动拉现价（基金=最新净值）
+    fetchStockPrices([{ code: r.code, isHK: r.isHK, isUS: r.isUS, isFund: r.isFund }], true).then(priceMap => {
       const pd = priceMap[r.code]
       if (pd?.price) {
         setForm(f => f.code === r.code ? { ...f, price: String(pd.price) } : f)
       }
     })
 
-    // 自动拉每股红利（美股跨境数据源不稳定，跳过，由用户手填）
-    if (mkt !== 'US') {
+    // 自动拉每股红利（美股跨境数据源不稳定、场外基金分红口径不同，均跳过由用户手填）
+    if (mkt !== 'US' && !r.isFund) {
       fetchDividendHistory(r.code, r.isHK, false).then(h => {
         if (!h?.records?.length) return
         const guess = pickDividendForFill(h.records, mkt)
@@ -287,13 +297,13 @@ export default function Discovery() {
     if (editStock) {
       const isManualStock = manualStocks.find(m => m.code === editStock.code)
       if (isManualStock) {
-        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, isUS: form.isUS, isETF: form.isETF, yieldRate, confirmed: form.confirmed })
+        updateManualStock(editStock.code, { name: form.name, price, dividendPerShare: div, sector: form.sector, isHK: form.isHK, isUS: form.isUS, isETF: form.isETF, isFund: form.isFund, yieldRate, confirmed: form.confirmed })
       } else {
-        updateStaticEdit(editStock.code, { name: form.name, price, dividendPerShare: div, yieldRate, sector: form.sector, isETF: form.isETF, confirmed: form.confirmed })
+        updateStaticEdit(editStock.code, { name: form.name, price, dividendPerShare: div, yieldRate, sector: form.sector, isETF: form.isETF, isFund: form.isFund, confirmed: form.confirmed })
       }
       showToast('已保存')
     } else {
-      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: form.confirmed, isHK: form.isHK, isUS: form.isUS, isETF: form.isETF, isManual: true })
+      addManualStock({ code, name: form.name, sector: form.sector, price, dividendPerShare: div, yieldRate, confirmed: form.confirmed, isHK: form.isHK, isUS: form.isUS, isETF: form.isETF, isFund: form.isFund, isManual: true })
       showToast('已添加')
     }
     setShowAdd(false)
@@ -469,13 +479,14 @@ export default function Discovery() {
                         <span className="text-sm font-semibold text-gray-900">{stock.name}</span>
                         {stock.confirmed ? <span className="tag tag-blue">确认</span> : <span className="tag tag-gray">预估</span>}
                         {stock.isETF && <span className="tag tag-blue">ETF</span>}
+                        {stock.isFund && <span className="tag tag-blue">场外基金</span>}
                         {stock.isHK && <span className="tag tag-yellow">港股</span>}
                         {stock.isUS && <span className="tag tag-blue">美股</span>}
                         {isBShare(stock.code) && <span className="tag tag-yellow">B股</span>}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{stock.code}</span>
-                        <span>{stock.isETF ? '每份红利' : '每股红利'} {currencySymbol(stock)}{stock.dividendPerShare.toFixed(3)}</span>
+                        <span>{stock.isETF || stock.isFund ? '每份红利' : '每股红利'} {currencySymbol(stock)}{stock.dividendPerShare.toFixed(3)}</span>
                         {stock.pctChg != null && (
                           <span className={stock.pctChg >= 0 ? 'text-red-500' : 'text-green-600'}>
                             {stock.pctChg >= 0 ? '+' : ''}{stock.pctChg.toFixed(2)}%
@@ -485,9 +496,10 @@ export default function Discovery() {
                     </div>
                     <div className="flex flex-col items-end gap-1 ml-3">
                       <span className="text-sm font-semibold text-gray-900">
-                        {stock.isUS ? '$' : '¥'}{stock.isHK ? stock.price.toFixed(3) : stock.price.toFixed(2)}
+                        {stock.isUS ? '$' : '¥'}{stock.isHK || stock.isFund ? stock.price.toFixed(3) : stock.price.toFixed(2)}
                         {stock.isHK && <span className="text-xs text-gray-400 ml-1">HKD</span>}
                         {stock.isUS && <span className="text-xs text-gray-400 ml-1">USD</span>}
+                        {stock.isFund && <span className="text-xs text-gray-400 ml-1">净值</span>}
                       </span>
                       <YieldBadge rate={stock.yieldRate} />
                     </div>
@@ -531,13 +543,14 @@ export default function Discovery() {
                 <div className="absolute z-50 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden">
                   {searchResults.map(r => (
                     <button
-                      key={r.code}
+                      key={(r.isFund ? 'f' : '') + r.code}
                       className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 text-left"
                       onClick={() => selectSearchResult(r)}
                     >
                       <span className="text-sm font-medium text-gray-900">{r.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-400">{r.code}</span>
+                        {r.isFund && <span className="tag tag-blue">场外基金</span>}
                         {r.isHK && <span className="tag tag-yellow">港股</span>}
                         {r.isUS && <span className="tag tag-blue">美股</span>}
                         {isBShare(r.code) && <span className="tag tag-yellow">B股</span>}
@@ -593,6 +606,10 @@ export default function Discovery() {
           <div className="flex items-center gap-2">
             <input type="checkbox" id="isETF" checked={form.isETF} onChange={e => setForm(f => ({ ...f, isETF: e.target.checked }))} />
             <label htmlFor="isETF" className="text-sm text-gray-700">ETF 基金</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="isFund" checked={form.isFund} onChange={e => setForm(f => ({ ...f, isFund: e.target.checked, isHK: e.target.checked ? false : f.isHK, isUS: e.target.checked ? false : f.isUS }))} />
+            <label htmlFor="isFund" className="text-sm text-gray-700">场外基金（现价取每日净值）</label>
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="confirmed" checked={form.confirmed} onChange={e => setForm(f => ({ ...f, confirmed: e.target.checked }))} />

@@ -51,7 +51,7 @@ export default function HoldingDetail() {
   // 进页：刷新现价；老数据懒迁移成一笔买入
   useEffect(() => {
     if (!stock) return
-    fetchStockPrices([{ code: stock.code, isHK: stock.isHK, isUS: stock.isUS }], false)
+    fetchStockPrices([{ code: stock.code, isHK: stock.isHK, isUS: stock.isUS, isFund: stock.isFund }], false)
       .then(pm => {
         const pd = pm[stock.code]
         if (pd?.price) updateWatchlistStock(stock.code, { price: pd.price, pctChg: pd.pctChg })

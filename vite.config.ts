@@ -19,6 +19,23 @@ function addYfHeaders() {
   }
 }
 
+const FUND_HEADERS = {
+  'Referer': 'http://fund.eastmoney.com/',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+}
+
+function addFundHeaders() {
+  return {
+    configure: (proxy: import('http').Server) => {
+      (proxy as any).on('proxyReq', (proxyReq: import('http').ClientRequest) => {
+        for (const [k, v] of Object.entries(FUND_HEADERS)) {
+          proxyReq.setHeader(k, v)
+        }
+      })
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -89,6 +106,26 @@ export default defineConfig({
         target: 'https://datacenter-web.eastmoney.com',
         changeOrigin: true,
         rewrite: (path) => path.replace('/api/dividend-history', '/api/data/v1/get'),
+      },
+      '/api/fund-quote': {
+        target: 'https://api.fund.eastmoney.com',
+        changeOrigin: true,
+        ...addFundHeaders(),
+        rewrite: (path) => {
+          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+          const code = (new URLSearchParams(qs).get('code') || '').padStart(6, '0')
+          return `/f10/lsjz?fundCode=${code}&pageIndex=1&pageSize=1`
+        },
+      },
+      '/api/fund-search': {
+        target: 'https://fundsuggest.eastmoney.com',
+        changeOrigin: true,
+        ...addFundHeaders(),
+        rewrite: (path) => {
+          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+          const key = new URLSearchParams(qs).get('key') || ''
+          return `/FundSearch/api/FundSearchAPI.ashx?m=1&key=${encodeURIComponent(key)}`
+        },
       },
       '/api/hk-dividend': {
         target: 'https://query1.finance.yahoo.com',

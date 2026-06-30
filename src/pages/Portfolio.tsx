@@ -33,7 +33,7 @@ export default function Portfolio() {
 
   useEffect(() => {
     if (!watchlist.length) return
-    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS }))
+    const inputs = watchlist.map(s => ({ code: s.code, isHK: s.isHK, isUS: s.isUS, isFund: s.isFund }))
     fetchStockPrices(inputs, false).then(priceMap => {
       const updates: Record<string, Partial<WatchlistStock>> = {}
       watchlist.forEach(s => {

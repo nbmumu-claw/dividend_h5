@@ -64,6 +64,7 @@ export interface StockInput {
   code: string
   isHK?: boolean
   isUS?: boolean
+  isFund?: boolean
 }
 
 async function fetchTxPrices(stocks: StockInput[], forceRefresh: boolean): Promise<PriceMap> {
@@ -182,18 +183,53 @@ async function fetchYfPrices(stocks: StockInput[], forceRefresh: boolean): Promi
   }
 }
 
+// 场外基金净值：天天基金历史净值接口取最新一条（净值=现价、JZZZL=当日涨跌、FSRQ=净值日期）
+async function fetchFundPrices(stocks: StockInput[], forceRefresh: boolean): Promise<PriceMap> {
+  const result: PriceMap = {}
+  const toFetch: StockInput[] = []
+  for (const s of stocks) {
+    if (!forceRefresh) { const m = memGet(s.code); if (m) { result[s.code] = m.data; continue } }
+    toFetch.push(s)
+  }
+  if (!toFetch.length) return result
+
+  const fresh: PriceMap = {}
+  await Promise.all(toFetch.map(async s => {
+    try {
+      const res = await fetch(`/api/fund-quote?${new URLSearchParams({ code: s.code })}`)
+      const json = await res.json()
+      const row = json?.Data?.LSJZList?.[0]
+      const price = row ? parseFloat(row.DWJZ) : 0
+      if (!price || price <= 0) { fresh[s.code] = null; return }
+      const pct = parseFloat(row.JZZZL) || 0
+      const data = {
+        price,
+        preClose: pct ? price / (1 + pct / 100) : price,
+        pctChg: pct,
+        tradeDate: String(row.FSRQ || '').replace(/-/g, ''),
+        source: 'fund',
+      }
+      fresh[s.code] = data
+      memSet(s.code, data)
+    } catch { fresh[s.code] = null }
+  }))
+  return { ...result, ...fresh }
+}
+
 export async function fetchStockPrices(stocks: StockInput[], forceRefresh = false): Promise<PriceMap> {
   if (!stocks.length) return {}
 
   const usStocks = stocks.filter(s => s.isUS)
-  const otherStocks = stocks.filter(s => !s.isUS)
+  const fundStocks = stocks.filter(s => !s.isUS && s.isFund)
+  const otherStocks = stocks.filter(s => !s.isUS && !s.isFund)
 
-  const [txResult, yfResult] = await Promise.all([
+  const [txResult, yfResult, fundResult] = await Promise.all([
     otherStocks.length ? fetchTxPrices(otherStocks, forceRefresh) : Promise.resolve({}),
     usStocks.length ? fetchYfPrices(usStocks, forceRefresh) : Promise.resolve({}),
+    fundStocks.length ? fetchFundPrices(fundStocks, forceRefresh) : Promise.resolve({}),
   ])
 
-  return { ...txResult, ...yfResult }
+  return { ...txResult, ...yfResult, ...fundResult }
 }
 
 /** 后台预热缓存：拉取价格存入内存缓存，不返回数据。用于全局定时轮询，让页面间切换秒开。 */
@@ -246,6 +282,24 @@ export interface SearchResult {
   code: string
   isHK: boolean
   isUS?: boolean
+  isFund?: boolean
+}
+
+// 场外基金搜索：天天基金 fundsuggest
+// fundsuggest 返回混合类别：CATEGORY 100=沪市 200=港股 700=基金，只保留 700（真正的基金），
+// 否则会把同名股票（如「贵州茅台」）误标成场外基金。
+export async function searchFunds(keyword: string): Promise<SearchResult[]> {
+  try {
+    const res = await fetch(`/api/fund-search?${new URLSearchParams({ key: keyword })}`)
+    const json = await res.json()
+    const list: Array<{ CODE?: string; NAME?: string; CATEGORY?: number | string }> = json?.Datas || []
+    return list
+      .filter(d => d.CODE && d.NAME && Number(d.CATEGORY) === 700)
+      .slice(0, 6)
+      .map(d => ({ name: String(d.NAME), code: String(d.CODE).padStart(6, '0'), isHK: false, isFund: true }))
+  } catch {
+    return []
+  }
 }
 
 // Local search against STATIC_STOCKS — always available, no network

@@ -13,6 +13,7 @@ export interface Stock {
   isHK?: boolean
   isUS?: boolean
   isETF?: boolean
+  isFund?: boolean   // 场外开放式基金：现价取净值(NAV)，行情走天天基金接口
   isManual?: boolean
   priceCny?: number
   priceLabel?: string
