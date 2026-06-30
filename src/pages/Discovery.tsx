@@ -135,6 +135,8 @@ export default function Discovery() {
         const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
         const rawYield = priceCny > 0 ? (divCny / priceCny) * 100 : 0
         const yieldRate = rawYield > 30 ? s.yieldRate : rawYield
+        // 仅在值实际变化时写回，避免切板块时把相同数据重复写入 store（多余渲染/同步）
+        if (s.price === pd.price && (s.pctChg ?? null) === (pd.pctChg ?? null) && s.yieldRate === yieldRate) return
         const patch = { price: pd.price, pctChg: pd.pctChg, yieldRate }
         if (s.isManual) updateManualStock(s.code, patch)
         else updateStaticEdit(s.code, patch)

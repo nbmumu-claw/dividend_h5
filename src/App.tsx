@@ -1,24 +1,35 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import TabBar from './components/TabBar'
+import ErrorBoundary from './components/ErrorBoundary'
 import { fetchExchangeRate, fetchUsdRate } from './utils/api'
 import { useStore } from './store'
 import { getSession, syncOnLogin, startAutoPush } from './utils/cloudSync'
+// 落地页保持同步加载，避免首屏多一次分包等待
 import Discovery from './pages/Discovery'
-import Watchlist from './pages/Watchlist'
-import Portfolio from './pages/Portfolio'
-import Matrix from './pages/Matrix'
-import YieldGrid from './pages/YieldGrid'
-import Calendar from './pages/Calendar'
-import Settings from './pages/Settings'
-import DataGuide from './pages/DataGuide'
-import CategoryManager from './pages/CategoryManager'
-import HoldingDetail from './pages/HoldingDetail'
-import FeeSetting from './pages/FeeSetting'
-import AccountManager from './pages/AccountManager'
-import Support from './pages/Support'
-import Changelog from './pages/Changelog'
+// 其余页面懒加载（按路由分包，首屏不再下载图表库等重依赖）
+const Watchlist = lazy(() => import('./pages/Watchlist'))
+const Portfolio = lazy(() => import('./pages/Portfolio'))
+const Matrix = lazy(() => import('./pages/Matrix'))
+const YieldGrid = lazy(() => import('./pages/YieldGrid'))
+const Calendar = lazy(() => import('./pages/Calendar'))
+const Settings = lazy(() => import('./pages/Settings'))
+const DataGuide = lazy(() => import('./pages/DataGuide'))
+const CategoryManager = lazy(() => import('./pages/CategoryManager'))
+const HoldingDetail = lazy(() => import('./pages/HoldingDetail'))
+const FeeSetting = lazy(() => import('./pages/FeeSetting'))
+const AccountManager = lazy(() => import('./pages/AccountManager'))
+const Support = lazy(() => import('./pages/Support'))
+const Changelog = lazy(() => import('./pages/Changelog'))
+
+function PageLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <span className="inline-block w-6 h-6 border-2 border-gray-200 border-t-red-500 rounded-full animate-spin" />
+    </div>
+  )
+}
 
 export default function App() {
   const setExchangeRate = useStore(s => s.setExchangeRate)
@@ -49,23 +60,27 @@ export default function App() {
 
   return (
     <div className={`app-shell${hideTabBar ? ' app-shell--wide' : ''}${roomy ? ' app-shell--roomy' : ''}`}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/discovery" replace />} />
-        <Route path="/discovery" element={<Discovery />} />
-        <Route path="/watchlist" element={<Watchlist />} />
-        <Route path="/portfolio" element={<Portfolio />} />
-        <Route path="/matrix" element={<Matrix />} />
-        <Route path="/yield-grid" element={<YieldGrid />} />
-        <Route path="/calendar" element={<Calendar />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/data-guide" element={<DataGuide />} />
-        <Route path="/category-manager" element={<CategoryManager />} />
-        <Route path="/holding/:code" element={<HoldingDetail />} />
-        <Route path="/fee-setting" element={<FeeSetting />} />
-        <Route path="/account-manager" element={<AccountManager />} />
-        <Route path="/support" element={<Support />} />
-        <Route path="/changelog" element={<Changelog />} />
-      </Routes>
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/discovery" replace />} />
+            <Route path="/discovery" element={<Discovery />} />
+            <Route path="/watchlist" element={<Watchlist />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/matrix" element={<Matrix />} />
+            <Route path="/yield-grid" element={<YieldGrid />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/data-guide" element={<DataGuide />} />
+            <Route path="/category-manager" element={<CategoryManager />} />
+            <Route path="/holding/:code" element={<HoldingDetail />} />
+            <Route path="/fee-setting" element={<FeeSetting />} />
+            <Route path="/account-manager" element={<AccountManager />} />
+            <Route path="/support" element={<Support />} />
+            <Route path="/changelog" element={<Changelog />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
       {!hideTabBar && <TabBar />}
       <Analytics
         beforeSend={(event) => {
