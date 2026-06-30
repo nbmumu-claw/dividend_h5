@@ -25,7 +25,7 @@ export type FeeCalc = (type: 'buy' | 'sell', amount: number) => number
 /** 构造单笔费用计算器；未启用或港股/美股返回 null（不计费） */
 export function makeFeeCalc(stock: WatchlistStock, config: FeeConfig): FeeCalc | null {
   if (!config.enabled) return null
-  if (stock.isHK || stock.isUS) return null
+  if (stock.isHK || stock.isUS || stock.isFund) return null // 场外基金为申购/赎回，不走 A 股佣金/印花税模型
   return (type, amount) => {
     if (amount <= 0) return 0 // 负成本/异常不计费
     let commission = amount * config.commissionRate

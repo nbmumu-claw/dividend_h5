@@ -485,7 +485,7 @@ export default function Discovery() {
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-sm font-semibold text-gray-900">{stock.name}</span>
                         {stock.confirmed ? <span className="tag tag-blue">确认</span> : <span className="tag tag-gray">预估</span>}
-                        {stock.isETF && <span className="tag tag-blue">ETF</span>}
+                        {stock.isETF && <span className="tag tag-blue">场内基金</span>}
                         {stock.isFund && <span className="tag tag-blue">场外基金</span>}
                         {stock.isHK && <span className="tag tag-yellow">港股</span>}
                         {stock.isUS && <span className="tag tag-blue">美股</span>}
@@ -604,7 +604,7 @@ export default function Discovery() {
                 请确认
               </span>
             </label>
-            <select className="input-field border-red-300 bg-red-50/40 font-medium" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value, isETF: e.target.value === '红利ETF' ? true : f.isETF }))}>
+            <select className="input-field border-red-300 bg-red-50/40 font-medium" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value, isETF: e.target.value === '红利ETF' ? true : f.isETF, isFund: e.target.value === '红利ETF' ? false : f.isFund }))}>
               {customSectors.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -617,12 +617,12 @@ export default function Discovery() {
             <label htmlFor="isUS" className="text-sm text-gray-700">美股（价格单位：USD）</label>
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="isETF" checked={form.isETF} onChange={e => setForm(f => ({ ...f, isETF: e.target.checked }))} />
-            <label htmlFor="isETF" className="text-sm text-gray-700">ETF 基金</label>
+            <input type="checkbox" id="isETF" checked={form.isETF} onChange={e => setForm(f => ({ ...f, isETF: e.target.checked, isFund: e.target.checked ? false : f.isFund }))} />
+            <label htmlFor="isETF" className="text-sm text-gray-700">场内基金（ETF / LOF，实时价）</label>
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="isFund" checked={form.isFund} onChange={e => setForm(f => ({ ...f, isFund: e.target.checked, isHK: e.target.checked ? false : f.isHK, isUS: e.target.checked ? false : f.isUS }))} />
-            <label htmlFor="isFund" className="text-sm text-gray-700">场外基金（现价取每日净值）</label>
+            <input type="checkbox" id="isFund" checked={form.isFund} onChange={e => setForm(f => ({ ...f, isFund: e.target.checked, isETF: e.target.checked ? false : f.isETF, isHK: e.target.checked ? false : f.isHK, isUS: e.target.checked ? false : f.isUS }))} />
+            <label htmlFor="isFund" className="text-sm text-gray-700">场外基金（取每日净值）</label>
           </div>
           <div className="flex items-center gap-2">
             <input type="checkbox" id="confirmed" checked={form.confirmed} onChange={e => setForm(f => ({ ...f, confirmed: e.target.checked }))} />

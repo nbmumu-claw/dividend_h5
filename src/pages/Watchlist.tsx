@@ -143,7 +143,7 @@ export default function Watchlist() {
 
   // 首次加载企业性质（仅A股非ETF），切账户后重新加载
   useEffect(() => {
-    const aShares = watchlist.filter(s => !s.isHK && !s.isUS && !s.isETF && !isBShare(s.code))
+    const aShares = watchlist.filter(s => !s.isHK && !s.isUS && !s.isETF && !s.isFund && !isBShare(s.code))
     if (!aShares.length) return
     Promise.all(aShares.map(s => fetchOwnerType(s.code).then(t => [s.code, t] as [string, string])))
       .then(results => setOwnerTypes(Object.fromEntries(results)))
@@ -398,18 +398,19 @@ export default function Watchlist() {
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900">{stock.name}</span>
                           <span className="text-xs text-gray-400">{stock.code}</span>
-                          {stock.isETF && <span className="tag tag-blue">ETF</span>}
+                          {stock.isETF && <span className="tag tag-blue">场内基金</span>}
+                          {stock.isFund && <span className="tag tag-blue">场外基金</span>}
                           {stock.isHK && <span className="tag tag-yellow">港股</span>}
                           {stock.isUS && <span className="tag tag-blue">美股</span>}
                           {isBShare(stock.code) && <span className="tag tag-yellow">B股</span>}
-                          {!stock.isHK && !stock.isUS && !isBShare(stock.code) && !stock.isETF && ownerTypes[stock.code] && ownerTypes[stock.code] !== '未知' && (
+                          {!stock.isHK && !stock.isUS && !isBShare(stock.code) && !stock.isETF && !stock.isFund && ownerTypes[stock.code] && ownerTypes[stock.code] !== '未知' && (
                             <span className={`tag ${ownerTypes[stock.code] === '央企' ? 'tag-blue' : ownerTypes[stock.code] === '地方国企' ? 'tag-yellow' : 'tag-gray'}`}>
                               {ownerTypes[stock.code]}
                             </span>
                           )}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          {stock.isETF ? '每份红利' : '每股红利'} {currencySymbol(stock)}{stock.dividendPerShare.toFixed(3)}
+                          {stock.isETF || stock.isFund ? '每份红利' : '每股红利'} {currencySymbol(stock)}{stock.dividendPerShare.toFixed(3)}
                           {stock.isHK && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * exchangeRate).toFixed(3)} CNY)</span>}
                           {stock.isUS && <span className="ml-1 text-gray-400">(≈¥{(stock.dividendPerShare * usdRate).toFixed(3)} CNY)</span>}
                         </div>
