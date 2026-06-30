@@ -189,7 +189,7 @@ export default function Discovery() {
 
   const openAddForm = () => {
     const sector = activeSector || customSectors[0] || ''
-    setForm({ name: '', code: '', sector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: sector === '红利ETF', isFund: false, confirmed: false })
+    setForm({ name: '', code: '', sector, price: '', dividendPerShare: '', isHK: false, isUS: false, isETF: sector === '红利基金', isFund: false, confirmed: false })
     setEditStock(null)
     setShowAdd(true)
   }
@@ -604,7 +604,7 @@ export default function Discovery() {
                 请确认
               </span>
             </label>
-            <select className="input-field border-red-300 bg-red-50/40 font-medium" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value, isETF: e.target.value === '红利ETF' ? true : f.isETF, isFund: e.target.value === '红利ETF' ? false : f.isFund }))}>
+            <select className="input-field border-red-300 bg-red-50/40 font-medium" value={form.sector} onChange={e => setForm(f => ({ ...f, sector: e.target.value, isETF: e.target.value === '红利基金' ? true : f.isETF, isFund: e.target.value === '红利基金' ? false : f.isFund }))}>
               {customSectors.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>

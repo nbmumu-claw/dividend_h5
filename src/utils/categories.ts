@@ -62,7 +62,7 @@ export function isIncluded(stock: StockLike | undefined | null): boolean {
   if (!stock) return false
   if (stock.isUS) return false
   const sector = (stock.sector || '').trim()
-  if (sector === 'ETF' || sector === '红利ETF' || sector === '美股指数' || sector === '美股') return false
+  if (sector === 'ETF' || sector === '红利ETF' || sector === '红利基金' || sector === '美股指数' || sector === '美股') return false
   return true
 }
 

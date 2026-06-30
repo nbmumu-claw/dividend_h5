@@ -4,6 +4,7 @@ import type { Stock, WatchlistStock } from '../types'
 import { DEFAULT_SECTORS, STATIC_STOCKS } from '../data/stocks'
 import { applyHolding, ensureTransactions, type Transaction } from '../utils/holdings'
 import { makeFeeCalc, DEFAULT_FEE_CONFIG, type FeeConfig } from '../utils/fees'
+import { migrateRedFundSector, NEW_RED_SECTOR } from '../utils/sectorMigrate'
 
 // 网格页偏好（纳入账号体系，跟随云同步）
 export interface GridPrefs {
@@ -389,6 +390,9 @@ export const useStore = create<AppState>()(
           simStrategy?: Record<string, { end: number; shares: Record<string, number>; step?: number }>
         }
 
+        // 板块「红利ETF」→「红利基金」：云端/旧备份数据进来时一并改名（与 migrate 同步，防止云端旧名覆盖回去）
+        migrateRedFundSector(d as Record<string, unknown>)
+
         // 账户：新格式 data.accounts；否则旧格式单账户落到默认账户
         let accounts: { id: string; name: string }[]
         let activeAccountId: string
@@ -446,14 +450,16 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 7,
+      version: 8,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[]; accounts?: unknown }
-        if (s?.customSectors && !s.customSectors.includes('红利ETF')) {
+        // v8：板块「红利ETF」→「红利基金」（板块名 + 各处 stock.sector 一并改，幂等）。先改名再做下方补板块逻辑
+        migrateRedFundSector(s as Record<string, unknown>)
+        if (s?.customSectors && !s.customSectors.includes(NEW_RED_SECTOR)) {
           const sectors = [...s.customSectors]
           const othersIdx = sectors.indexOf('其他')
-          if (othersIdx >= 0) sectors.splice(othersIdx, 0, '红利ETF')
-          else sectors.push('红利ETF')
+          if (othersIdx >= 0) sectors.splice(othersIdx, 0, NEW_RED_SECTOR)
+          else sectors.push(NEW_RED_SECTOR)
           s.customSectors = sectors
         }
         if (s?.customSectors && !s.customSectors.includes('美股')) {
