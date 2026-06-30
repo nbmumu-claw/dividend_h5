@@ -57,7 +57,7 @@ export async function getSession() {
 
 interface CloudDoc { data: Backup; updatedAt: number; _id: string }
 
-async function loadFromCloud(): Promise<CloudDoc | null> {
+export async function loadFromCloud(): Promise<CloudDoc | null> {
   // 历史竞态可能让同一用户存在多条文档：按 updatedAt 倒序取最新，避免读到旧快照
   const res = await cbDb.collection(USER_DATA_COLLECTION).orderBy('updatedAt', 'desc').limit(100).get()
   const all = (res.data || []) as Array<{ data: Backup; updatedAt?: number; _id: string }>
@@ -72,7 +72,7 @@ async function loadFromCloud(): Promise<CloudDoc | null> {
 
 // 串行化所有云端保存：同一时刻只允许一个保存在跑，杜绝并发各自 add 造成重复文档（根因修复）
 let saveChain: Promise<unknown> = Promise.resolve()
-function saveToCloud(payload: Backup, updatedAt: number): Promise<string> {
+export function saveToCloud(payload: Backup, updatedAt: number): Promise<string> {
   const run = saveChain.then(
     () => doSaveToCloud(payload, updatedAt),
     () => doSaveToCloud(payload, updatedAt),
