@@ -244,9 +244,12 @@ export default function Discovery() {
     const mkt: Market = r.isUS ? 'US' : r.isHK ? 'HK' : 'A'
     // 自动定位板块：按名称/市场预判；预判板块不在当前板块列表时保留原选择
     const predicted = predictSector(r.name, r.code, mkt)
+    // 场内基金(ETF/LOF)按名称识别 → 自动勾「场内基金」；场外基金来自基金搜索(r.isFund)已知
+    const isOnExchangeFund = !r.isFund && !r.isHK && !r.isUS && /ETF|LOF/i.test(r.name)
     setForm(f => ({
       ...f,
       name: r.name, code: r.code, isHK: r.isHK, isUS: r.isUS || false, isFund: r.isFund || false,
+      isETF: isOnExchangeFund,
       price: '', dividendPerShare: '',
       sector: customSectors.includes(predicted) ? predicted : f.sector,
     }))
