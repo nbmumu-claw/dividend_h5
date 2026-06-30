@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { fetchStockPrices, searchStocks, searchStocksLocal, searchFunds } from '../utils/api'
+import { fetchStockPrices, searchStocks, searchStocksLocal, searchFunds, fetchFundDividend, annualFundDividend } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import { predictSector, type Market } from '../utils/sectorPredictor'
 import { pickDividendForFill } from '../utils/dividendFill'
@@ -261,14 +261,19 @@ export default function Discovery() {
       }
     })
 
-    // 自动拉每股红利（美股跨境数据源不稳定、场外基金分红口径不同，均跳过由用户手填）
-    if (mkt !== 'US' && !r.isFund) {
-      fetchDividendHistory(r.code, r.isHK, false).then(h => {
-        if (!h?.records?.length) return
-        const guess = pickDividendForFill(h.records, mkt)
-        if (guess > 0) {
-          setForm(f => f.code === r.code && !f.dividendPerShare ? { ...f, dividendPerShare: String(Number(guess.toFixed(3))) } : f)
-        }
+    const fillDiv = (v: number, digits: number) => {
+      if (v > 0) setForm(f => f.code === r.code && !f.dividendPerShare ? { ...f, dividendPerShare: String(Number(v.toFixed(digits))) } : f)
+    }
+    // 自动拉每股红利
+    if (r.isFund) {
+      // 场外基金：用基金分红源（近 12 月派现求和）
+      fetchFundDividend(r.code).then(evs => fillDiv(annualFundDividend(evs), 4)).catch(() => {})
+    } else if (mkt !== 'US') {
+      fetchDividendHistory(r.code, r.isHK, false).then(async h => {
+        const guess = h?.records?.length ? pickDividendForFill(h.records, mkt) : 0
+        if (guess > 0) { fillDiv(guess, 3); return }
+        // 股票分红源为空且是 A 股代码（多为场内 ETF/LOF）→ 退回基金分红源
+        if (!r.isHK) fillDiv(annualFundDividend(await fetchFundDividend(r.code)), 4)
       }).catch(() => {})
     }
   }
@@ -580,7 +585,13 @@ export default function Discovery() {
               {formErrors.price && <p className="text-xs text-red-500 mt-1">请输入价格</p>}
             </div>
             <div className="flex-1">
-              <label className="text-xs text-gray-500 mb-1 block">每股红利</label>
+              <label className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                每股红利
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                  <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  请核对
+                </span>
+              </label>
               <input className={`input-field ${formErrors.dividendPerShare ? 'border-red-400 bg-red-50' : ''}`} type="number" placeholder="0.000" value={form.dividendPerShare} onChange={e => { setForm(f => ({ ...f, dividendPerShare: e.target.value })); setFormErrors(fe => ({ ...fe, dividendPerShare: false })) }} />
               {formErrors.dividendPerShare && <p className="text-xs text-red-500 mt-1">请输入红利</p>}
             </div>

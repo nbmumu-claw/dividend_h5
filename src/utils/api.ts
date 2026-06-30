@@ -285,6 +285,41 @@ export interface SearchResult {
   isFund?: boolean
 }
 
+// 基金分红（场内 ETF / 场外开放式基金通用）：解析 f10 分红送配页的「权益登记日 + 每份派现金」
+export async function fetchFundDividend(code: string): Promise<{ recordDate: string; perShare: number }[]> {
+  try {
+    const res = await fetch(`/api/fund-dividend?${new URLSearchParams({ code })}`)
+    const html = await res.text()
+    const out: { recordDate: string; perShare: number }[] = []
+    // 行结构：<td>年份</td><td>权益登记日</td><td>除息日</td><td>每份派现金X元</td><td>发放日</td>
+    const re = /<td>(\d{4}-\d{2}-\d{2})<\/td><td>\d{4}-\d{2}-\d{2}<\/td><td>每份派现金([\d.]+)元<\/td>/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html))) {
+      const perShare = parseFloat(m[2])
+      if (perShare > 0) out.push({ recordDate: m[1], perShare })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+// 由分红记录推算「年度每份红利」：取近 12 个月派现求和；一年内无派现则退回最近一次
+export function annualFundDividend(events: { recordDate: string; perShare: number }[]): number {
+  if (!events.length) return 0
+  const now = Date.now()
+  const yearAgo = now - 365 * 24 * 60 * 60 * 1000
+  const within = events.filter(e => {
+    const t = new Date(e.recordDate + 'T00:00:00').getTime()
+    return t <= now && t >= yearAgo
+  })
+  if (within.length) return within.reduce((s, e) => s + e.perShare, 0)
+  const past = events
+    .filter(e => new Date(e.recordDate + 'T00:00:00').getTime() <= now)
+    .sort((a, b) => b.recordDate.localeCompare(a.recordDate))
+  return past.length ? past[0].perShare : 0
+}
+
 // 场外基金搜索：天天基金 fundsuggest
 // fundsuggest 返回混合类别：CATEGORY 100=沪市 200=港股 700=基金，只保留 700（真正的基金），
 // 否则会把同名股票（如「贵州茅台」）误标成场外基金。

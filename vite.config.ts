@@ -127,6 +127,16 @@ export default defineConfig({
           return `/FundSearch/api/FundSearchAPI.ashx?m=1&key=${encodeURIComponent(key)}`
         },
       },
+      '/api/fund-dividend': {
+        target: 'http://fundf10.eastmoney.com',
+        changeOrigin: true,
+        ...addFundHeaders(),
+        rewrite: (path) => {
+          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
+          const code = (new URLSearchParams(qs).get('code') || '').padStart(6, '0')
+          return `/fhsp_${code}.html`
+        },
+      },
       '/api/hk-dividend': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,
