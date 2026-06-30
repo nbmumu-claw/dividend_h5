@@ -502,6 +502,15 @@ export default function YieldGrid() {
     .map(g => (active === FAV ? { sector: g.sector, items: g.items.filter(r => favs.has(r.code)) } : g))
     .filter(g => (active === ALL || active === FAV || g.sector === active) && g.items.length > 0)
 
+  // 一键折叠/展开当前 tab 下所有可见板块（沿用 collapsed 的按 tab 持久化）
+  const visibleSectors = visible.map(g => g.sector)
+  const allCollapsed = visibleSectors.length > 0 && visibleSectors.every(s => collapsed.has(s))
+  const toggleAllCollapse = () => {
+    const map = { ...(gp().collapsed ?? {}) }
+    map[active] = allCollapsed ? [] : [...visibleSectors]
+    saveGp({ collapsed: map })
+  }
+
   return (
     <div className={`yg-page${isMobile ? ' mobile' : ''}`}>
       <style>{CSS}</style>
@@ -557,6 +566,11 @@ export default function YieldGrid() {
               </button>
             ))}
             {stockOrder.length > 0 && <button className="chip clear" onClick={clearStockOrder}>清除手排</button>}
+            {visible.length >= 2 && (
+              <button className="chip foldall" onClick={toggleAllCollapse}>
+                {allCollapsed ? '全部展开' : '全部折叠'}
+              </button>
+            )}
           </div>
         )}
         {editOrder && <div className="state edit-tip">编辑模式：板块 ↑↓ 调顺序；标的 ↑↓ 手动置顶（手排后该板块按你排的固定，其余按上方排序）；✕ 删除（默认标的可在「添加标的」里恢复）</div>}
@@ -916,6 +930,7 @@ const CSS = `
 .yg-page .sortbar .lbl { font-size: 12.5px; color: #9ca3af; margin-right: 2px; }
 .yg-page .sortbar .chip { padding: 4px 11px; font-size: 12.5px; }
 .yg-page .sortbar .chip.clear { color: #dc2626; border-color: #fecaca; }
+.yg-page .sortbar .chip.foldall { margin-left: auto; color: #374151; }
 .yg-page .yg-footer { display: flex; align-items: center; margin: 10px 0 28px;
   background: #fff; border-radius: 14px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .yg-page .ft-left { display: flex; align-items: center; gap: 10px; }
