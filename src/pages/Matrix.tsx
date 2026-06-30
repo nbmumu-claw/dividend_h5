@@ -3,11 +3,32 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import Disclaimer from '../components/Disclaimer'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import type { DividendHistory } from '../utils/dividendHistory'
+import { fetchFundDividend } from '../utils/api'
 import { fetchListingYear } from '../utils/listingDate'
 import { isBShare } from '../utils/market'
 import { useStore } from '../store'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
+
+// 基金（场内 ETF / 场外）分红事件 → 历史分红结构（按年份汇总倒序，算连续派息年数）
+function fundEventsToHistory(events: { recordDate: string; perShare: number }[]): DividendHistory {
+  const byYear: Record<number, number> = {}
+  for (const e of events) {
+    const y = parseInt(e.recordDate.slice(0, 4))
+    if (!y) continue
+    byYear[y] = parseFloat(((byYear[y] || 0) + e.perShare).toFixed(4))
+  }
+  const records = Object.entries(byYear)
+    .map(([y, v]) => ({ year: parseInt(y), perShare: v }))
+    .sort((a, b) => b.year - a.year)
+    .slice(0, 10)
+  let consecutiveYears = 0
+  for (let i = 0; i < records.length; i++) {
+    if (i === 0 || records[i].year === records[i - 1].year - 1) consecutiveYears++
+    else break
+  }
+  return { records, consecutiveYears }
+}
 // 水电（低息、估值另算）起步门槛 4%，其余 5%（与网格页 YieldGrid 的 HYDRO 一致）
 const HYDRO = new Set(['国投电力', '长江电力'])
 const simBaseYield = (name: string) => (HYDRO.has(name) ? 4 : 5)
@@ -68,8 +89,14 @@ export default function Matrix() {
     Promise.all([
       fetchDividendHistory(code, isHK, isUS),
       (isHK || isUS) ? Promise.resolve(null) : fetchListingYear(code),
-    ]).then(([h, y]) => {
-      setDivHistory(h)
+    ]).then(async ([h, y]) => {
+      let hist = h
+      // 股票分红源为空且为 A 股代码（场内 ETF / 场外基金）→ 退回基金分红源
+      if ((!hist || !hist.records.length) && !isHK && !isUS) {
+        const evs = await fetchFundDividend(code).catch(() => [])
+        if (evs.length) hist = fundEventsToHistory(evs)
+      }
+      setDivHistory(hist)
       setListingYear(y)
       setHistoryLoading(false)
     })
