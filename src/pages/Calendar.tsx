@@ -6,8 +6,15 @@ import type { DividendEvent } from '../utils/dividendCalendar'
 import { afterTax, toCNY } from '../utils/tax'
 import type { WatchlistStock } from '../types'
 import { toCnyPrice, currencySymbol } from '../utils/market'
+import { ensureTransactions, sharesAsOf } from '../utils/holdings'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
+
+// 股权登记日当天 12:00 的时间戳：分红股数按「登记日当时持仓」算（与持仓详情/到期提示一致）
+const recordTs = (recordDate: string) => new Date(recordDate + 'T12:00:00').getTime()
+// 登记日当时的持仓股数（只数登记日之前的买卖，跳过分红）
+const sharesAtRecord = (stock: WatchlistStock | undefined, recordDate: string) =>
+  stock ? sharesAsOf(ensureTransactions(stock), recordTs(recordDate)) : 0
 
 function formatYM(year: number, month: number) {
   return `${year}年${month}月`
@@ -122,9 +129,10 @@ export default function Calendar() {
       if (parseInt(e.recordDate.slice(0, 4)) !== year) continue
       const evMonth = parseInt(e.recordDate.slice(5, 7)) - 1
       const stock = watchlist.find(s => s.code === e.code)
-      if (!stock?.shares) continue
-      const gross = e.perShare * stock.shares
-      const net = afterTax(gross, stock)
+      const qty = sharesAtRecord(stock, e.recordDate)
+      if (qty <= 0) continue
+      const gross = e.perShare * qty
+      const net = afterTax(gross, stock!)
       const cny = toCnyPrice(net, e, exchangeRate, usdRate)
       months[evMonth] += cny
     }
@@ -135,9 +143,10 @@ export default function Calendar() {
   const monthTotal = useMemo(() => {
     return monthEvents.reduce((sum, e) => {
       const stock = watchlist.find(s => s.code === e.code)
-      if (!stock?.shares) return sum
-      const gross = e.perShare * stock.shares
-      const net = afterTax(gross, stock)
+      const qty = sharesAtRecord(stock, e.recordDate)
+      if (qty <= 0) return sum
+      const gross = e.perShare * qty
+      const net = afterTax(gross, stock!)
       return sum + toCnyPrice(net, e, exchangeRate, usdRate)
     }, 0)
   }, [monthEvents, watchlist, exchangeRate])
@@ -410,8 +419,9 @@ export default function Calendar() {
                   <div className="space-y-3">
                     {events.map(e => {
                       const stock = watchlist.find(s => s.code === e.code)
-                      const hasShares = stock?.shares && stock.shares > 0
-                      const grossTotal = hasShares ? e.perShare * stock!.shares! : 0
+                      const qtyAsOf = sharesAtRecord(stock, e.recordDate)
+                      const hasShares = qtyAsOf > 0
+                      const grossTotal = hasShares ? e.perShare * qtyAsOf : 0
                       const netTotal = hasShares ? afterTax(grossTotal, stock!) : 0
                       const netCNY = hasShares ? toCnyPrice(netTotal, e, exchangeRate, usdRate) : 0
 
@@ -445,7 +455,7 @@ export default function Calendar() {
                                 : `每股 ${currencySymbol(e)}${e.perShare.toFixed(3)}`
                               }
                               {hasShares && (
-                                <span className="ml-1">× {stock!.shares}股</span>
+                                <span className="ml-1">× {qtyAsOf}股</span>
                               )}
                             </div>
                           </div>
