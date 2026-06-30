@@ -15,6 +15,13 @@ const recordTs = (recordDate: string) => new Date(recordDate + 'T12:00:00').getT
 // 登记日当时的持仓股数（只数登记日之前的买卖，跳过分红）
 const sharesAtRecord = (stock: WatchlistStock | undefined, recordDate: string) =>
   stock ? sharesAsOf(ensureTransactions(stock), recordTs(recordDate)) : 0
+// 该登记日的分红是否已录入持仓（登记日 ±7 天内存在 dividend 交易，与到期提示口径一致）
+const DAY_MS = 86400000
+const isDividendRecorded = (stock: WatchlistStock | undefined, recordDate: string) => {
+  if (!stock) return false
+  const rt = recordTs(recordDate)
+  return ensureTransactions(stock).some(t => t.type === 'dividend' && Math.abs((t.ts || 0) - rt) <= 7 * DAY_MS)
+}
 
 function formatYM(year: number, month: number) {
   return `${year}年${month}月`
@@ -424,6 +431,9 @@ export default function Calendar() {
                       const grossTotal = hasShares ? e.perShare * qtyAsOf : 0
                       const netTotal = hasShares ? afterTax(grossTotal, stock!) : 0
                       const netCNY = hasShares ? toCnyPrice(netTotal, e, exchangeRate, usdRate) : 0
+                      // 已过登记日且持有过的，标注是否已录入分红
+                      const isPast = recordTs(e.recordDate) <= Date.now()
+                      const recorded = isDividendRecorded(stock, e.recordDate)
 
                       return (
                         <div key={`${e.code}-${e.recordDate}`} className="flex items-start gap-3">
@@ -439,6 +449,11 @@ export default function Calendar() {
                                   ? <span className="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 leading-none">确认</span>
                                   : <span className="text-xs bg-yellow-100 text-yellow-700 rounded px-1.5 py-0.5 leading-none">预计</span>
                                 }
+                                {hasShares && isPast && (
+                                  recorded
+                                    ? <span className="text-xs bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 leading-none">已记录</span>
+                                    : <span className="text-xs bg-orange-50 text-orange-500 rounded px-1.5 py-0.5 leading-none">未记录</span>
+                                )}
                               </div>
                               {hasShares && (
                                 <div className="text-right shrink-0">
