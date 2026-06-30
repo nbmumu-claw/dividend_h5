@@ -304,16 +304,23 @@ export async function fetchFundDividend(code: string): Promise<{ recordDate: str
   }
 }
 
-// 由分红记录推算「年度每份红利」：取近 12 个月派现求和；一年内无派现则退回最近一次
+// 全站「N 年度股息」参考年份（与发现页/网格的 25 年度口径一致；换年份时改这里）
+const DIVIDEND_REF_YEAR = 2025
+// 由分红记录推算「年度每份红利」：优先取参考年度(2025)全年派现之和；
+// 该年无派现再退回近 12 个月求和；仍无则退回最近一次。
 export function annualFundDividend(events: { recordDate: string; perShare: number }[]): number {
   if (!events.length) return 0
+  const refSum = events
+    .filter(e => e.recordDate.slice(0, 4) === String(DIVIDEND_REF_YEAR))
+    .reduce((s, e) => s + e.perShare, 0)
+  if (refSum > 0) return parseFloat(refSum.toFixed(4))
   const now = Date.now()
   const yearAgo = now - 365 * 24 * 60 * 60 * 1000
   const within = events.filter(e => {
     const t = new Date(e.recordDate + 'T00:00:00').getTime()
     return t <= now && t >= yearAgo
   })
-  if (within.length) return within.reduce((s, e) => s + e.perShare, 0)
+  if (within.length) return parseFloat(within.reduce((s, e) => s + e.perShare, 0).toFixed(4))
   const past = events
     .filter(e => new Date(e.recordDate + 'T00:00:00').getTime() <= now)
     .sort((a, b) => b.recordDate.localeCompare(a.recordDate))
