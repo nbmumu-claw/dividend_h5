@@ -112,25 +112,27 @@ export default function Watchlist() {
   const navigate = useNavigate()
   const pendingDiv = usePendingDividends(watchlist)
 
-  // 截图批量录入（暂仅渔人）：一张图识别所有买卖 → 按名字匹配自选股 → 勾选批量导入
+  // 截图批量录入：一张图识别所有买卖 → 按名字匹配自选股 → 勾选批量导入
   const shotRef = useRef<HTMLInputElement>(null)
   const [uid, setUid] = useState<string | null>(null)
+  const [shotUsed, setShotUsed] = useState(0) // 今日已用次数（进页从 CloudBase 预取，供同步判断）
   const [ocrLoading, setOcrLoading] = useState(false)
   const [batch, setBatch] = useState<{ items: { trade: ParsedTrade; stock?: WatchlistStock }[]; picked: boolean[] } | null>(null)
-  useEffect(() => { getCurrentUid().then(u => setUid(u)).catch(() => {}) }, [])
-  const onShotBtn = async () => {
+  useEffect(() => { getCurrentUid().then(u => { setUid(u); if (u) getShotUsage(u).then(setShotUsed).catch(() => {}) }).catch(() => {}) }, [])
+  // 打开文件选择器必须在点击的同步上下文里、中间不能 await（否则手机上打不开），故次数用预取的 shotUsed 同步判断
+  const onShotBtn = () => {
     if (!uid) { showToast('请先登录后使用'); return }
-    if (await getShotUsage(uid) >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
+    if (shotUsed >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
     shotRef.current?.click()
   }
   const onShotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file) return
-    if (!uid) { showToast('请先登录后使用'); return }
-    if (await getShotUsage(uid) >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
+    if (!file || !uid) return
+    if (shotUsed >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
     setOcrLoading(true)
-    await bumpShotUsage(uid) // 每次识别都消耗额度（无论结果）
+    setShotUsed(n => n + 1) // 乐观计数
+    bumpShotUsage(uid) // 后台落库（内部已容错，不阻塞）
     try {
       const trades = await parseTradeScreenshot(file, uid)
       if (!trades.length) { showToast('未识别到买卖记录'); return }
