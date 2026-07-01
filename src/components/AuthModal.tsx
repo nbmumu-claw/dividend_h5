@@ -1,9 +1,17 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Modal from './Modal'
 import { cbAuth } from '../utils/cloudbase'
 
 type Mode = 'login' | 'register' | 'otp'
 type VerifyOtp = (arg: { token: string }) => Promise<{ data?: unknown; error?: { message?: string } | null }>
+
+// 记住用户名/密码（存本机，仅本设备；密码为明文本地存储，勾选即视为你信任本设备）
+const REMEMBER_KEY = 'auth-remember'
+interface Remembered { email?: string; password?: string; rememberEmail?: boolean; rememberPwd?: boolean }
+function loadRemembered(): Remembered {
+  try { return JSON.parse(localStorage.getItem(REMEMBER_KEY) || '{}') } catch { return {} }
+}
+function saveRemembered(r: Remembered) { try { localStorage.setItem(REMEMBER_KEY, JSON.stringify(r)) } catch { /* ignore */ } }
 
 interface Props {
   open: boolean
@@ -20,14 +28,29 @@ const TABS: { key: Mode; label: string }[] = [
 export default function AuthModal({ open, onClose, onAuthed }: Props) {
   const [mode, setMode] = useState<Mode>('login')
   const [step, setStep] = useState<'form' | 'code'>('form') // 注册/验证码登录的二步
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState(() => { const r = loadRemembered(); return r.rememberEmail ? (r.email || '') : '' })
+  const [password, setPassword] = useState(() => { const r = loadRemembered(); return r.rememberPwd ? (r.password || '') : '' })
   const [nickname, setNickname] = useState('')
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [showPwd, setShowPwd] = useState(false)
+  const [rememberEmail, setRememberEmail] = useState(() => !!loadRemembered().rememberEmail)
+  const [rememberPwd, setRememberPwd] = useState(() => !!loadRemembered().rememberPwd)
   const verifyRef = useRef<VerifyOtp | null>(null)
+
+  // 记住密码必然记住用户名；取消记住用户名则一并取消记住密码
+  const toggleRememberEmail = (v: boolean) => { setRememberEmail(v); if (!v) setRememberPwd(false) }
+  const toggleRememberPwd = (v: boolean) => { setRememberPwd(v); if (v) setRememberEmail(true) }
+  const persistRemember = () => {
+    const prev = loadRemembered()
+    saveRemembered({
+      rememberEmail,
+      rememberPwd,
+      email: rememberEmail ? (email || prev.email) : undefined,
+      password: rememberPwd ? (password || prev.password) : undefined,
+    })
+  }
 
   const reset = () => { setStep('form'); setPassword(''); setCode(''); setErr(''); verifyRef.current = null }
   const switchMode = (m: Mode) => { setMode(m); reset() }
@@ -35,7 +58,17 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
-  const finish = () => { setLoading(false); onAuthed(); close() }
+  const finish = () => { persistRemember(); setLoading(false); onAuthed(); close() }
+
+  // 每次打开登录框，按本机记忆回填邮箱/密码与勾选状态
+  useEffect(() => {
+    if (!open) return
+    const r = loadRemembered()
+    setRememberEmail(!!r.rememberEmail)
+    setRememberPwd(!!r.rememberPwd)
+    if (r.rememberEmail && r.email) setEmail(r.email)
+    if (r.rememberPwd && r.password) setPassword(r.password)
+  }, [open])
 
   // 密码登录
   const doLogin = async () => {
@@ -119,6 +152,18 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
                   </svg>
                 )}
               </button>
+            </div>
+          )}
+          {mode === 'login' && (
+            <div className="flex items-center gap-4 px-0.5">
+              <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                <input type="checkbox" className="accent-red-500 w-3.5 h-3.5" checked={rememberEmail} onChange={e => toggleRememberEmail(e.target.checked)} />
+                记住用户名
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+                <input type="checkbox" className="accent-red-500 w-3.5 h-3.5" checked={rememberPwd} onChange={e => toggleRememberPwd(e.target.checked)} />
+                记住密码
+              </label>
             </div>
           )}
           {mode === 'register' && (

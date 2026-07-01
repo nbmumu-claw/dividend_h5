@@ -135,12 +135,13 @@ function loadActive(): string { return gp().active || ALL }
 function saveActive(v: string) { saveGp({ active: v }) }
 
 // 标的排序
-type SortKey = 'cy' | 'chg' | 'price' | 'name'
+type SortKey = 'cy' | 'chg' | 'price'
 type SortState = { key: SortKey; dir: 'asc' | 'desc' }
 const DEFAULT_SORT: SortState = { key: 'cy', dir: 'desc' }
 const SORT_OPTS: { key: SortKey; label: string }[] = [
-  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'price', label: '现价' }, { key: 'name', label: '名称' },
+  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'price', label: '现价' },
 ]
+const SORT_KEYS = new Set<string>(SORT_OPTS.map(o => o.key))
 function loadSort(): SortState { const s = gp().sort; return s?.key ? (s as SortState) : DEFAULT_SORT }
 function saveSort(s: SortState) { saveGp({ sort: s }) }
 function loadStockOrder(): string[] { return gp().stockOrder }
@@ -271,11 +272,12 @@ export default function YieldGrid() {
 
   // 标的排序：指标 + 手动置顶
   const sortRaw = useStore(s => s.gridPrefs.sort)
-  const sort: SortState = useMemo(() => sortRaw?.key ? sortRaw as SortState : DEFAULT_SORT, [sortRaw])
+  // 兼容老用户曾保存的已下线排序键（如「名称」）→ 回落默认
+  const sort: SortState = useMemo(() => sortRaw?.key && SORT_KEYS.has(sortRaw.key) ? sortRaw as SortState : DEFAULT_SORT, [sortRaw])
   const chooseSort = (key: SortKey) => {
     const next: SortState = sort.key === key
       ? { key, dir: sort.dir === 'desc' ? 'asc' : 'desc' }
-      : { key, dir: key === 'name' ? 'asc' : 'desc' }
+      : { key, dir: 'desc' }
     saveSort(next)
   }
   const stockOrder = useStore(s => s.gridPrefs.stockOrder)
@@ -479,7 +481,6 @@ export default function YieldGrid() {
   const pinPos = new Map(stockOrder.map((c, i) => [c, i]))
   const cmpBy = (a: Row, b: Row) => {
     const m = sort.dir === 'desc' ? -1 : 1
-    if (sort.key === 'name') return a.name.localeCompare(b.name, 'zh') * m
     const va = sort.key === 'cy' ? a.cy : sort.key === 'chg' ? a.pctChg : a.price
     const vb = sort.key === 'cy' ? b.cy : sort.key === 'chg' ? b.pctChg : b.price
     return (va - vb) * m
@@ -559,13 +560,15 @@ export default function YieldGrid() {
         </div>
         {!error && rows && (
           <div className="sortbar">
-            <span className="lbl">排序</span>
-            {SORT_OPTS.map(o => (
-              <button key={o.key} className={`chip${sort.key === o.key ? ' active' : ''}`} onClick={() => chooseSort(o.key)}>
-                {o.label}{sort.key === o.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
-              </button>
-            ))}
-            {stockOrder.length > 0 && <button className="chip clear" onClick={clearStockOrder}>清除手排</button>}
+            <div className="sortopts">
+              <span className="lbl">排序</span>
+              {SORT_OPTS.map(o => (
+                <button key={o.key} className={`chip${sort.key === o.key ? ' active' : ''}`} onClick={() => chooseSort(o.key)}>
+                  {o.label}{sort.key === o.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                </button>
+              ))}
+              {stockOrder.length > 0 && <button className="chip clear" onClick={clearStockOrder}>清除手排</button>}
+            </div>
             {visible.length >= 2 && (
               <button className="chip foldall" onClick={toggleAllCollapse}>
                 {allCollapsed ? '全部展开' : '全部折叠'}
@@ -926,11 +929,13 @@ const CSS = `
   display: inline-flex; align-items: center; justify-content: center; }
 .yg-page .yg-mv:disabled { color: #d1d5db; cursor: default; }
 .yg-page .yg-mv:active:not(:disabled) { background: #f0f1f4; }
-.yg-page .sortbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
-.yg-page .sortbar .lbl { font-size: 12.5px; color: #9ca3af; margin-right: 2px; }
-.yg-page .sortbar .chip { padding: 4px 11px; font-size: 12.5px; }
+.yg-page .sortbar { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; margin: 2px 0 12px; }
+.yg-page .sortbar .sortopts { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+.yg-page .sortbar .sortopts::-webkit-scrollbar { display: none; }
+.yg-page .sortbar .lbl { font-size: 12.5px; color: #9ca3af; margin-right: 2px; flex-shrink: 0; }
+.yg-page .sortbar .chip { padding: 4px 11px; font-size: 12.5px; flex-shrink: 0; }
 .yg-page .sortbar .chip.clear { color: #dc2626; border-color: #fecaca; }
-.yg-page .sortbar .chip.foldall { margin-left: auto; color: #374151; }
+.yg-page .sortbar .chip.foldall { margin-left: auto; color: #374151; flex-shrink: 0; }
 .yg-page .yg-footer { display: flex; align-items: center; margin: 10px 0 28px;
   background: #fff; border-radius: 14px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .yg-page .ft-left { display: flex; align-items: center; gap: 10px; }
