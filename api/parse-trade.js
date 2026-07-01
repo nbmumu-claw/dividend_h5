@@ -67,9 +67,10 @@ async function deepseekParse(ocrText) {
   let parsed
   try { parsed = JSON.parse(content) } catch { return [] }
   const arr = Array.isArray(parsed.trades) ? parsed.trades : []
+  const today = new Date().toISOString().slice(0, 10)
   return arr
     .filter(t => (t.type === 'buy' || t.type === 'sell') && Number(t.qty) > 0 && Number(t.price) > 0)
-    .map(t => ({ name: String(t.name || ''), code: t.code ? String(t.code) : null, type: t.type, qty: Math.round(Number(t.qty)), price: Number(t.price), date: typeof t.date === 'string' ? t.date : null, time: t.time || null }))
+    .map(t => ({ name: String(t.name || ''), code: t.code ? String(t.code) : null, type: t.type, qty: Math.round(Number(t.qty)), price: Number(t.price), date: typeof t.date === 'string' && t.date ? t.date : today, time: t.time || null }))
 }
 
 // 灰度白名单（当前已全员开放）。如需只对特定 uid 开放，取消下面这行与 handler 内那行的注释即可。
