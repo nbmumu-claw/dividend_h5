@@ -76,8 +76,8 @@ export default function Settings() {
   const importBackup = useStore(s => s.importBackup)
   const agreementAccepted = useStore(s => s.agreementAccepted)
   const setAgreementAccepted = useStore(s => s.setAgreementAccepted)
-  const includeUsInStats = useStore(s => s.includeUsInStats)
-  const setIncludeUsInStats = useStore(s => s.setIncludeUsInStats)
+  const statsScope = useStore(s => s.statsScope)
+  const setStatsScope = useStore(s => s.setStatsScope)
   const feeConfig = useStore(s => s.feeConfig)
   const accounts = useStore(s => s.accounts)
   const navigate = useNavigate()
@@ -355,22 +355,25 @@ export default function Settings() {
       <div className="mx-4 mb-3">
         <div className="section-header px-0">数据管理</div>
         <div className="card">
-          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-50">
-            <div className="text-gray-400 w-5 flex-shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M2 12h4l2-7 4 14 2-7h4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <div className="px-4 py-3.5 border-b border-gray-50">
+            <div className="flex items-center gap-3">
+              <div className="text-gray-400 w-5 flex-shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M2 12h4l2-7 4 14 2-7h4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </div>
+              <div className="flex-1">
+                <div className="text-sm text-gray-800">收益统计范围</div>
+                <div className="text-xs text-gray-400 mt-0.5">选择收益页纳入统计的标的</div>
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="text-sm text-gray-800">美股纳入收益统计</div>
-              <div className="text-xs text-gray-400 mt-0.5">关闭后收益页不计入美股</div>
+            <div className="flex gap-1 mt-3 bg-gray-100 rounded-lg p-1">
+              {([['all', '全部'], ['us', '只看美股'], ['nonus', '只看非美股']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setStatsScope(key)}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${statsScope === key ? 'bg-white text-gray-900 font-medium shadow-sm' : 'text-gray-500'}`}
+                >{label}</button>
+              ))}
             </div>
-            <button
-              role="switch"
-              aria-checked={includeUsInStats}
-              onClick={() => setIncludeUsInStats(!includeUsInStats)}
-              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${includeUsInStats ? 'bg-red-500' : 'bg-gray-300'}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${includeUsInStats ? 'translate-x-5' : ''}`} />
-            </button>
           </div>
           <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" strokeLinecap="round"/></svg>}

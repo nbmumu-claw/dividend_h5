@@ -5,6 +5,7 @@ import { DEFAULT_SECTORS, STATIC_STOCKS } from '../data/stocks'
 import { applyHolding, ensureTransactions, type Transaction } from '../utils/holdings'
 import { makeFeeCalc, DEFAULT_FEE_CONFIG, type FeeConfig } from '../utils/fees'
 import { migrateRedFundSector, NEW_RED_SECTOR } from '../utils/sectorMigrate'
+import { migrateStatsScope, type StatsScope } from '../utils/statsScopeMigrate'
 
 // 网格页偏好（纳入账号体系，跟随云同步）
 export interface GridPrefs {
@@ -136,9 +137,9 @@ interface AppState {
   setUsdRate: (rate: number) => void
   agreementAccepted: boolean
   setAgreementAccepted: (v: boolean) => void
-  // 美股是否纳入收益页统计（默认纳入）
-  includeUsInStats: boolean
-  setIncludeUsInStats: (v: boolean) => void
+  // 收益页统计范围（默认全部）
+  statsScope: StatsScope
+  setStatsScope: (v: StatsScope) => void
 
   // 网格页偏好（纳入云同步）
   gridPrefs: GridPrefs
@@ -356,8 +357,8 @@ export const useStore = create<AppState>()(
       setUsdRate: (rate) => set({ usdRate: rate }),
       agreementAccepted: false,
       setAgreementAccepted: (v) => set({ agreementAccepted: v }),
-      includeUsInStats: true,
-      setIncludeUsInStats: (v) => set({ includeUsInStats: v }),
+      statsScope: 'all',
+      setStatsScope: (v) => set({ statsScope: v }),
 
       // 网格页偏好
       gridPrefs: { ...DEFAULT_GRID_PREFS },
@@ -450,7 +451,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 8,
+      version: 9,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[]; accounts?: unknown }
         // v8：板块「红利ETF」→「红利基金」（板块名 + 各处 stock.sector 一并改，幂等）。先改名再做下方补板块逻辑
@@ -498,6 +499,8 @@ export const useStore = create<AppState>()(
         }
         // v7：simStrategy.shares 费率键去点号，并还原历史被点号拆坏的数据
         if (m.simStrategy) m.simStrategy = normalizeSimStrategy(m.simStrategy)
+        // v9：布尔「美股纳入统计」→ 三态 statsScope（幂等，逻辑见 statsScopeMigrate + 其单测）
+        migrateStatsScope(m)
         return s
       },
     }
