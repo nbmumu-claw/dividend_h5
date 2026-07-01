@@ -152,7 +152,7 @@ function toYahooTicker(code: string): string {
 
 async function fetchHKCalendarEvents(code: string): Promise<DividendEvent[]> {
   const ticker = toYahooTicker(code)
-  const res = await fetch(`/api/hk-dividend?ticker=${ticker}`)
+  const res = await fetch(`/api/yahoo-chart?ticker=${ticker}`)
   const json = await res.json()
 
   const divs: Record<string, { date: number; amount: number }> =

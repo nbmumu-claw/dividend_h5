@@ -155,7 +155,7 @@ async function fetchYfPrices(stocks: StockInput[], forceRefresh: boolean): Promi
   // 批量请求：一次 Vercel Function 调用拉取全部美股
   try {
     const symbols = toFetch.map(s => s.code).join(',')
-    const res = await fetch(`/api/stock-price-us?${new URLSearchParams({ symbols })}`)
+    const res = await fetch(`/api/yahoo-chart?${new URLSearchParams({ symbols })}`)
     const json = await res.json()
     const fresh: PriceMap = {}
     for (const s of toFetch) {

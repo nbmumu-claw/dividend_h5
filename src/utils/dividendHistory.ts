@@ -37,7 +37,7 @@ function toYahooTicker(code: string): string {
 
 async function fetchHKDividendHistory(code: string): Promise<DividendHistory | null> {
   const ticker = toYahooTicker(code)
-  const res = await fetch(`/api/hk-dividend?ticker=${ticker}`)
+  const res = await fetch(`/api/yahoo-chart?ticker=${ticker}`)
   const json = await res.json()
 
   const divs: Record<string, { date: number; amount: number }> =
@@ -114,7 +114,7 @@ function buildHistory(byYear: Record<number, number>): DividendHistory {
 }
 
 async function fetchUSDividendHistory(code: string): Promise<DividendHistory | null> {
-  const res = await fetch(`/api/hk-dividend?ticker=${encodeURIComponent(code)}`)
+  const res = await fetch(`/api/yahoo-chart?ticker=${encodeURIComponent(code)}`)
   const json = await res.json()
 
   const divs: Record<string, { date: number; amount: number }> =

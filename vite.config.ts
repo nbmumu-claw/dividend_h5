@@ -44,13 +44,16 @@ export default defineConfig({
     watch: { ignored: ['**/.codegraph/**'] },
     proxy: {
       // More specific routes first — Vite uses prefix matching
-      '/api/stock-price-us': {
+      '/api/yahoo-chart': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,
         ...addYfHeaders(),
         rewrite: (path) => {
           const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
-          const symbol = new URLSearchParams(qs).get('symbol') || ''
+          const p = new URLSearchParams(qs)
+          const ticker = p.get('ticker')
+          if (ticker) return `/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=10y&events=div`
+          const symbol = (p.get('symbols') || p.get('symbol') || '').split(',')[0]
           return `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
         },
       },
@@ -137,16 +140,6 @@ export default defineConfig({
           const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
           const code = (new URLSearchParams(qs).get('code') || '').padStart(6, '0')
           return `/fhsp_${code}.html`
-        },
-      },
-      '/api/hk-dividend': {
-        target: 'https://query1.finance.yahoo.com',
-        changeOrigin: true,
-        ...addYfHeaders(),
-        rewrite: (path) => {
-          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
-          const ticker = new URLSearchParams(qs).get('ticker') || ''
-          return `/v8/finance/chart/${ticker}?interval=1d&range=10y&events=div`
         },
       },
     },
