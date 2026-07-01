@@ -11,7 +11,7 @@ import Modal from '../components/Modal'
 import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
 import { getCurrentUid } from '../utils/cloudSync'
-import { parseTradeScreenshot, nameMatch, buildTs, FISHERMAN_UID, type ParsedTrade } from '../utils/tradeShot'
+import { parseTradeScreenshot, nameMatch, buildTs, type ParsedTrade } from '../utils/tradeShot'
 import { ensureTransactions, type Transaction } from '../utils/holdings'
 
 const TAX_OPTIONS: { value: WatchlistStock['taxType']; label: string }[] = [
@@ -114,11 +114,10 @@ export default function Watchlist() {
   // 截图批量录入（暂仅渔人）：一张图识别所有买卖 → 按名字匹配自选股 → 勾选批量导入
   const shotRef = useRef<HTMLInputElement>(null)
   const [uid, setUid] = useState<string | null>(null)
-  const [isFisherman, setIsFisherman] = useState(false)
   const [ocrLoading, setOcrLoading] = useState(false)
   const [batch, setBatch] = useState<{ items: { trade: ParsedTrade; stock?: WatchlistStock }[]; picked: boolean[] } | null>(null)
-  useEffect(() => { getCurrentUid().then(u => { setUid(u); setIsFisherman(u === FISHERMAN_UID) }).catch(() => {}) }, [])
-  const onShotBtn = () => { if (!isFisherman) { showToast('功能暂未开放，敬请期待'); return } shotRef.current?.click() }
+  useEffect(() => { getCurrentUid().then(u => setUid(u)).catch(() => {}) }, [])
+  const onShotBtn = () => { shotRef.current?.click() }
   const onShotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
