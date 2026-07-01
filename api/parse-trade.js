@@ -80,6 +80,7 @@ export default async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
     // if (!ALLOW_UIDS.has(body.uid)) { res.status(403).json({ error: '功能暂未开放，敬请期待' }); return }
+    if (!body.uid) { res.status(401).json({ error: '请先登录' }); return } // 仅登录用户可用（uid 由前端登录态带上）
     const image = body.image
     if (!image) { res.status(400).json({ error: '缺少图片' }); return }
 
