@@ -72,10 +72,14 @@ async function deepseekParse(ocrText) {
     .map(t => ({ name: String(t.name || ''), type: t.type, qty: Math.round(Number(t.qty)), price: Number(t.price), date: t.date, time: t.time || null }))
 }
 
+// 灰度白名单（当前已全员开放）。如需只对特定 uid 开放，取消下面这行与 handler 内那行的注释即可。
+// const ALLOW_UIDS = new Set(['2069679426588643328']) // 渔人
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'method not allowed' }); return }
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
+    // if (!ALLOW_UIDS.has(body.uid)) { res.status(403).json({ error: '功能暂未开放，敬请期待' }); return }
     const image = body.image
     if (!image) { res.status(400).json({ error: '缺少图片' }); return }
 
