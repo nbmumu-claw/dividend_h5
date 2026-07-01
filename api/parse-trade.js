@@ -52,7 +52,7 @@ async function deepseekParse(ocrText) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}` },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       temperature: 0,
       response_format: { type: 'json_object' },
       messages: [

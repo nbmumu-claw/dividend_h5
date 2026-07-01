@@ -10,6 +10,9 @@ import { Toast, useToast } from '../components/Toast'
 import Modal from '../components/Modal'
 import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
+import { getCurrentUid } from '../utils/cloudSync'
+import { parseTradeScreenshot, nameMatch, buildTs, FISHERMAN_UID, type ParsedTrade } from '../utils/tradeShot'
+import { ensureTransactions, type Transaction } from '../utils/holdings'
 
 const TAX_OPTIONS: { value: WatchlistStock['taxType']; label: string }[] = [
   { value: 'h', label: 'H股 20%' },
@@ -74,6 +77,7 @@ export default function Watchlist() {
   const removeFromWatchlist = useStore(s => s.removeFromWatchlist)
   const updateWatchlistStock = useStore(s => s.updateWatchlistStock)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
+  const setTransactions = useStore(s => s.setTransactions)
   const accounts = useStore(s => s.accounts)
   const activeAccountId = useStore(s => s.activeAccountId)
   const switchAccount = useStore(s => s.switchAccount)
@@ -106,6 +110,42 @@ export default function Watchlist() {
   const { message, showToast } = useToast()
   const navigate = useNavigate()
   const pendingDiv = usePendingDividends(watchlist)
+
+  // 截图批量录入（暂仅渔人）：一张图识别所有买卖 → 按名字匹配自选股 → 勾选批量导入
+  const shotRef = useRef<HTMLInputElement>(null)
+  const [uid, setUid] = useState<string | null>(null)
+  const [isFisherman, setIsFisherman] = useState(false)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [batch, setBatch] = useState<{ items: { trade: ParsedTrade; stock?: WatchlistStock }[]; picked: boolean[] } | null>(null)
+  useEffect(() => { getCurrentUid().then(u => { setUid(u); setIsFisherman(u === FISHERMAN_UID) }).catch(() => {}) }, [])
+  const onShotBtn = () => { if (!isFisherman) { showToast('功能暂未开放，敬请期待'); return } shotRef.current?.click() }
+  const onShotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setOcrLoading(true)
+    try {
+      const trades = await parseTradeScreenshot(file, uid)
+      if (!trades.length) { showToast('未识别到买卖记录'); return }
+      const items = trades.map(t => ({ trade: t, stock: watchlist.find(w => nameMatch(t.name, w.name)) }))
+      setBatch({ items, picked: items.map(it => !!it.stock) })
+    } catch { showToast('识别失败，请重试') }
+    finally { setOcrLoading(false) }
+  }
+  const confirmBatch = () => {
+    if (!batch) return
+    const grouped = new Map<string, { base: Transaction[]; adds: Transaction[] }>()
+    batch.items.forEach((it, i) => {
+      if (!it.stock || !batch.picked[i]) return
+      const code = it.stock.code
+      if (!grouped.has(code)) grouped.set(code, { base: it.stock.transactions ?? ensureTransactions(it.stock), adds: [] })
+      grouped.get(code)!.adds.push({ type: it.trade.type, qty: it.trade.qty, price: it.trade.price, ts: buildTs(it.trade.date, it.trade.time) })
+    })
+    let count = 0
+    grouped.forEach(({ base, adds }, code) => { setTransactions(code, [...base, ...adds]); count += adds.length })
+    setBatch(null)
+    showToast(count ? `已导入 ${count} 笔` : '未选择可导入记录')
+  }
 
   // Pull-to-refresh
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -315,6 +355,14 @@ export default function Watchlist() {
             </button>
           ))}
         </div>
+        {/* 截图批量录入 */}
+        <div className="flex justify-center mt-2">
+          <button onClick={onShotBtn} disabled={ocrLoading} className="text-xs px-3 py-1.5 rounded-full border border-red-400 text-red-600 font-medium disabled:opacity-60 flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="13" r="4"/></svg>
+            {ocrLoading ? '识别中…' : '截图批量录入'}
+          </button>
+        </div>
+        <input ref={shotRef} type="file" accept="image/*" className="hidden" onChange={onShotFile} />
       </div>
 
       {/* 待确认分红提示 */}
@@ -653,6 +701,37 @@ export default function Watchlist() {
         </div>
         )
       })()}
+
+      {/* 截图批量录入确认 */}
+      <Modal open={!!batch} onClose={() => setBatch(null)} title={batch ? `识别到 ${batch.items.length} 笔，可导入 ${batch.items.filter(it => it.stock).length} 笔` : ''}>
+        {batch && (
+          <div className="space-y-3">
+            <div className="text-xs text-gray-400">仅可导入已在自选中的股票；请核对后确认。</div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {batch.items.map((it, i) => {
+                const matched = !!it.stock
+                return (
+                  <label key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 ${matched ? '' : 'opacity-50'}`}>
+                    <input
+                      type="checkbox"
+                      disabled={!matched}
+                      checked={batch.picked[i]}
+                      onChange={e => setBatch(b => b ? { ...b, picked: b.picked.map((p, j) => j === i ? e.target.checked : p) } : b)}
+                      className="accent-red-500"
+                    />
+                    <span className={`tag flex-shrink-0 ${it.trade.type === 'sell' ? 'tag-green' : 'tag-red'}`}>{it.trade.type === 'sell' ? '卖出' : '买入'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-gray-800 truncate">{it.trade.name} · {it.trade.qty}股 @ {it.trade.price}</div>
+                      <div className="text-xs text-gray-400">{it.trade.date}{it.trade.time ? ' ' + it.trade.time : ''}{matched ? '' : ' · 不在自选'}</div>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+            <button onClick={confirmBatch} className="w-full py-3 bg-red-600 text-white rounded-xl font-semibold">确认导入</button>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
