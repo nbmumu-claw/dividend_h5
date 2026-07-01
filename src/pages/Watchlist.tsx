@@ -12,6 +12,7 @@ import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
 import { getCurrentUid } from '../utils/cloudSync'
 import { parseTradeScreenshot, nameMatch, buildTs, type ParsedTrade } from '../utils/tradeShot'
+import { getShotUsage, bumpShotUsage, SHOT_DAILY_LIMIT } from '../utils/shotQuota'
 import { ensureTransactions, type Transaction } from '../utils/holdings'
 
 const TAX_OPTIONS: { value: WatchlistStock['taxType']; label: string }[] = [
@@ -69,12 +70,6 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'pnl', label: '盈亏%' },
 ]
 
-// 截图录入每日限次（软限制，按 uid 记在本机；真正硬上限是 OCR 资源包）
-const SHOT_DAILY_LIMIT = 2
-const shotUsageKey = (uid: string) => `pt-usage-${uid}-${new Date().toISOString().slice(0, 10)}`
-const getShotUsage = (uid: string) => { try { return Number(localStorage.getItem(shotUsageKey(uid))) || 0 } catch { return 0 } }
-const bumpShotUsage = (uid: string) => { try { localStorage.setItem(shotUsageKey(uid), String(getShotUsage(uid) + 1)) } catch { /* ignore */ } }
-
 export default function Watchlist() {
   const watchlist = useStore(s => s.watchlist)
   const customSectors = useStore(s => s.customSectors)
@@ -123,9 +118,9 @@ export default function Watchlist() {
   const [ocrLoading, setOcrLoading] = useState(false)
   const [batch, setBatch] = useState<{ items: { trade: ParsedTrade; stock?: WatchlistStock }[]; picked: boolean[] } | null>(null)
   useEffect(() => { getCurrentUid().then(u => setUid(u)).catch(() => {}) }, [])
-  const onShotBtn = () => {
+  const onShotBtn = async () => {
     if (!uid) { showToast('请先登录后使用'); return }
-    if (getShotUsage(uid) >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
+    if (await getShotUsage(uid) >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
     shotRef.current?.click()
   }
   const onShotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,9 +128,9 @@ export default function Watchlist() {
     e.target.value = ''
     if (!file) return
     if (!uid) { showToast('请先登录后使用'); return }
-    if (getShotUsage(uid) >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
+    if (await getShotUsage(uid) >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
     setOcrLoading(true)
-    bumpShotUsage(uid) // 每次识别都消耗额度（无论结果）
+    await bumpShotUsage(uid) // 每次识别都消耗额度（无论结果）
     try {
       const trades = await parseTradeScreenshot(file, uid)
       if (!trades.length) { showToast('未识别到买卖记录'); return }
