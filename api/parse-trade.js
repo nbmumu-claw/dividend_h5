@@ -7,9 +7,14 @@ let cachedToken = null // { token, exp }
 
 async function baiduToken() {
   if (cachedToken && cachedToken.exp > Date.now()) return cachedToken.token
-  const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${process.env.BAIDU_OCR_API_KEY}&client_secret=${process.env.BAIDU_OCR_SECRET_KEY}`
-  const j = await (await fetch(url, { method: 'POST' })).json()
-  if (!j.access_token) throw new Error('百度取 access_token 失败')
+  const ak = process.env.BAIDU_OCR_API_KEY || ''
+  const sk = process.env.BAIDU_OCR_SECRET_KEY || ''
+  const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${ak}&client_secret=${sk}`
+  const j = await (await fetch(url, { method: 'POST' })).json().catch(() => ({}))
+  if (!j.access_token) {
+    // 只带出百度的错误码/描述与 key 长度（非密钥本身），便于定位是否 env 值有误
+    throw new Error(`百度取 access_token 失败: ${j.error || ''} ${j.error_description || ''} [akLen=${ak.length},skLen=${sk.length}]`)
+  }
   const ttl = j.expires_in ? (j.expires_in - 60) * 1000 : 25 * 24 * 3600 * 1000
   cachedToken = { token: j.access_token, exp: Date.now() + ttl }
   return cachedToken.token
