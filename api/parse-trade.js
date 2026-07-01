@@ -85,8 +85,9 @@ export default async function handler(req, res) {
 
     const token = await baiduToken()
     let lines
-    try { lines = await baiduOcr(token, image, 'accurate') }
-    catch { lines = await baiduOcr(token, image, 'standard') } // 高精度失败/额度尽 → 标准版兜底
+    // 标准版为主：已购 1万次包、QPS 10（高精度仅 2）、+DeepSeek 效果与高精度一致且更快
+    try { lines = await baiduOcr(token, image, 'standard') }
+    catch { lines = await baiduOcr(token, image, 'accurate') } // 标准版失败/额度尽 → 高精度兜底
     if (!lines.length) { res.status(200).json({ trades: [] }); return }
 
     const trades = await deepseekParse(lines.join('\n'))
