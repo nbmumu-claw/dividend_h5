@@ -30,6 +30,10 @@ export default function Portfolio() {
   const [pnlDesc, setPnlDesc] = useState(true)
   // 持仓市值 / 成本金额 明细弹窗（按美股 / AH股分组）
   const [valueDetail, setValueDetail] = useState<'market' | 'cost' | null>(null)
+  // 「只看美股」下「三大类」无意义（美股不纳入三大类分类）：正选着则回落到「板块」
+  useEffect(() => {
+    if (statsScope === 'us' && chartGroup === 'category') setChartGroup('sector')
+  }, [statsScope, chartGroup])
 
   useEffect(() => {
     if (!watchlist.length) return
@@ -348,7 +352,7 @@ export default function Portfolio() {
                   </button>
                 ))}
                 <div className="w-px bg-gray-200 mx-0.5" />
-                {(['sector', 'stock', 'category'] as const).map(g => (
+                {(statsScope === 'us' ? (['sector', 'stock'] as const) : (['sector', 'stock', 'category'] as const)).map(g => (
                   <button key={g} onClick={() => setChartGroup(g)}
                     className={`text-xs px-3 py-1 rounded-full border ${chartGroup === g ? 'bg-gray-700 text-white border-gray-700' : 'border-gray-200 text-gray-500'}`}>
                     {g === 'sector' ? '板块' : g === 'stock' ? '个股' : '三大类'}
