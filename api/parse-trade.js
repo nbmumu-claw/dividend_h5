@@ -26,26 +26,26 @@ async function baiduOcr(token, base64, kind) {
   return (j.words_result || []).map(w => w.words)
 }
 
-const SYS_PROMPT = `你是券商成交记录解析器。输入是同花顺App「历史成交」列表的OCR文字（逐行给出，列可能串行、顺序大致从上到下从左到右）。请抽取其中所有【真实的股票买卖成交】，输出严格JSON。
+const SYS_PROMPT = `你是券商成交记录解析器。输入是各类券商App成交记录页（当日成交/历史成交/成交汇总等）的OCR文字（逐行给出，列可能串行）。请抽取其中所有【真实的股票买卖成交】，输出严格JSON。
 
 规则：
-1. 只保留股票的买入/卖出（含沪港通买入、沪港通卖出）。
+1. 只保留股票买入/卖出。方向词：红「买」「买入」「证券买入」「沪港通买入」→"buy"；蓝「卖」「卖出」「证券卖出」「沪港通卖出」→"sell"；成交量为负也表示卖出。
 2. 必须排除以下噪音，不要输出：
-   - 国债逆回购/通用回购逆回购（如 R-001、GC001、代码131/204开头、名称或备注含"回购/逆回购"）
-   - 打新申购配号/配号（成交价为0.000、含"申购/配号"字样）
+   - 国债逆回购/融券回购（如 GC001、R-001、代码 131/204 开头、名称或标签含"回购/逆回购/融券"）
+   - 打新申购配号/配号（成交价为 0、含"申购/配号"字样）
    - 其它非买卖类记录
 3. 每笔字段：
    - name: 股票名称
+   - code: 股票代码（有就填字符串，没有填 null）
    - type: "buy" 或 "sell"
-   - qty: 正整数股数（取成交量绝对值）
-   - price: 成交价（数字）
-   - date: "YYYY-MM-DD"
-   - time: "HH:mm:ss"，无则 null
-4. 方向判断：名称旁有红"买"/"买入"→buy；蓝"卖"/"卖出"/"沪港通卖出"→sell；成交量为负通常也表示卖出。
-5. 日期形如 20260630 → "2026-06-30"。
-6. 找不到任何真实买卖，trades 为空数组。
+   - qty: 正整数股数（取成交数量/成交量的绝对值；别误取成交金额）
+   - price: 成交价/成交均价（数字；别误取成交金额）
+   - date: "YYYY-MM-DD"；图中没有日期就填 null
+   - time: "HH:mm:ss"；没有填 null
+4. 日期形如 20260630 → "2026-06-30"。
+5. 找不到任何真实买卖，trades 为空数组。
 
-只输出 JSON：{"trades":[{"name":...,"type":...,"qty":...,"price":...,"date":...,"time":...}]}，不要任何额外解释。`
+只输出 JSON：{"trades":[{"name":...,"code":...,"type":...,"qty":...,"price":...,"date":...,"time":...}]}，不要任何额外解释。`
 
 async function deepseekParse(ocrText) {
   const j = await (await fetch('https://api.deepseek.com/chat/completions', {
@@ -68,8 +68,8 @@ async function deepseekParse(ocrText) {
   try { parsed = JSON.parse(content) } catch { return [] }
   const arr = Array.isArray(parsed.trades) ? parsed.trades : []
   return arr
-    .filter(t => (t.type === 'buy' || t.type === 'sell') && Number(t.qty) > 0 && Number(t.price) > 0 && typeof t.date === 'string')
-    .map(t => ({ name: String(t.name || ''), type: t.type, qty: Math.round(Number(t.qty)), price: Number(t.price), date: t.date, time: t.time || null }))
+    .filter(t => (t.type === 'buy' || t.type === 'sell') && Number(t.qty) > 0 && Number(t.price) > 0)
+    .map(t => ({ name: String(t.name || ''), code: t.code ? String(t.code) : null, type: t.type, qty: Math.round(Number(t.qty)), price: Number(t.price), date: typeof t.date === 'string' ? t.date : null, time: t.time || null }))
 }
 
 // 灰度白名单（当前已全员开放）。如需只对特定 uid 开放，取消下面这行与 handler 内那行的注释即可。
