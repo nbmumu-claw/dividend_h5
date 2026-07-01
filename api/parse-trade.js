@@ -53,6 +53,7 @@ async function deepseekParse(ocrText) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}` },
     body: JSON.stringify({
       model: 'deepseek-v4-flash',
+      thinking: { type: 'disabled' }, // 关推理：纯文本解析无需思考，6s→2s，结果不变
       temperature: 0,
       response_format: { type: 'json_object' },
       messages: [
