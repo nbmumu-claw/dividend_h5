@@ -11,12 +11,16 @@ const mem: Record<string, string> = {}
   length: 0,
 } as Storage
 
-// 假 CloudBase db：记录 add/update/remove 调用，模拟最终状态
+// 假 CloudBase db：记录 add/update/remove/set 调用，模拟最终状态
 type Doc = { _id: string; data?: unknown; updatedAt?: number }
-const state: { docs: Doc[]; calls: { add: Doc[]; update: { id: string }[]; remove: string[] } } = {
-  docs: [], calls: { add: [], update: [], remove: [] },
+const state: { docs: Doc[]; calls: { add: Doc[]; update: { id: string }[]; remove: string[]; set: string[] } } = {
+  docs: [], calls: { add: [], update: [], remove: [], set: [] },
 }
 let idSeq = 0
+
+// 可变的假登录态：默认已登录 uid=u1；置 null 可模拟「拿不到 uid → 走兜底旧逻辑」
+// 用 vi.hoisted 提升，供 vi.mock 工厂在返回对象里直接引用（否则 TDZ 报错）
+const fakeAuth = vi.hoisted(() => ({ currentUser: { uid: 'u1' } as { uid: string } | null }))
 
 vi.mock('../store', () => ({ useStore: { getState: () => ({}) } }))
 vi.mock('./cloudbase', () => {
@@ -32,6 +36,12 @@ vi.mock('./cloudbase', () => {
         return { _id }
       },
       doc: (id: string) => ({
+        set: async (u: Partial<Doc>) => {
+          state.calls.set.push(id)
+          const d = state.docs.find(x => x._id === id)
+          if (d) { Object.assign(d, u); return { updated: 1 } }
+          state.docs.push({ ...u, _id: id }); return { upserted: id }
+        },
         update: async (u: Partial<Doc>) => {
           state.calls.update.push({ id })
           const d = state.docs.find(x => x._id === id)
@@ -48,7 +58,11 @@ vi.mock('./cloudbase', () => {
     }
     return api
   }
-  return { cbAuth: {}, cbDb: { collection: () => collection() }, USER_DATA_COLLECTION: 'userData' }
+  return {
+    cbAuth: fakeAuth,
+    cbDb: { collection: () => collection() },
+    USER_DATA_COLLECTION: 'userData',
+  }
 })
 
 import { loadFromCloud, saveToCloud } from './cloudSync'
@@ -57,8 +71,9 @@ const META = 'cloud-sync-meta'
 
 beforeEach(() => {
   state.docs = []
-  state.calls = { add: [], update: [], remove: [] }
+  state.calls = { add: [], update: [], remove: [], set: [] }
   idSeq = 0
+  fakeAuth.currentUser = { uid: 'u1' } // 默认已登录
   for (const k of Object.keys(mem)) delete mem[k]
 })
 
@@ -88,7 +103,49 @@ describe('loadFromCloud（读取 + 读时自愈）', () => {
   })
 })
 
-describe('saveToCloud（写入分支）', () => {
+describe('saveToCloud（uid 幂等 upsert：根因修复）', () => {
+  it('已登录：写入命中 doc(uid).set，永不 add，落到 _id=uid 一条', async () => {
+    const id = await saveToCloud({ x: 1 } as never, 5)
+    expect(id).toBe('u1')
+    expect(state.calls.set).toEqual(['u1'])
+    expect(state.calls.add).toHaveLength(0)
+    expect(state.docs.map(d => d._id)).toEqual(['u1'])
+  })
+
+  it('历史随机 id 旧副本：set 到 uid 并删掉旧副本，最终只剩 uid 一条', async () => {
+    state.docs = [{ _id: 'legacy-rand', data: { a: 1 }, updatedAt: 1 }]
+    mem[META] = JSON.stringify({ updatedAt: 1, docId: 'legacy-rand' })
+    const id = await saveToCloud({ x: 2 } as never, 5)
+    expect(id).toBe('u1')
+    expect(state.calls.set).toEqual(['u1'])
+    expect(state.calls.remove).toEqual(['legacy-rand']) // 旧副本被清
+    expect(state.docs.map(d => d._id)).toEqual(['u1'])
+  })
+
+  it('已经是 uid 文档：再次保存只覆盖，不删除、不新增', async () => {
+    state.docs = [{ _id: 'u1', updatedAt: 1 }]
+    mem[META] = JSON.stringify({ updatedAt: 1, docId: 'u1' })
+    await saveToCloud({ x: 3 } as never, 9)
+    expect(state.calls.set).toEqual(['u1'])
+    expect(state.calls.remove).toEqual([])
+    expect(state.calls.add).toHaveLength(0)
+    expect(state.docs).toHaveLength(1)
+  })
+
+  it('根因验证：多设备/多标签并发保存 → 全部命中同一 uid，零新增、只剩一条', async () => {
+    await Promise.all([
+      saveToCloud({ x: 1 } as never, 1),
+      saveToCloud({ x: 2 } as never, 2),
+      saveToCloud({ x: 3 } as never, 3),
+    ])
+    expect(state.calls.add).toHaveLength(0)
+    expect(state.docs.map(d => d._id)).toEqual(['u1']) // 物理上不可能造出第二条
+  })
+})
+
+describe('saveToCloud（拿不到 uid 的兜底旧逻辑）', () => {
+  beforeEach(() => { fakeAuth.currentUser = null })
+
   it('有本地 docId 且文档存在：走 update，不新增', async () => {
     state.docs = [{ _id: 'd1', updatedAt: 1 }]
     mem[META] = JSON.stringify({ updatedAt: 1, docId: 'd1' })
@@ -117,12 +174,12 @@ describe('saveToCloud（写入分支）', () => {
     expect(state.docs).toHaveLength(1)
   })
 
-  it('根因验证：两次并发保存（初始无 docId）→ 只新增 1 条', async () => {
+  it('根因验证：两次并发保存（初始无 docId）→ 串行化后只新增 1 条', async () => {
     await Promise.all([
       saveToCloud({ x: 1 } as never, 1),
       saveToCloud({ x: 2 } as never, 2),
     ])
-    expect(state.calls.add).toHaveLength(1) // 串行化后第二次看到 docId → update
+    expect(state.calls.add).toHaveLength(1)
     expect(state.docs).toHaveLength(1)
   })
 })

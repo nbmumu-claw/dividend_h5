@@ -81,7 +81,29 @@ export function saveToCloud(payload: Backup, updatedAt: number): Promise<string>
   return run
 }
 
+// 取当前登录用户的 uid（= 云端 _openid）。currentUser 在刚开 App 时可能尚未就绪，兜底走 getLoginState。
+async function resolveUid(): Promise<string | null> {
+  const u = cbAuth.currentUser?.uid
+  if (u) return u
+  try { return (await cbAuth.getLoginState())?.user?.uid ?? null } catch { return null }
+}
+
 async function doSaveToCloud(payload: Backup, updatedAt: number): Promise<string> {
+  // 根因修复：以 uid 作为确定性文档 _id，写入一律 set（幂等 upsert）。
+  // 无论多少设备/标签并发写，都命中同一条 _id，物理上无法再造出第二条文档。
+  const uid = await resolveUid()
+  if (uid) {
+    await cbDb.collection(USER_DATA_COLLECTION).doc(uid).set({ data: payload, updatedAt })
+    const meta = loadMeta()
+    // 过渡期：把历史随机 id 的旧副本删掉（本人自有文档，ACL 允许；失败下次登录 loadFromCloud 自愈）
+    if (meta.docId && meta.docId !== uid) {
+      try { await cbDb.collection(USER_DATA_COLLECTION).doc(meta.docId).remove() } catch { /* 下次再清 */ }
+    }
+    saveMeta({ updatedAt, docId: uid })
+    return uid
+  }
+
+  // 兜底：极端情况下拿不到 uid（saveToCloud 仅登录态调用，理论不会走到）→ 保留旧「查-再-加」逻辑
   const meta = loadMeta()
   if (meta.docId) {
     const r = await cbDb.collection(USER_DATA_COLLECTION).doc(meta.docId).update({ data: payload, updatedAt }) as { updated?: number }
