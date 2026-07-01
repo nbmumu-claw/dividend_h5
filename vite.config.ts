@@ -40,6 +40,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
+    // 不监听本地索引/守护进程目录，避免 vercel dev 下 Vite 监听 .codegraph/daemon.sock 崩溃
+    watch: { ignored: ['**/.codegraph/**'] },
     proxy: {
       // More specific routes first — Vite uses prefix matching
       '/api/stock-price-us': {

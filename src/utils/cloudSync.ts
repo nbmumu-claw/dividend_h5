@@ -88,6 +88,11 @@ async function resolveUid(): Promise<string | null> {
   try { return (await cbAuth.getLoginState())?.user?.uid ?? null } catch { return null }
 }
 
+// 供 UI 做「当前登录用户」判断（如按 uid 灰度功能）。未登录返回 null。
+export async function getCurrentUid(): Promise<string | null> {
+  return resolveUid()
+}
+
 async function doSaveToCloud(payload: Backup, updatedAt: number): Promise<string> {
   // 根因修复：以 uid 作为确定性文档 _id，写入一律 set（幂等 upsert）。
   // 无论多少设备/标签并发写，都命中同一条 _id，物理上无法再造出第二条文档。

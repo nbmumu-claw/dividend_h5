@@ -11,3 +11,9 @@ playground/
 # mkcert
 localhost*.pem
 .backups/
+
+# 环境变量（含密钥，勿提交）
+.env
+.env.*
+!.env.example
+.vercel

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store'
 import { fetchStockPrices } from '../utils/api'
@@ -10,6 +10,20 @@ import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
 import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
+import { fileToBase64Downscaled } from '../utils/image'
+import { getCurrentUid } from '../utils/cloudSync'
+
+// 截图录入暂仅对渔人开放（uid 灰度）
+const FISHERMAN_UID = '2069679426588643328'
+
+type ParsedTrade = { name: string; type: 'buy' | 'sell'; qty: number; price: number; date: string; time?: string | null }
+function nameMatch(a: string, b: string) { return !!a && !!b && (a.includes(b) || b.includes(a)) }
+function buildTs(date: string, time?: string | null) {
+  const [y, mo, d] = date.split('-').map(Number)
+  let H = 15, M = 0, S = 0
+  if (time) { const [h, mi, s] = String(time).split(':').map(Number); if (!isNaN(h)) { H = h; M = mi || 0; S = s || 0 } }
+  return new Date(y, (mo || 1) - 1, d || 1, H, M, S).getTime()
+}
 
 const TAX_OPTIONS: { value: 'h' | 'n' | 'a'; label: string }[] = [
   { value: 'a', label: '港户' },
@@ -47,6 +61,14 @@ export default function HoldingDetail() {
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null)
   // 每股红利输入缓冲：编辑中保留原始输入，失焦后按 4 位小数展示
   const [divText, setDivText] = useState<string | null>(null)
+  // 截图录入
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uid, setUid] = useState<string | null>(null)
+  const [isFisherman, setIsFisherman] = useState(false)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [fromShot, setFromShot] = useState(false)
+  const [batch, setBatch] = useState<{ trades: ParsedTrade[]; picked: boolean[] } | null>(null)
+  useEffect(() => { getCurrentUid().then(u => { setUid(u); setIsFisherman(u === FISHERMAN_UID) }).catch(() => {}) }, [])
 
   // 进页：刷新现价；老数据懒迁移成一笔买入
   useEffect(() => {
@@ -109,7 +131,7 @@ export default function HoldingDetail() {
 
   const openAdd = () => {
     setEditingIdx(-1); setTxType('buy'); setTxQty(''); setTxPrice(price > 0 ? price.toFixed(2) : '')
-    setTxNegative(false); setTxDate(todayStr()); setShowForm(true)
+    setTxNegative(false); setTxDate(todayStr()); setFromShot(false); setShowForm(true)
   }
   const openEdit = (t: Transaction & { idx: number }) => {
     const raw = t.type === 'dividend' ? (t.gross ?? t.price) : t.price
@@ -117,7 +139,47 @@ export default function HoldingDetail() {
     setTxQty(t.type === 'dividend' ? '' : String(t.qty))
     setTxPrice(String(Math.abs(Number(raw))))
     setTxNegative(t.type === 'buy' && Number(t.price) < 0)
-    setTxDate(t.ts ? fmtDate(t.ts) : todayStr()); setShowForm(true)
+    setTxDate(t.ts ? fmtDate(t.ts) : todayStr()); setFromShot(false); setShowForm(true)
+  }
+
+  // 截图录入：选图 → 压缩 → /api/parse-trade（百度OCR+DeepSeek）→ 过滤出本股 → 预填/批量
+  const onShotBtn = () => {
+    if (!isFisherman) { showToast('功能暂未开放，敬请期待'); return }
+    fileRef.current?.click()
+  }
+  const onShotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !stock) return
+    setOcrLoading(true)
+    try {
+      const image = await fileToBase64Downscaled(file)
+      const resp = await fetch('/api/parse-trade', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image, uid }),
+      })
+      if (!resp.ok) throw new Error()
+      const { trades } = await resp.json() as { trades: ParsedTrade[] }
+      const mine = (trades || []).filter(t => nameMatch(t.name, stock.name))
+      if (mine.length === 0) { showToast(`未识别到「${stock.name}」的买卖记录`); return }
+      if (mine.length === 1) {
+        const t = mine[0]
+        setEditingIdx(-1); setTxType(t.type); setTxQty(String(t.qty)); setTxPrice(String(t.price))
+        setTxNegative(false); setTxDate(t.date); setFromShot(true); setShowForm(true)
+      } else {
+        setBatch({ trades: mine, picked: mine.map(() => true) })
+      }
+    } catch { showToast('识别失败，请重试或手动录入') }
+    finally { setOcrLoading(false) }
+  }
+  const confirmBatch = () => {
+    if (!batch || !stock) return
+    const picks = batch.trades.filter((_, i) => batch.picked[i])
+    if (!picks.length) { setBatch(null); return }
+    const add: Transaction[] = picks.map(t => ({ type: t.type, qty: t.qty, price: t.price, ts: buildTs(t.date, t.time) }))
+    setTransactions(stock.code, [...txs, ...add])
+    setBatch(null)
+    showToast(`已导入 ${add.length} 笔`)
   }
 
   const changeType = (val: TxType) => {
@@ -322,12 +384,21 @@ export default function HoldingDetail() {
         className="fixed inset-x-0 mx-auto px-4 pt-2 pb-3 bg-gradient-to-t from-white via-white z-50"
         style={{ bottom: 'var(--tab-bar-height)', maxWidth: 'var(--shell-max)' }}
       >
-        <button onClick={openAdd} className="w-full py-3.5 bg-red-600 text-white rounded-xl font-semibold">+ 增加记录</button>
+        <div className="flex gap-2">
+          <button onClick={onShotBtn} disabled={ocrLoading} className="flex-1 py-3.5 bg-white border border-red-500 text-red-600 rounded-xl font-semibold disabled:opacity-60">
+            {ocrLoading ? '识别中…' : '截图录入'}
+          </button>
+          <button onClick={openAdd} className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-semibold">+ 增加记录</button>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onShotFile} />
       </div>
 
       {/* 记录表单 */}
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditingIdx(-1) }} title={editingIdx >= 0 ? '修改记录' : '变更记录'}>
         <div className="space-y-4">
+          {fromShot && (
+            <div className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">截图识别结果，请核对后确认</div>
+          )}
           <div className="grid grid-cols-3 gap-2">
             {(['buy', 'sell', 'dividend'] as TxType[]).map(t => (
               <button
@@ -387,6 +458,33 @@ export default function HoldingDetail() {
           <button className="btn-secondary flex-1" onClick={() => setDeleteIdx(null)}>取消</button>
           <button className="flex-1 py-3 bg-red-600 text-white rounded-xl font-semibold" onClick={() => deleteIdx != null && doDelete(deleteIdx)}>确认删除</button>
         </div>
+      </Modal>
+
+      {/* 截图批量导入确认 */}
+      <Modal open={!!batch} onClose={() => setBatch(null)} title={`识别到 ${batch?.trades.length ?? 0} 笔${stock.name}成交`}>
+        {batch && (
+          <div className="space-y-3">
+            <div className="text-xs text-gray-400">勾选要导入的记录，确认后写入。请核对无误。</div>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {batch.trades.map((t, i) => (
+                <label key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={batch.picked[i]}
+                    onChange={e => setBatch(b => b ? { ...b, picked: b.picked.map((p, j) => j === i ? e.target.checked : p) } : b)}
+                    className="accent-red-500"
+                  />
+                  <span className={`tag flex-shrink-0 ${t.type === 'sell' ? 'tag-green' : 'tag-red'}`}>{t.type === 'sell' ? '卖出' : '买入'}</span>
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-800">{t.qty} 股 @ {curSym}{Number(t.price).toFixed(3)}</div>
+                    <div className="text-xs text-gray-400">{t.date}{t.time ? ' ' + t.time : ''}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <button onClick={confirmBatch} className="w-full py-3 bg-red-600 text-white rounded-xl font-semibold">确认导入</button>
+          </div>
+        )}
       </Modal>
 
       <Toast message={message} />
