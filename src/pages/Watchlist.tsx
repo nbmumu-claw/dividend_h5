@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { fetchStockPrices, fetchOwnerType, searchStocks } from '../utils/api'
+import { fetchStockPrices, fetchOwnerType } from '../utils/api'
 import Disclaimer from '../components/Disclaimer'
 import { afterTax } from '../utils/tax'
-import type { WatchlistStock, Stock } from '../types'
+import type { WatchlistStock } from '../types'
 import { toCnyPrice, currencySymbol, isBShare } from '../utils/market'
 import { Toast, useToast } from '../components/Toast'
 import Modal from '../components/Modal'
@@ -79,7 +79,6 @@ export default function Watchlist() {
   const updateWatchlistStock = useStore(s => s.updateWatchlistStock)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
   const setTransactions = useStore(s => s.setTransactions)
-  const addToWatchlist = useStore(s => s.addToWatchlist)
   const accounts = useStore(s => s.accounts)
   const activeAccountId = useStore(s => s.activeAccountId)
   const switchAccount = useStore(s => s.switchAccount)
@@ -119,7 +118,6 @@ export default function Watchlist() {
   const [shotUsed, setShotUsed] = useState(0) // 今日已用次数（进页从 CloudBase 预取，供同步判断）
   const [ocrLoading, setOcrLoading] = useState(false)
   const [batch, setBatch] = useState<{ items: { trade: ParsedTrade; stock?: WatchlistStock }[]; picked: boolean[] } | null>(null)
-  const [adding, setAdding] = useState<number | null>(null) // 正在「加自选」的行
   useEffect(() => { getCurrentUid().then(u => { setUid(u); if (u) getShotUsage(u).then(setShotUsed).catch(() => {}) }).catch(() => {}) }, [])
   // 打开文件选择器必须在点击的同步上下文里、中间不能 await（否则手机上打不开），故次数用预取的 shotUsed 同步判断
   const onShotBtn = () => {
@@ -156,30 +154,6 @@ export default function Watchlist() {
     grouped.forEach(({ base, adds }, code) => { setTransactions(code, [...base, ...adds]); count += adds.length })
     setBatch(null)
     showToast(count ? `已导入 ${count} 笔` : '未选择可导入记录')
-  }
-  // 未匹配的股：按名字反查代码 → 加入自选 → 该行变为可导入
-  const addUnmatched = async (i: number) => {
-    if (!batch || adding !== null) return
-    const trade = batch.items[i].trade
-    setAdding(i)
-    try {
-      const results = await searchStocks(trade.name)
-      const hit = results.find(r => nameMatch(r.name, trade.name)) ?? results[0]
-      if (!hit) { showToast(`没找到「${trade.name}」，请手动添加`); return }
-      const existing = watchlist.find(w => w.code === hit.code)
-      const stock: Stock = existing ?? {
-        code: hit.code, name: hit.name, sector: '其他', price: 0, dividendPerShare: 0, yieldRate: 0,
-        confirmed: true, isHK: hit.isHK, isUS: hit.isUS, isFund: hit.isFund,
-      }
-      if (!existing) addToWatchlist(stock)
-      setBatch(b => b ? {
-        ...b,
-        items: b.items.map((it, j) => j === i ? { ...it, stock: stock as WatchlistStock } : it),
-        picked: b.picked.map((p, j) => j === i ? true : p),
-      } : b)
-      showToast(`已加自选：${hit.name}`)
-    } catch { showToast('添加失败，请重试') }
-    finally { setAdding(null) }
   }
 
   // Pull-to-refresh
@@ -759,16 +733,6 @@ export default function Watchlist() {
                       <div className="text-sm text-gray-800 truncate">{it.trade.name} · {it.trade.qty}股 @ {it.trade.price}</div>
                       <div className="text-xs text-gray-400">{it.trade.date}{it.trade.time ? ' ' + it.trade.time : ''}{matched ? '' : ' · 不在自选'}</div>
                     </div>
-                    {!matched && (
-                      <button
-                        type="button"
-                        onClick={e => { e.preventDefault(); e.stopPropagation(); addUnmatched(i) }}
-                        disabled={adding !== null}
-                        className="flex-shrink-0 text-xs px-2.5 py-1 rounded-full bg-red-50 text-red-600 font-medium disabled:opacity-50"
-                      >
-                        {adding === i ? '添加中…' : '加自选'}
-                      </button>
-                    )}
                   </label>
                 )
               })}
