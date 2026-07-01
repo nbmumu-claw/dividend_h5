@@ -11,7 +11,7 @@ import Modal from '../components/Modal'
 import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
 import { getCurrentUid } from '../utils/cloudSync'
-import { parseTradeScreenshot, nameMatch, buildTs, type ParsedTrade } from '../utils/tradeShot'
+import { parseTradeScreenshot, nameMatch, buildTs, FISHERMAN_UID, type ParsedTrade } from '../utils/tradeShot'
 import { getShotUsage, bumpShotUsage, SHOT_DAILY_LIMIT } from '../utils/shotQuota'
 import { ensureTransactions, type Transaction } from '../utils/holdings'
 
@@ -70,6 +70,13 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'pnl', label: '盈亏%' },
 ]
 
+// 判断识别到的一笔是否与该股已有交易重复（同方向 + 同数量 + 同价 + 同一天）
+const txDayStr = (ts: number) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+function isDupTrade(stock: WatchlistStock, t: ParsedTrade): boolean {
+  return (stock.transactions ?? []).some(x =>
+    x.type === t.type && Number(x.qty) === t.qty && Math.abs(Number(x.price) - t.price) < 0.001 && txDayStr(x.ts) === t.date)
+}
+
 export default function Watchlist() {
   const watchlist = useStore(s => s.watchlist)
   const customSectors = useStore(s => s.customSectors)
@@ -117,27 +124,30 @@ export default function Watchlist() {
   const [uid, setUid] = useState<string | null>(null)
   const [shotUsed, setShotUsed] = useState(0) // 今日已用次数（进页从 CloudBase 预取，供同步判断）
   const [ocrLoading, setOcrLoading] = useState(false)
-  const [batch, setBatch] = useState<{ items: { trade: ParsedTrade; stock?: WatchlistStock }[]; picked: boolean[] } | null>(null)
+  const [batch, setBatch] = useState<{ items: { trade: ParsedTrade; stock?: WatchlistStock; dup?: boolean }[]; picked: boolean[] } | null>(null)
   useEffect(() => { getCurrentUid().then(u => { setUid(u); if (u) getShotUsage(u).then(setShotUsed).catch(() => {}) }).catch(() => {}) }, [])
   // 打开文件选择器必须在点击的同步上下文里、中间不能 await（否则手机上打不开），故次数用预取的 shotUsed 同步判断
+  const overLimit = () => uid !== FISHERMAN_UID && shotUsed >= SHOT_DAILY_LIMIT // 渔人不受每天2次限制
   const onShotBtn = () => {
     if (!uid) { showToast('请先登录后使用'); return }
-    if (shotUsed >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
+    if (overLimit()) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
     shotRef.current?.click()
   }
   const onShotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !uid) return
-    if (shotUsed >= SHOT_DAILY_LIMIT) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
+    if (overLimit()) { showToast(`每天最多识别 ${SHOT_DAILY_LIMIT} 次，明天再来`); return }
     setOcrLoading(true)
-    setShotUsed(n => n + 1) // 乐观计数
-    bumpShotUsage(uid) // 后台落库（内部已容错，不阻塞）
+    if (uid !== FISHERMAN_UID) { setShotUsed(n => n + 1); bumpShotUsage(uid) } // 渔人不计次
     try {
       const trades = await parseTradeScreenshot(file, uid)
       if (!trades.length) { showToast('未识别到买卖记录'); return }
-      const items = trades.map(t => ({ trade: t, stock: watchlist.find(w => nameMatch(t.name, w.name)) }))
-      setBatch({ items, picked: items.map(it => !!it.stock) })
+      const items = trades.map(t => {
+        const stock = watchlist.find(w => nameMatch(t.name, w.name))
+        return { trade: t, stock, dup: stock ? isDupTrade(stock, t) : false }
+      })
+      setBatch({ items, picked: items.map(it => !!it.stock && !it.dup) }) // 重复的默认不勾
     } catch { showToast('识别失败，请重试') }
     finally { setOcrLoading(false) }
   }
@@ -712,15 +722,16 @@ export default function Watchlist() {
       })()}
 
       {/* 截图批量录入确认 */}
-      <Modal open={!!batch} onClose={() => setBatch(null)} title={batch ? `识别到 ${batch.items.length} 笔，可导入 ${batch.items.filter(it => it.stock).length} 笔` : ''}>
+      <Modal open={!!batch} onClose={() => setBatch(null)} title={batch ? `识别到 ${batch.items.length} 笔，可导入 ${batch.items.filter(it => it.stock && !it.dup).length} 笔` : ''}>
         {batch && (
           <div className="space-y-3">
-            <div className="text-xs text-gray-400">仅可导入已在自选中的股票；请核对后确认。</div>
+            <div className="text-xs text-gray-400">仅可导入已在自选中的股票；重复的已标「已录入」默认不勾。请核对后确认。</div>
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {batch.items.map((it, i) => {
                 const matched = !!it.stock
+                const dup = !!it.dup
                 return (
-                  <label key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 ${matched ? '' : 'opacity-50'}`}>
+                  <label key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 ${matched ? (dup ? 'opacity-60' : '') : 'opacity-50'}`}>
                     <input
                       type="checkbox"
                       disabled={!matched}
@@ -731,7 +742,7 @@ export default function Watchlist() {
                     <span className={`tag flex-shrink-0 ${it.trade.type === 'sell' ? 'tag-green' : 'tag-red'}`}>{it.trade.type === 'sell' ? '卖出' : '买入'}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-gray-800 truncate">{it.trade.name} · {it.trade.qty}股 @ {it.trade.price}</div>
-                      <div className="text-xs text-gray-400">{it.trade.date}{it.trade.time ? ' ' + it.trade.time : ''}{matched ? '' : ' · 不在自选'}</div>
+                      <div className="text-xs text-gray-400">{it.trade.date}{it.trade.time ? ' ' + it.trade.time : ''}{matched ? (dup ? ' · 已录入' : '') : ' · 不在自选'}</div>
                     </div>
                   </label>
                 )
