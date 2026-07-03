@@ -11,6 +11,7 @@ const { ok, upstreamError } = require('../utils/response')
 
 const DB_COLLECTION = 'ownerTypes'
 const CACHE_TTL = 180 * 24 * 60 * 60 * 1000 // 180 天
+const memCache = new Map()                    // 模块作用域，warm container 复用
 
 function toEmCode(code) {
   const s = String(code).padStart(6, '0')
@@ -23,17 +24,24 @@ module.exports = async function ownerTypeHandler(params) {
 
   const emCode = toEmCode(code)
 
-  // 1. DB 缓存
+  // 1. 内存缓存
+  const memHit = memCache.get(emCode)
+  if (memHit) return ok(memHit, { 'Content-Type': 'application/json' })
+
+  // 2. DB 缓存
   try {
     const doc = await db.collection(DB_COLLECTION).doc(emCode).get()
     const d = Array.isArray(doc?.data) ? doc.data[0] : doc?.data
     if (d?.data && d.updatedAt) {
       const age = Date.now() - new Date(d.updatedAt).getTime()
-      if (age < CACHE_TTL) return ok(d.data, { 'Content-Type': 'application/json' })
+      if (age < CACHE_TTL) {
+        memCache.set(emCode, d.data)
+        return ok(d.data, { 'Content-Type': 'application/json' })
+      }
     }
   } catch { /* 无缓存，继续请求 */ }
 
-  // 2. 东财实时接口
+  // 3. 东财实时接口
   try {
     const res = await fetch(
       `https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code=${emCode}`,
@@ -43,7 +51,9 @@ module.exports = async function ownerTypeHandler(params) {
     const json = await res.json()
     const body = JSON.stringify(json)
 
-    // 3. 异步回写 DB
+    memCache.set(emCode, body)
+
+    // 异步回写 DB
     db.collection(DB_COLLECTION).doc(emCode).set({
       data: body,
       updatedAt: db.serverDate(),
