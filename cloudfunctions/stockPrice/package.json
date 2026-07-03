@@ -1,0 +1,8 @@
+{
+  "name": "stockPrice",
+  "version": "1.0.0",
+  "description": "股票行情云函数（腾讯主路径 + Yahoo美股降级 + DB缓存）",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.0.0"
+  }
+}

@@ -5,6 +5,12 @@ import { STATIC_STOCKS } from '../data/stocks'
 const PRICE_TTL = 15 * 60 * 1000
 const RATE_TTL = 6 * 60 * 60 * 1000
 
+// CloudBase 云函数开关（默认走云函数；localStorage 设 'dh_use_vercel_stockprice=1' 切回 Vercel）
+const CLOUDBASE_STOCK_PRICE_URL = 'https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice'
+function useCloudbaseStockPrice(): boolean {
+  try { return localStorage.getItem('dh_use_vercel_stockprice') !== '1' } catch { return true }
+}
+
 // 内存级股价缓存（per-code），页面间共享，无需反复读 localStorage
 type MemEntry = { data: Exclude<PriceMap[string], null>; expiresAt: number }
 const priceMemCache = new Map<string, MemEntry>()
@@ -18,7 +24,8 @@ function memSet(code: string, data: Exclude<PriceMap[string], null>) {
   priceMemCache.set(code, { data, expiresAt: Date.now() + PRICE_TTL })
 }
 
-function toTxCode(code: string, isHK?: boolean): string {
+function toTxCode(code: string, isHK?: boolean, isUS?: boolean): string {
+  if (isUS) return `us${String(code).toUpperCase()}`
   if (isHK) {
     const digits = String(code).replace(/^0+/, '') || '0'
     return `hk${digits.padStart(5, '0')}`
@@ -41,7 +48,7 @@ function parseTxBody(body: string): Record<string, ParsedPrice> {
   const result: Record<string, ParsedPrice> = {}
   const lines = body.split('\n')
   for (const line of lines) {
-    const match = line.match(/v_[a-z]{2}(\d{5,6})="([^"]*)"/)
+    const match = line.match(/v_[a-z]{2}([\dA-Za-z]+)="([^"]*)"/)
     if (!match) continue
     const code = match[1]
     const fields = match[2].split('~')
@@ -95,14 +102,18 @@ async function fetchTxPrices(stocks: StockInput[], forceRefresh: boolean): Promi
   // 3) API 拉取
   const reverseMap: Record<string, string> = {}
   const txCodes = toFetch.map(s => {
-    const tx = toTxCode(s.code, s.isHK)
+    const tx = toTxCode(s.code, s.isHK, s.isUS)
     const numeric = tx.replace(/^[a-z]+/, '')
     reverseMap[numeric] = s.code
     return tx
   })
 
   try {
-    const res = await fetch(`/api/stock-price?${new URLSearchParams({ codes: txCodes.join(',') })}`)
+    const useCloud = useCloudbaseStockPrice()
+    const params = new URLSearchParams({ codes: txCodes.join(',') })
+    if (useCloud && forceRefresh) params.set('forceRefresh', 'true')
+    const baseUrl = useCloud ? CLOUDBASE_STOCK_PRICE_URL : '/api/stock-price'
+    const res = await fetch(`${baseUrl}?${params}`)
     const body = await res.text()
     const parsed = parseTxBody(body)
 
@@ -219,9 +230,13 @@ async function fetchFundPrices(stocks: StockInput[], forceRefresh: boolean): Pro
 export async function fetchStockPrices(stocks: StockInput[], forceRefresh = false): Promise<PriceMap> {
   if (!stocks.length) return {}
 
-  const usStocks = stocks.filter(s => s.isUS)
+  const useCloud = useCloudbaseStockPrice()
+  // 云函数模式下美股不分离，统一走 fetchTxPrices（云函数支持 us 前缀 + Yahoo 降级）
+  const usStocks = useCloud ? [] : stocks.filter(s => s.isUS)
   const fundStocks = stocks.filter(s => !s.isUS && s.isFund)
-  const otherStocks = stocks.filter(s => !s.isUS && !s.isFund)
+  const otherStocks = useCloud
+    ? stocks.filter(s => !s.isFund)   // 云函数模式：A/港/美 全部
+    : stocks.filter(s => !s.isUS && !s.isFund)
 
   const [txResult, yfResult, fundResult] = await Promise.all([
     otherStocks.length ? fetchTxPrices(otherStocks, forceRefresh) : Promise.resolve({}),
@@ -504,7 +519,11 @@ export async function fetchOwnerType(code: string): Promise<string> {
   if (cached) { OWNER_MEM_CACHE[code] = cached; return cached }
 
   try {
-    const res = await fetch(`/api/company-nature?code=${code}`)
+    const useCloud = useCloudbaseStockPrice()
+    const url = useCloud
+      ? `${CLOUDBASE_STOCK_PRICE_URL}?action=ownerType&code=${code}`
+      : `/api/company-nature?code=${code}`
+    const res = await fetch(url)
     const data = await res.json()
     const holderName: string | null = data?.sjkzr?.[0]?.HOLDER_NAME ?? null
 
