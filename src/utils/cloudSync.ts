@@ -98,15 +98,6 @@ async function doSaveToCloud(payload: Backup, updatedAt: number): Promise<string
   // 无论多少设备/标签并发写，都命中同一条 _id，物理上无法再造出第二条文档。
   const uid = await resolveUid()
   if (uid) {
-    // 合并：保留云端已有的小程序独有字段，不被 H5 覆盖
-    try {
-      const existing = await cbDb.collection(USER_DATA_COLLECTION).doc(uid).get()
-      const raw = (existing as { data?: unknown })?.data
-      const ed = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown> | undefined
-      if (ed?.data && typeof ed.data === 'object' && !Array.isArray(ed.data)) {
-        payload = { ...(ed.data as Record<string, unknown>), ...payload } as Backup
-      }
-    } catch { /* 文档不存在，直接用 payload */ }
     await cbDb.collection(USER_DATA_COLLECTION).doc(uid).set({ data: payload, updatedAt })
     const meta = loadMeta()
     // 过渡期：把历史随机 id 的旧副本删掉（本人自有文档，ACL 允许；失败下次登录 loadFromCloud 自愈）
