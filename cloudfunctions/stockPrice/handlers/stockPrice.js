@@ -49,11 +49,13 @@ function parseTxResponse(body) {
     const fields = m[2].split('~')
     const price = parseFloat(fields[3])
     if (price > 0 && fields.length >= 33) {
+      const rawTs = (fields[30] || '').replace(/\D/g, '')  // yyyymmddHHMMSS
       result[code] = {
         price,
         preClose: parseFloat(fields[4]) || price,
         pctChg: parseFloat(fields[32]) || 0,
-        tradeDate: (fields[30] || '').replace(/\D/g, '').slice(0, 8),
+        tradeDate: rawTs.slice(0, 8),
+        tradeTime: rawTs.length >= 12 ? rawTs.slice(0, 14) : '',
         marketCap: parseFloat(fields[45]) || undefined,
         source: 'txzq_realtime',
         _line: line,
@@ -99,7 +101,15 @@ function toTxLine(code, data) {
   const f = Array(46).fill('')
   f[3] = data.price.toFixed(2)
   f[4] = (data.preClose || data.price).toFixed(2)
-  f[30] = data.tradeDate ? `${data.tradeDate.slice(0, 4)}-${data.tradeDate.slice(4, 6)}-${data.tradeDate.slice(6, 8)} 15:00:00` : ''
+  if (data.tradeDate) {
+    const y = data.tradeDate.slice(0, 4), m = data.tradeDate.slice(4, 6), d = data.tradeDate.slice(6, 8)
+    const t = data.tradeTime && data.tradeTime.length >= 12
+      ? `${data.tradeTime.slice(8, 10)}:${data.tradeTime.slice(10, 12)}:00`
+      : '15:00:00'
+    f[30] = `${y}-${m}-${d} ${t}`
+  } else {
+    f[30] = ''
+  }
   f[32] = (data.pctChg || 0).toFixed(2)
   if (data.marketCap) f[45] = data.marketCap.toFixed(2)
   return `v_${code}="${f.join('~')}"`
@@ -126,7 +136,7 @@ async function readFromDB(codes) {
     const doc = dbMap[code.toUpperCase()]
     if (!doc?.updatedAt) { staleCodes.push(code); continue }
     if (now - new Date(doc.updatedAt).getTime() > ttl) { staleCodes.push(code); continue }
-    freshMap[code] = { price: doc.price, preClose: doc.preClose, pctChg: doc.pctChg, tradeDate: doc.tradeDate, marketCap: doc.marketCap, source: 'db_cache' }
+    freshMap[code] = { price: doc.price, preClose: doc.preClose, pctChg: doc.pctChg, tradeDate: doc.tradeDate, tradeTime: doc.tradeTime || '', marketCap: doc.marketCap, source: 'db_cache' }
   }
   return { freshMap, staleCodes }
 }
@@ -138,7 +148,7 @@ function writeToDB(priceMap) {
       const c = code.toUpperCase()
       db.collection(DB_COLLECTION).doc(c).set({
         code: c, price: data.price, preClose: data.preClose, pctChg: data.pctChg,
-        tradeDate: data.tradeDate, marketCap: data.marketCap, source: data.source,
+        tradeDate: data.tradeDate, tradeTime: data.tradeTime || '', marketCap: data.marketCap, source: data.source,
         updatedAt: db.serverDate(),
       }).catch(e => console.warn(`[stockPrice] DB 回写 ${c} 失败:`, e.message))
     })
@@ -182,7 +192,7 @@ module.exports = async function stockPriceHandler(params) {
       txBody = await fetchTencent(staleCodes.join(',')); txOk = true
       const parsed = parseTxResponse(txBody)
       for (const [code, data] of Object.entries(parsed)) {
-        liveMap[code] = { price: data.price, preClose: data.preClose, pctChg: data.pctChg, tradeDate: data.tradeDate, marketCap: data.marketCap, source: data.source }
+        liveMap[code] = { price: data.price, preClose: data.preClose, pctChg: data.pctChg, tradeDate: data.tradeDate, tradeTime: data.tradeTime, marketCap: data.marketCap, source: data.source }
         memCache.set(code, { data: liveMap[code], ts: now })
       }
       staleCodes.forEach(c => { if (!parsed[c]) liveMap[c] = null })
