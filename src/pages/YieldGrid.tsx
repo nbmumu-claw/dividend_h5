@@ -519,7 +519,7 @@ export default function YieldGrid() {
         <div className="yg-topbar">
           <button
             className="yg-back"
-            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/discovery'))}
+            onClick={() => { try { const ref = document.referrer; if (ref && new URL(ref).origin === window.location.origin) { navigate(-1); return } } catch {} navigate('/discovery') }}
             aria-label="返回"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
