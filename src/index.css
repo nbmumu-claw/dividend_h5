@@ -46,7 +46,6 @@ body {
   .disc-list > .stock-item-wrapper:nth-child(odd) { border-right: 1px solid #F3F4F6; }
 
   /* 表单 / 设置 / 日历类子页：桌面约束宽度居中，避免大屏拉伸空旷（手机端无此类、全宽不变） */
-  .page-narrow { max-width: 640px; margin-left: auto; margin-right: auto; }
 
   /* PC 端弹窗改为垂直居中的对话框（手机端仍贴底 sheet） */
   .modal-backdrop { align-items: center; }
@@ -69,6 +68,9 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* 子页内容约束：始终有宽度上限，桌面居中；手机端 100% 填满 shell */
+.page-narrow { max-width: 640px; width: 100%; margin-left: auto; margin-right: auto; }
 
 /* 股息率网格独立页：PC 端突破手机框，占满整宽 */
 .app-shell.app-shell--wide {
