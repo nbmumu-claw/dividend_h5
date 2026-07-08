@@ -114,7 +114,7 @@ const cyClass = (cy: number) => (cy >= 0.05 ? 'cy-hi' : cy >= 0.04 ? 'cy-mid' : 
 const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat')
 const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
 
-type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number; isHK: boolean }
+type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number; isHK: boolean; lastBuyPrice?: number; lastBuyQty?: number }
 // 币种符号：港股 HK$，A 股 ¥
 const symOf = (isHK?: boolean, code?: string) => (isHK ? 'HK$' : code && /^900/.test(String(code)) ? '$' : code && /^200/.test(String(code)) ? 'HK$' : '¥')
 
@@ -308,6 +308,20 @@ export default function YieldGrid() {
   const [authUser, setAuthUser] = useState<{ email?: string; user_metadata?: { nickName?: string } } | null>(null)
   useEffect(() => { cbAuth.getSession().then(({ data }) => setAuthUser(data?.session?.user ?? null)).catch(() => {}) }, [])
 
+  // 登录用户的最近买入记录查找表（code → latest buy tx）
+  const watchlist = useStore(s => s.watchlist)
+  const lastBuyMap = useMemo(() => {
+    if (!authUser) return new Map<string, { price: number; qty: number }>()
+    const map = new Map<string, { price: number; qty: number }>()
+    for (const s of watchlist) {
+      const buys = (s.transactions || []).filter(t => t.type === 'buy')
+      if (!buys.length) continue
+      const latest = buys.reduce((a, b) => (b.ts > a.ts ? b : a))
+      map.set(s.code, { price: latest.price, qty: latest.qty })
+    }
+    return map
+  }, [watchlist, authUser])
+
   // 全局点赞（CloudBase 累加计数，localStorage 一人一次）
   const [likes, setLikes] = useState<number | null>(null)
   const [liked, setLiked] = useState(hasLiked)
@@ -409,7 +423,8 @@ export default function YieldGrid() {
         if (!q || !q.price) continue
         if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
         if (q.tradeTime && q.tradeTime > latestTime) latestTime = q.tradeTime
-        out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0, isHK: !!s.isHK })
+        const lb = lastBuyMap.get(s.code)
+        out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0, isHK: !!s.isHK, ...(lb ? { lastBuyPrice: lb.price, lastBuyQty: lb.qty } : {}) })
       }
       if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
       setRows(out)
@@ -629,7 +644,7 @@ export default function YieldGrid() {
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                         <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
-                      <div className="cmeta">25年股息 {+r.dive.toFixed(4)}</div>
+                      <div className="cmeta">25年股息 {+r.dive.toFixed(4)}{r.lastBuyPrice != null ? ` · 最近加仓 ${symOf(r.isHK, r.code)}${r.lastBuyPrice.toFixed(2)} × ${r.lastBuyQty} 股` : ''}</div>
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
                         {sellGridFor(r.name, cfg).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -660,7 +675,7 @@ export default function YieldGrid() {
                               <button type="button" className="yg-mv" disabled={items[items.length - 1].code === r.code} onClick={() => moveStock(items, r.code, 1)} aria-label="下移">↓</button>
                               <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
                             </span>
-                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}</td>
+                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{r.lastBuyPrice != null ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>最近加仓 {symOf(r.isHK, r.code)}{r.lastBuyPrice.toFixed(2)} × {r.lastBuyQty} 股</span></> : ''}</td>
                           <td className="px">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
