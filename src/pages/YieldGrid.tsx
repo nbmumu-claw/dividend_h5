@@ -163,6 +163,11 @@ function marketPhase(d: Date = new Date()): 'trading' | 'lunch' | 'closed' {
   if (mins >= 690 && mins < 780) return 'lunch' // 11:30–13:00 午休
   return 'closed'
 }
+// 日期展示：MM-DD
+function fmtDate(ts: number): string {
+  const d = new Date(ts), p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 // 时间戳展示：当天显示 HH:MM，跨天显示 MM-DD HH:MM
 function fmtTs(ts: number): string {
   if (!ts) return ''
@@ -644,7 +649,7 @@ export default function YieldGrid() {
                         <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                         <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
-                      <div className="cmeta">25年股息 {+r.dive.toFixed(4)}{r.lastBuyPrice != null && r.lastBuyTs ? ` · ${fmtTs(r.lastBuyTs)} 加仓 ${symOf(r.isHK, r.code)}${r.lastBuyPrice.toFixed(2)} × ${r.lastBuyQty} 股` : ''}</div>
+                      <div className="cmeta">25年股息 {+r.dive.toFixed(4)}{r.lastBuyPrice != null && r.lastBuyTs ? ` · ${fmtDate(r.lastBuyTs)} 加仓 ${symOf(r.isHK, r.code)}${r.lastBuyPrice.toFixed(2)} × ${r.lastBuyQty} 股` : ''}</div>
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
                         {sellGridFor(r.name, cfg).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -675,7 +680,7 @@ export default function YieldGrid() {
                               <button type="button" className="yg-mv" disabled={items[items.length - 1].code === r.code} onClick={() => moveStock(items, r.code, 1)} aria-label="下移">↓</button>
                               <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
                             </span>
-                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{r.lastBuyPrice != null && r.lastBuyTs ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtTs(r.lastBuyTs)} 加仓 {symOf(r.isHK, r.code)}{r.lastBuyPrice.toFixed(2)} × {r.lastBuyQty} 股</span></> : ''}</td>
+                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{r.lastBuyPrice != null && r.lastBuyTs ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(r.lastBuyTs)} 加仓 {symOf(r.isHK, r.code)}{r.lastBuyPrice.toFixed(2)} × {r.lastBuyQty} 股</span></> : ''}</td>
                           <td className="px">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
