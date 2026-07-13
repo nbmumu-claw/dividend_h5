@@ -2,7 +2,7 @@ import type { PriceMap } from '../types'
 import { cacheGet, cacheSet } from './cache'
 import { STATIC_STOCKS } from '../data/stocks'
 
-const PRICE_TTL = 15 * 60 * 1000
+const PRICE_TTL = 3 * 60 * 1000
 const RATE_TTL = 6 * 60 * 60 * 1000
 
 // CloudBase 云函数开关（默认走云函数；localStorage 设 'dh_use_vercel_stockprice=1' 切回 Vercel）
