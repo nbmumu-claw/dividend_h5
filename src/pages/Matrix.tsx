@@ -324,7 +324,10 @@ export default function Matrix() {
                             <div>{sim.shares}</div>
                             {sim.cost > 0 && <div className="text-[10px] leading-none mt-0.5">{cs}{fmtAmt(sim.shares * sim.cost)}</div>}
                           </td>
-                          <td className="py-2 text-right text-gray-700">{sim.shares}</td>
+                          <td className="py-2 text-right text-gray-700">
+                            <div>{sim.shares}</div>
+                            {sim.shares > 0 && dividend > 0 && <div className="text-[10px] text-gray-400 leading-none mt-0.5">{cs}{fmtAmt(sim.shares * dividend)}</div>}
+                          </td>
                           <td className="py-2 text-right font-semibold text-gray-900">{cs}{sim.cost.toFixed(2)}</td>
                           <td className="py-2 text-right text-gray-300">—</td>
                         </tr>
@@ -346,7 +349,10 @@ export default function Matrix() {
                             />
                             {r.stepShares > 0 && <div className="text-[10px] text-gray-400 leading-none mt-1">{cs}{fmtAmt(r.stepShares * r.targetPrice)}</div>}
                           </td>
-                          <td className="py-2 text-right text-gray-700">{r.cumShares}</td>
+                          <td className="py-2 text-right text-gray-700">
+                            <div>{r.cumShares}</div>
+                            {r.cumShares > 0 && dividend > 0 && <div className="text-[10px] text-gray-400 leading-none mt-0.5">{cs}{fmtAmt(r.cumShares * dividend)}</div>}
+                          </td>
                           <td className="py-2 text-right font-semibold text-gray-900">{cs}{r.avgCost.toFixed(2)}</td>
                           <td className="py-2 text-right text-xs">
                             {r.deltaPct == null ? (
