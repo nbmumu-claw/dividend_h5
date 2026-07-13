@@ -4,5 +4,6 @@ export default async function handler(req, res) {
   const response = await fetch(url)
   const buffer = await response.arrayBuffer()
   res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain')
+  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=5')
   res.send(Buffer.from(buffer))
 }

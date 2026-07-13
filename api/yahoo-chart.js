@@ -10,9 +10,10 @@ export default async function handler(req, res) {
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=10y&events=div`,
       { headers: { 'User-Agent': 'Mozilla/5.0' } }
     )
-    const json = await response.json()
+    const text = await response.text()
     res.setHeader('Content-Type', 'application/json')
-    return res.json(json)
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
+    return res.send(text)
   }
 
   // 美股现价模式（批量）
@@ -34,6 +35,7 @@ export default async function handler(req, res) {
   }))
 
   res.setHeader('Content-Type', 'application/json')
+  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=5')
   const out = {}
   for (const { symbol, data } of results) out[symbol] = data
   res.json(out)

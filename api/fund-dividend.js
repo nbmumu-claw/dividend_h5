@@ -8,6 +8,7 @@ export default async function handler(req, res) {
     })
     const text = await r.text()
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
     res.send(text)
   } catch {
     res.status(502).send('')

@@ -6,9 +6,10 @@ export default async function handler(req, res) {
       `https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx?m=1&key=${encodeURIComponent(key)}`,
       { headers: { 'Referer': 'http://fund.eastmoney.com/', 'User-Agent': 'Mozilla/5.0' } }
     )
-    const json = await r.json()
+    const text = await r.text()
     res.setHeader('Content-Type', 'application/json')
-    res.json(json)
+    res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=5')
+    res.send(text)
   } catch {
     res.status(502).json({ error: 'fund search failed' })
   }

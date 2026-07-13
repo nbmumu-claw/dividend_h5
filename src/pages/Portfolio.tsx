@@ -32,6 +32,7 @@ export default function Portfolio() {
   const [valueDetail, setValueDetail] = useState<'market' | 'cost' | null>(null)
   // 实际分红明细弹窗
   const [divDetail, setDivDetail] = useState<'currentYear' | 'allTime' | null>(null)
+  const [divSort, setDivSort] = useState<'amount' | 'date'>('date')
   // 「只看美股」下「三大类」无意义（美股不纳入三大类分类）：正选着则回落到「板块」
   useEffect(() => {
     if (statsScope === 'us' && chartGroup === 'category') setChartGroup('sector')
@@ -88,7 +89,7 @@ export default function Portfolio() {
     // 实际分红（从交易流水中提取 dividend 交易）
     let currentYearDiv = 0
     let allTimeDiv = 0
-    const currentYearDivItems: { name: string; amount: number }[] = []
+    const currentYearDivItems: { name: string; amount: number; ts: number }[] = []
     const allTimeByYear: Record<number, number> = {}
     const thisYear = new Date().getFullYear()
 
@@ -116,20 +117,16 @@ export default function Portfolio() {
 
       // 实际分红汇总
       const txs = s.transactions || []
-      let stockCurrentYearDiv = 0
       for (const t of txs) {
         if (t.type !== 'dividend') continue
         const amount = toCnyPrice((Number(t.qty) || 0) * (Number(t.price) || 0), s, exchangeRate, usdRate)
         const year = new Date(t.ts || 0).getFullYear()
         if (year === thisYear) {
-          stockCurrentYearDiv += amount
+          currentYearDiv += amount
+          const name = s.name.length > 1 ? s.name : s.code
+          currentYearDivItems.push({ name, amount, ts: t.ts || 0 })
         }
         allTimeByYear[year] = (allTimeByYear[year] || 0) + amount
-      }
-      if (stockCurrentYearDiv > 0) {
-        currentYearDiv += stockCurrentYearDiv
-        const name = s.name.length > 1 ? s.name : s.code
-        currentYearDivItems.push({ name, amount: stockCurrentYearDiv })
       }
     })
     allTimeDiv = Object.values(allTimeByYear).reduce((a, b) => a + b, 0)
@@ -156,7 +153,7 @@ export default function Portfolio() {
       hasHoldings: holdings.length > 0,
       // 实际分红
       currentYearDiv,
-      currentYearDivItems: currentYearDivItems.sort((a, b) => b.amount - a.amount),
+      currentYearDivItems, // 渲染时按 divSort 排序
       allTimeDiv,
       allTimeDivByYear: Object.entries(allTimeByYear)
         .map(([year, total]) => ({ year: Number(year), total }))
@@ -280,6 +277,14 @@ export default function Portfolio() {
       title: key === 'market' ? '持仓市值明细' : '成本金额明细',
     }
   }, [valueDetail, pnlDetail, holdings])
+
+  // 当年分红明细排序
+  const currentYearDivSorted = useMemo(() => {
+    const arr = [...metrics.currentYearDivItems]
+    if (divSort === 'amount') arr.sort((a, b) => b.amount - a.amount)
+    else arr.sort((a, b) => b.ts - a.ts)
+    return arr
+  }, [metrics.currentYearDivItems, divSort])
 
 
 
@@ -624,12 +629,25 @@ export default function Portfolio() {
           <div>
             <div className="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-100 text-sm">
               <span className="text-gray-400">合计</span>
-              <span className="font-bold text-gray-800">¥{metrics.currentYearDiv.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {(['date', 'amount'] as const).map(k => (
+                    <button key={k} onClick={() => setDivSort(k)}
+                      className={`text-xs px-2 py-0.5 rounded-full border ${divSort === k ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-500'}`}>
+                      {k === 'date' ? '时间' : '金额'}
+                    </button>
+                  ))}
+                </div>
+                <span className="font-bold text-gray-800">¥{metrics.currentYearDiv.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+              </div>
             </div>
             <div className="divide-y divide-gray-50">
-              {metrics.currentYearDivItems.map(d => (
-                <div key={d.name} className="flex items-center justify-between py-3">
-                  <span className="text-sm font-semibold text-gray-800 truncate">{d.name}</span>
+              {currentYearDivSorted.map((d, i) => (
+                <div key={i} className="flex items-center justify-between py-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-800 truncate">{d.name}</div>
+                    <div className="text-xs text-gray-400">{d.ts ? new Date(d.ts).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '--'}</div>
+                  </div>
                   <div className="text-right flex-shrink-0 ml-3">
                     <div className="text-sm font-bold text-gray-800">¥{d.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
                     <div className="text-xs text-gray-400">{((d.amount / metrics.currentYearDiv) * 100).toFixed(1)}%</div>

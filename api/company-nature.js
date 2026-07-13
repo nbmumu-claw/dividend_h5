@@ -5,7 +5,8 @@ export default async function handler(req, res) {
     `https://emweb.securities.eastmoney.com/PC_HSF10/ShareholderResearch/PageAjax?code=${prefix}${code}`,
     { headers: { Referer: 'https://emweb.securities.eastmoney.com/' } }
   )
-  const data = await response.json()
+  const text = await response.text()
   res.setHeader('Content-Type', 'application/json')
-  res.json(data)
+  res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=600')
+  res.send(text)
 }

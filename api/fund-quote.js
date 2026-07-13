@@ -6,9 +6,10 @@ export default async function handler(req, res) {
       `https://api.fund.eastmoney.com/f10/lsjz?fundCode=${code}&pageIndex=1&pageSize=1`,
       { headers: { 'Referer': 'http://fund.eastmoney.com/', 'User-Agent': 'Mozilla/5.0' } }
     )
-    const json = await r.json()
+    const text = await r.text()
     res.setHeader('Content-Type', 'application/json')
-    res.json(json)
+    res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=15')
+    res.send(text)
   } catch {
     res.status(502).json({ error: 'fund quote failed' })
   }
