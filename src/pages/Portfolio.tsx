@@ -22,7 +22,7 @@ export default function Portfolio() {
   const categoryOverrides = useStore(s => s.categoryOverrides)
   const statsScope = useStore(s => s.statsScope)
   const activeAccountId = useStore(s => s.activeAccountId)
-  const [chartType, setChartType] = useState<'div' | 'cost'>('div')
+  const [chartType, setChartType] = useState<'div' | 'market' | 'cost'>('div')
   const [chartGroup, setChartGroup] = useState<'sector' | 'stock' | 'category'>('sector')
   // 明细弹窗（沪/深市值、三大类成分股）
   const [detail, setDetail] = useState<{ title: string; items: { name: string; value: number }[] } | null>(null)
@@ -30,6 +30,8 @@ export default function Portfolio() {
   const [pnlDesc, setPnlDesc] = useState(true)
   // 持仓市值 / 成本金额 明细弹窗（按美股 / AH股分组）
   const [valueDetail, setValueDetail] = useState<'market' | 'cost' | null>(null)
+  // 实际分红明细弹窗
+  const [divDetail, setDivDetail] = useState<'currentYear' | 'allTime' | null>(null)
   // 「只看美股」下「三大类」无意义（美股不纳入三大类分类）：正选着则回落到「板块」
   useEffect(() => {
     if (statsScope === 'us' && chartGroup === 'category') setChartGroup('sector')
@@ -83,6 +85,12 @@ export default function Portfolio() {
     let szMarket = 0   // 深市市值（仅 A 股）
     const shItems: { name: string; value: number }[] = []
     const szItems: { name: string; value: number }[] = []
+    // 实际分红（从交易流水中提取 dividend 交易）
+    let currentYearDiv = 0
+    let allTimeDiv = 0
+    const currentYearDivItems: { name: string; amount: number }[] = []
+    const allTimeByYear: Record<number, number> = {}
+    const thisYear = new Date().getFullYear()
 
     holdings.forEach(s => {
       const shares = Number(s.shares) || 0
@@ -105,7 +113,26 @@ export default function Portfolio() {
         ? toCnyPrice(costPrice, s, exchangeRate, usdRate)
         : priceCny
       totalCost += costPriceCny * shares
+
+      // 实际分红汇总
+      const txs = s.transactions || []
+      let stockCurrentYearDiv = 0
+      for (const t of txs) {
+        if (t.type !== 'dividend') continue
+        const amount = toCnyPrice((Number(t.qty) || 0) * (Number(t.price) || 0), s, exchangeRate, usdRate)
+        const year = new Date(t.ts || 0).getFullYear()
+        if (year === thisYear) {
+          stockCurrentYearDiv += amount
+        }
+        allTimeByYear[year] = (allTimeByYear[year] || 0) + amount
+      }
+      if (stockCurrentYearDiv > 0) {
+        currentYearDiv += stockCurrentYearDiv
+        const name = s.name.length > 1 ? s.name : s.code
+        currentYearDivItems.push({ name, amount: stockCurrentYearDiv })
+      }
     })
+    allTimeDiv = Object.values(allTimeByYear).reduce((a, b) => a + b, 0)
 
     const overallYield = totalCost > 0 ? (totalAnnual / totalCost) * 100 : 0
     const profitLoss = totalMarket - totalCost
@@ -127,14 +154,26 @@ export default function Portfolio() {
       szItems: szItems.sort((a, b) => b.value - a.value),
       stockCount: watchlist.length,
       hasHoldings: holdings.length > 0,
+      // 实际分红
+      currentYearDiv,
+      currentYearDivItems: currentYearDivItems.sort((a, b) => b.amount - a.amount),
+      allTimeDiv,
+      allTimeDivByYear: Object.entries(allTimeByYear)
+        .map(([year, total]) => ({ year: Number(year), total }))
+        .sort((a, b) => b.year - a.year),
     }
   }, [holdings, watchlist.length, exchangeRate, usdRate])
 
   const valOf = useCallback((s: WatchlistStock) => {
     const shares = Number(s.shares) || 0
-    if (chartType === 'cost') {
+    if (chartType === 'market') {
       const priceCny = toCnyPrice(s.price, s, exchangeRate, usdRate)
       return priceCny * shares
+    }
+    if (chartType === 'cost') {
+      const costPrice = Number(s.costPrice) || 0
+      const costPriceCny = toCnyPrice(costPrice, s, exchangeRate, usdRate)
+      return costPriceCny * shares
     }
     const divCny = toCnyPrice(s.dividendPerShare, s, exchangeRate, usdRate)
     return afterTax(divCny * shares, s)
@@ -331,6 +370,20 @@ export default function Portfolio() {
                   </button>
                 </>
               )}
+              <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setDivDetail('currentYear')}>
+                <span className="text-gray-500 flex items-center gap-0.5">
+                  当年累计分红
+                  <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+                <span className="font-medium text-red-600">¥{metrics.currentYearDiv.toFixed(0)}</span>
+              </button>
+              <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setDivDetail('allTime')}>
+                <span className="text-gray-500 flex items-center gap-0.5">
+                  历史累计分红
+                  <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+                <span className="font-medium text-red-600">¥{metrics.allTimeDiv.toFixed(0)}</span>
+              </button>
             </div>
           )}
         </div>
@@ -342,13 +395,13 @@ export default function Portfolio() {
           <div className="card p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-gray-800">
-                {chartGroup === 'category' ? '三大类占比' : chartType === 'cost' ? '市值分布' : '红利分布'}
+                {chartGroup === 'category' ? '三大类占比' : chartType === 'market' ? '市值分布' : chartType === 'cost' ? '成本分布' : '红利分布'}
               </span>
               <div className="flex gap-1">
-                {(['div', 'cost'] as const).map(t => (
+                {(['div', 'market', 'cost'] as const).map(t => (
                   <button key={t} onClick={() => setChartType(t)}
                     className={`text-xs px-3 py-1 rounded-full border ${chartType === t ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-500'}`}>
-                    {t === 'div' ? '红利' : '市值'}
+                    {t === 'div' ? '红利' : t === 'market' ? '市值' : '成本'}
                   </button>
                 ))}
                 <div className="w-px bg-gray-200 mx-0.5" />
@@ -380,7 +433,7 @@ export default function Portfolio() {
                     formatter={(value: number) => {
                       const total = chartData.reduce((s, d) => s + d.value, 0)
                       const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0'
-                      const label = chartType === 'cost' ? '持仓市值' : '年红利'
+                      const label = chartType === 'market' ? '持仓市值' : chartType === 'cost' ? '成本金额' : '年红利'
                       return [`¥${value.toFixed(2)} (${pct}%)`, label]
                     }}
                     contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
@@ -562,6 +615,57 @@ export default function Portfolio() {
           </div>
         ))}
       </Modal>
+
+      {/* 当年累计分红明细 */}
+      <Modal open={divDetail === 'currentYear'} onClose={() => setDivDetail(null)} title="当年累计分红明细">
+        {metrics.currentYearDiv <= 0 ? (
+          <div className="py-6 text-center text-sm text-gray-400">暂无实际分红记录</div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-100 text-sm">
+              <span className="text-gray-400">合计</span>
+              <span className="font-bold text-gray-800">¥{metrics.currentYearDiv.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {metrics.currentYearDivItems.map(d => (
+                <div key={d.name} className="flex items-center justify-between py-3">
+                  <span className="text-sm font-semibold text-gray-800 truncate">{d.name}</span>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <div className="text-sm font-bold text-gray-800">¥{d.amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                    <div className="text-xs text-gray-400">{((d.amount / metrics.currentYearDiv) * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* 历史累计分红明细 */}
+      <Modal open={divDetail === 'allTime'} onClose={() => setDivDetail(null)} title="历史累计分红明细">
+        {metrics.allTimeDiv <= 0 ? (
+          <div className="py-6 text-center text-sm text-gray-400">暂无实际分红记录</div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-100 text-sm">
+              <span className="text-gray-400">合计</span>
+              <span className="font-bold text-gray-800">¥{metrics.allTimeDiv.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {metrics.allTimeDivByYear.map(d => (
+                <div key={d.year} className="flex items-center justify-between py-3">
+                  <span className="text-sm font-semibold text-gray-800">{d.year}年</span>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <div className="text-sm font-bold text-gray-800">¥{d.total.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+                    <div className="text-xs text-gray-400">{((d.total / metrics.allTimeDiv) * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <Disclaimer />
     </div>
   )
