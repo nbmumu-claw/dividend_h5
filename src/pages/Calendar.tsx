@@ -12,8 +12,8 @@ import { Toast, useToast } from '../components/Toast'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-// 股权登记日当天 12:00 的时间戳：分红股数按「登记日当时持仓」算（与持仓详情/到期提示一致）
-const recordTs = (recordDate: string) => new Date(recordDate + 'T12:00:00').getTime()
+// 股权登记日当天结束的时间戳：分红股数按收盘后的当日持仓算（与持仓详情/到期提示一致）
+const recordTs = (recordDate: string) => new Date(recordDate + 'T23:59:59.999').getTime()
 // 登记日当时的持仓股数（只数登记日之前的买卖，跳过分红）
 const sharesAtRecord = (stock: WatchlistStock | undefined, recordDate: string) =>
   stock ? sharesAsOf(ensureTransactions(stock), recordTs(recordDate)) : 0

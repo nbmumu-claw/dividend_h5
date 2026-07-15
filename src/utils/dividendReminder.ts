@@ -22,7 +22,7 @@ export interface PendingDividend {
 }
 
 function recordTs(recordDate: string): number {
-  return new Date(recordDate + 'T12:00:00').getTime()
+  return new Date(recordDate + 'T23:59:59.999').getTime()
 }
 
 function loadDismissed(): Set<string> {
