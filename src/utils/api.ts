@@ -1,6 +1,7 @@
 import type { PriceMap } from '../types'
 import { cacheGet, cacheSet } from './cache'
 import { STATIC_STOCKS } from '../data/stocks'
+import { fetchSearchApi } from './searchApi'
 
 const PRICE_TTL = 3 * 60 * 1000
 const RATE_TTL = 6 * 60 * 60 * 1000
@@ -347,7 +348,8 @@ export function annualFundDividend(events: { recordDate: string; perShare: numbe
 // 否则会把同名股票（如「贵州茅台」）误标成场外基金。
 export async function searchFunds(keyword: string): Promise<SearchResult[]> {
   try {
-    const res = await fetch(`/api/fund-search?${new URLSearchParams({ key: keyword })}`)
+    const params = new URLSearchParams({ key: keyword })
+    const res = await fetchSearchApi('fund', params, '/api/fund-search')
     const json = await res.json()
     const list: Array<{ CODE?: string; NAME?: string; CATEGORY?: number | string }> = json?.Datas || []
     return list
@@ -376,9 +378,8 @@ export function searchStocksLocal(keyword: string): SearchResult[] {
 
 // Tencent smartbox
 async function searchViaTencent(keyword: string): Promise<SearchResult[]> {
-  const res = await fetch(
-    `/api/stock-search-tx?v=2&type=S&count=8&q=${encodeURIComponent(keyword)}`
-  )
+  const params = new URLSearchParams({ v: '2', type: 'S', count: '8', q: keyword })
+  const res = await fetchSearchApi('tx', params, '/api/stock-search-tx')
   const text = await res.text()
   const match = text.match(/="([^"]+)"/)
   if (!match || !match[1]) return []
@@ -387,27 +388,39 @@ async function searchViaTencent(keyword: string): Promise<SearchResult[]> {
 
 // East money suggest
 async function searchViaEastMoney(keyword: string): Promise<SearchResult[]> {
-  const res = await fetch(
-    `/api/stock-search-em?input=${encodeURIComponent(keyword)}&type=14&token=D43BF722C8E33BDC906FB84D85E32628&count=8`
-  )
+  const params = new URLSearchParams({
+    input: keyword,
+    type: '14',
+    token: 'D43BF722C8E33BDC906FB84D85E32628',
+    count: '8',
+  })
+  const res = await fetchSearchApi('em', params, '/api/stock-search-em')
   const json = await res.json()
   const list: Array<{ Code: string; Name: string; Classify: string }> =
     json?.QuotationCodeTable?.Data || []
   return list
-    .filter(item => item.Classify === 'AStock' || item.Classify === 'BStock' || item.Classify === 'HK' || item.Classify === 'Fund')
+    .filter(item => ['AStock', 'BStock', 'HK', 'Fund', 'UsStock'].includes(item.Classify))
     .slice(0, 8)
-    .map(item => ({
-      name: item.Name,
-      code: item.Classify === 'HK'
-        ? item.Code.replace(/^0+/, '').padStart(4, '0')
-        : item.Code.padStart(6, '0'),
-      isHK: item.Classify === 'HK',
-    }))
+    .map(item => {
+      const isHK = item.Classify === 'HK'
+      const isUS = item.Classify === 'UsStock'
+      return {
+        name: item.Name,
+        code: isUS
+          ? item.Code.toUpperCase()
+          : isHK
+            ? item.Code.replace(/^0+/, '').padStart(4, '0')
+            : item.Code.padStart(6, '0'),
+        isHK,
+        isUS,
+      }
+    })
 }
 
 // Sina (original)
 async function searchViaSina(keyword: string): Promise<SearchResult[]> {
-  const res = await fetch(`/api/stock-search?key=${encodeURIComponent(keyword)}`)
+  const params = new URLSearchParams({ key: keyword })
+  const res = await fetchSearchApi('sina', params, '/api/stock-search')
   const buf = await res.arrayBuffer()
   const text = new TextDecoder('gbk').decode(buf)
   const match = text.match(/suggestvalue="([^"]*)"/)
@@ -451,7 +464,8 @@ const US_EXCHANGES = new Set(['NMS', 'NYQ', 'NGM', 'PCX', 'ASE', 'BTS', 'NCM', '
 
 // Yahoo Finance search for US stocks
 async function searchViaYahooUS(keyword: string): Promise<SearchResult[]> {
-  const res = await fetch(`/api/stock-search-us?q=${encodeURIComponent(keyword)}`)
+  const params = new URLSearchParams({ q: keyword })
+  const res = await fetchSearchApi('us', params, '/api/stock-search-us')
   const json = await res.json()
   const quotes: Array<{
     symbol?: string
@@ -555,19 +569,19 @@ function filterByCode(results: SearchResult[], keyword: string): SearchResult[] 
   return results.filter(r => r.code.startsWith(keyword) || r.name.includes(keyword))
 }
 
-// Three-level fallback: local → Tencent → EastMoney → Sina → Yahoo Finance (US) → direct price check
+// Multi-level fallback: local → EastMoney → Tencent → Sina → Yahoo Finance (US) → direct price check
 export async function searchStocks(keyword: string, forceCloud = false): Promise<SearchResult[]> {
   if (!forceCloud) {
     const local = searchStocksLocal(keyword)
     if (local.length > 0) return local
   }
   try {
-    const tx = filterByCode(await searchViaTencent(keyword), keyword)
-    if (tx.length > 0) return tx
-  } catch { /* fall through */ }
-  try {
     const em = filterByCode(await searchViaEastMoney(keyword), keyword)
     if (em.length > 0) return em
+  } catch { /* fall through */ }
+  try {
+    const tx = filterByCode(await searchViaTencent(keyword), keyword)
+    if (tx.length > 0) return tx
   } catch { /* fall through */ }
   try {
     const sina = filterByCode(await searchViaSina(keyword), keyword)

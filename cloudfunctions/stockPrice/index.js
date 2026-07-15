@@ -17,6 +17,8 @@ const response = require('./utils/response')
 const HANDLERS = {
   stockPrice: './handlers/stockPrice',
   ownerType:  './handlers/ownerType',
+  dividendHistory: './handlers/dividendHistory',
+  search: './handlers/search',
 }
 
 // 懒加载，避免冷启动全量 require

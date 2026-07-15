@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet } from './cache'
+import { fetchDividendApi } from './dividendApi'
 
 const TTL_HISTORY = 30 * 24 * 60 * 60 * 1000 // 30 days for past years
 const TTL_CURRENT  =      24 * 60 * 60 * 1000 // 1 day  for current year
@@ -66,7 +67,7 @@ async function fetchAShareDividendHistory(code: string): Promise<DividendHistory
     sortColumns: 'REPORT_DATE',
     sortTypes: '-1',
   })
-  const res = await fetch(`/api/dividend-history?${params}`)
+  const res = await fetchDividendApi(params)
   const json = await res.json()
 
   const rows: Array<{

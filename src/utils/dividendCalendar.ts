@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet } from './cache'
+import { fetchDividendApi } from './dividendApi'
 
 export interface DividendEvent {
   code: string
@@ -55,7 +56,7 @@ async function fetchAShareCalendarEvents(code: string): Promise<DividendEvent[]>
     sortColumns: 'REPORT_DATE',
     sortTypes: '-1',
   })
-  const res = await fetch(`/api/dividend-history?${params}`)
+  const res = await fetchDividendApi(params)
   const json = await res.json()
 
   const rows: Array<{

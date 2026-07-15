@@ -1,4 +1,5 @@
 import { cacheGet, cacheSetPermanent } from './cache'
+import { fetchDividendApi } from './dividendApi'
 
 export async function fetchListingYear(code: string): Promise<number | null> {
   const key = `listingYear:${code}`
@@ -13,7 +14,7 @@ export async function fetchListingYear(code: string): Promise<number | null> {
       filter,
       pageSize: '1',
     })
-    const res = await fetch(`/api/dividend-history?${params}`)
+    const res = await fetchDividendApi(params)
     const json = await res.json()
     const row = json?.result?.data?.[0]
     if (!row?.LISTING_DATE) return null
