@@ -7,6 +7,8 @@ import { afterTax, toCNY } from '../utils/tax'
 import type { WatchlistStock } from '../types'
 import { toCnyPrice, currencySymbol } from '../utils/market'
 import { ensureTransactions, sharesAsOf } from '../utils/holdings'
+import Modal from '../components/Modal'
+import { Toast, useToast } from '../components/Toast'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,12 @@ export default function Calendar() {
   const watchlist = useStore(s => s.watchlist)
   const exchangeRate = useStore(s => s.exchangeRate)
   const usdRate = useStore(s => s.usdRate)
+  const accounts = useStore(s => s.accounts)
+  const activeAccountId = useStore(s => s.activeAccountId)
+  const switchAccount = useStore(s => s.switchAccount)
+  const [showAccountSheet, setShowAccountSheet] = useState(false)
+  const activeAccountName = accounts.find(a => a.id === activeAccountId)?.name || '我的账户'
+  const { message, showToast } = useToast()
 
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -215,15 +223,26 @@ export default function Calendar() {
 
   if (watchlist.length === 0) {
     return (
-      <div className="page-content flex flex-col items-center justify-center" style={{ minHeight: '60vh' }}>
-        <div className="text-4xl mb-4">📅</div>
-        <div className="text-gray-500 text-sm mb-6">自选列表为空，添加股票后查看分红日历</div>
-        <button
-          className="btn-primary px-6 py-2 rounded-full text-sm"
-          onClick={() => navigate('/watchlist')}
-        >
-          去添加自选
-        </button>
+      <div className="page-content page-narrow">
+        <div className="px-4 pt-12 pb-2">
+          <div className="relative flex items-center justify-center">
+            <h1 className="text-lg font-bold text-gray-900">分红日历</h1>
+            <button
+              onClick={() => setShowAccountSheet(true)}
+              className="absolute right-0 flex items-center gap-0.5 text-sm text-gray-600 bg-gray-100 rounded-full px-3 py-1 max-w-[40%]"
+            >
+              <span className="truncate">{activeAccountName}</span>
+              <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col items-center justify-center" style={{ minHeight: '50vh' }}>
+          <div className="text-4xl mb-4">📅</div>
+          <div className="text-gray-500 text-sm mb-6">当前账户自选列表为空，添加股票后查看分红日历</div>
+          <button className="btn-primary px-6 py-2 rounded-full text-sm" onClick={() => navigate('/watchlist')}>去添加自选</button>
+        </div>
+        <Toast message={message} />
+        <AccountSwitcherModal open={showAccountSheet} onClose={() => setShowAccountSheet(false)} accounts={accounts} activeAccountId={activeAccountId} switchAccount={switchAccount} showToast={showToast} navigate={navigate} />
       </div>
     )
   }
@@ -234,7 +253,13 @@ export default function Calendar() {
       <div className="px-4 pt-12 pb-2">
         <div className="relative flex items-center justify-center">
           <h1 className="text-lg font-bold text-gray-900">分红日历</h1>
-          {loading && <span className="absolute right-0 text-xs text-gray-400">加载中…</span>}
+          <button
+            onClick={() => setShowAccountSheet(true)}
+            className="absolute right-0 flex items-center gap-0.5 text-sm text-gray-600 bg-gray-100 rounded-full px-3 py-1 max-w-[40%]"
+          >
+            <span className="truncate">{loading ? '加载中…' : activeAccountName}</span>
+            <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
         </div>
       </div>
 
@@ -497,6 +522,40 @@ export default function Calendar() {
           )
         )}
       </div>
+      <Toast message={message} />
+      <AccountSwitcherModal open={showAccountSheet} onClose={() => setShowAccountSheet(false)} accounts={accounts} activeAccountId={activeAccountId} switchAccount={switchAccount} showToast={showToast} navigate={navigate} />
     </div>
+  )
+}
+
+function AccountSwitcherModal({ open, onClose, accounts, activeAccountId, switchAccount, showToast, navigate }: {
+  open: boolean
+  onClose: () => void
+  accounts: { id: string; name: string }[]
+  activeAccountId: string
+  switchAccount: (id: string) => void
+  showToast: (message: string) => void
+  navigate: (path: string) => void
+}) {
+  return (
+    <Modal open={open} onClose={onClose} title="切换账户">
+      <div className="space-y-1">
+        {accounts.map(a => {
+          const active = a.id === activeAccountId
+          return (
+            <button key={a.id} onClick={() => { switchAccount(a.id); onClose(); if (!active) showToast(`已切换到「${a.name}」`) }} className={`w-full flex items-center gap-2 px-3 py-3 rounded-lg ${active ? 'bg-red-50' : 'active:bg-gray-50'}`}>
+              <span className={`w-4 h-4 flex-shrink-0 ${active ? 'text-red-600' : 'text-transparent'}`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </span>
+              <span className={`text-sm ${active ? 'font-semibold text-red-700' : 'text-gray-800'}`}>{a.name}</span>
+            </button>
+          )
+        })}
+        <button onClick={() => { onClose(); navigate('/account-manager') }} className="w-full flex items-center gap-2 px-3 py-3 rounded-lg active:bg-gray-50 text-gray-500 text-sm border-t border-gray-50 mt-1">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          管理账户
+        </button>
+      </div>
+    </Modal>
   )
 }
