@@ -4,6 +4,7 @@ import { afterTax } from './tax'
 import { ensureTransactions, sharesAsOf, type Transaction } from './holdings'
 
 const DAY = 86400000
+export const ARRIVAL_WINDOW_DAYS = 5
 
 export interface DividendArrivalItem {
   code: string
@@ -13,12 +14,20 @@ export interface DividendArrivalItem {
   perShare: number
   qty: number
   net: number
+  recorded: boolean
 }
 
 export const arrivalKey = (accountId: string, item: Pick<DividendArrivalItem, 'code' | 'recordDate'>) =>
   `${accountId}:${item.code}@${item.recordDate}`
 
 const endOfDayTs = (date: string) => new Date(`${date}T23:59:59.999`).getTime()
+const startOfDayTs = (date: string) => new Date(`${date}T00:00:00`).getTime()
+
+function isInArrivalWindow(recordDate: string, paymentDate: string, today: string): boolean {
+  const todayTs = startOfDayTs(today)
+  return todayTs >= startOfDayTs(paymentDate)
+    && todayTs <= startOfDayTs(recordDate) + ARRIVAL_WINDOW_DAYS * DAY
+}
 
 export function isDividendRecorded(transactions: Transaction[] | undefined, recordDate: string): boolean {
   const recordTs = endOfDayTs(recordDate)
@@ -36,12 +45,18 @@ export function buildDividendArrivalItems(
   const items: DividendArrivalItem[] = []
 
   for (const event of events) {
-    if (event.status !== 'confirmed' || event.isHK || event.isUS || event.paymentDate !== today) continue
+    if (
+      event.status !== 'confirmed'
+      || event.isHK
+      || event.isUS
+      || !event.paymentDate
+      || !isInArrivalWindow(event.recordDate, event.paymentDate, today)
+    ) continue
     const stock = byCode.get(event.code)
     if (!stock) continue
     const txs = ensureTransactions(stock)
     const itemKey = arrivalKey(accountId, event)
-    if (handledKeys.has(itemKey) || isDividendRecorded(txs, event.recordDate)) continue
+    if (handledKeys.has(itemKey)) continue
     const qty = sharesAsOf(txs, endOfDayTs(event.recordDate))
     if (qty <= 0) continue
     items.push({
@@ -52,6 +67,7 @@ export function buildDividendArrivalItems(
       perShare: event.perShare,
       qty,
       net: afterTax(event.perShare, stock) * qty,
+      recorded: isDividendRecorded(txs, event.recordDate),
     })
   }
 

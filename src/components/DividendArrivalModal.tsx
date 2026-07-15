@@ -74,7 +74,8 @@ export default function DividendArrivalModal({ enabled }: Props) {
   const close = () => markHandled(items)
   const confirm = () => {
     for (const item of items) {
-      const stock = watchlist.find(candidate => candidate.code === item.code)
+      if (item.recorded) continue
+      const stock = useStore.getState().watchlist.find(candidate => candidate.code === item.code)
       if (!stock) continue
       const txs = ensureTransactions(stock)
       setTransactions(stock.code, [...txs, buildArrivalTransaction(item, stock)])
@@ -98,8 +99,8 @@ export default function DividendArrivalModal({ enabled }: Props) {
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <div className="text-xs font-medium tracking-[0.18em] text-amber-700">DIVIDEND ARRIVAL</div>
-              <h2 className="mt-1 text-xl font-bold text-gray-900">今日分红喜报</h2>
-              <p className="mt-1 text-xs text-gray-500">已实施方案，预计今日到账</p>
+              <h2 className="mt-1 text-xl font-bold text-gray-900">近期分红喜报</h2>
+              <p className="mt-1 text-xs text-gray-500">已实施方案，登记日后5天内可确认</p>
             </div>
             <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-600 text-white shadow-sm">
               <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
@@ -118,7 +119,11 @@ export default function DividendArrivalModal({ enabled }: Props) {
             {items.map(item => (
               <div key={`${item.code}@${item.recordDate}`} className="flex items-center justify-between gap-3 border-t border-amber-200/70 pt-2.5">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-gray-800">{item.name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="truncate text-sm font-medium text-gray-800">{item.name}</div>
+                    {item.recorded && <span className="shrink-0 text-[10px] font-medium text-emerald-600">已记录</span>}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-gray-500">预计到账日 {item.paymentDate}</div>
                   <div className="mt-0.5 text-[11px] text-gray-500">{item.qty}股 × ¥{item.perShare.toFixed(4)}</div>
                 </div>
                 <div className="shrink-0 text-sm font-semibold tabular-nums text-gray-900">¥{item.net.toFixed(2)}</div>

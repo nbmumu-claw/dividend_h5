@@ -29,7 +29,7 @@ const event: DividendEvent = {
 describe('buildDividendArrivalItems', () => {
   it('builds an arrival for shares held at the record-date close', () => {
     expect(buildDividendArrivalItems([stock], [event], '2026-05-13', new Set(), 'default')).toEqual([
-      expect.objectContaining({ code: '601398', qty: 1000, net: 168.9 }),
+      expect.objectContaining({ code: '601398', qty: 1000, net: 168.9, recorded: false }),
     ])
   })
 
@@ -40,7 +40,32 @@ describe('buildDividendArrivalItems', () => {
     expect(buildDividendArrivalItems([stock], [event], '2026-05-13', new Set([arrivalKey('default', event)]), 'default')).toEqual([])
   })
 
-  it('does not repeat a dividend that is already recorded', () => {
+  it('starts on payment date and expires five days after record date', () => {
+    expect(buildDividendArrivalItems([stock], [event], '2026-05-17', new Set(), 'default')).toHaveLength(1)
+    expect(buildDividendArrivalItems([stock], [event], '2026-05-18', new Set(), 'default')).toEqual([])
+  })
+
+  it('merges multiple eligible stocks while preserving each payment date', () => {
+    const secondStock: WatchlistStock = {
+      ...stock,
+      code: '000858',
+      name: '五粮液',
+    }
+    const secondEvent: DividendEvent = {
+      ...event,
+      code: '000858',
+      name: '五粮液',
+      recordDate: '2026-05-13',
+      paymentDate: '2026-05-14',
+      perShare: 2,
+    }
+
+    const items = buildDividendArrivalItems([stock, secondStock], [event, secondEvent], '2026-05-14', new Set(), 'default')
+    expect(items).toHaveLength(2)
+    expect(items.map(item => item.paymentDate)).toEqual(expect.arrayContaining(['2026-05-13', '2026-05-14']))
+  })
+
+  it('still celebrates a recorded dividend without treating it as unrecorded', () => {
     const recorded: WatchlistStock = {
       ...stock,
       transactions: [
@@ -48,6 +73,8 @@ describe('buildDividendArrivalItems', () => {
         { type: 'dividend', qty: 1000, price: 0.1689, gross: 0.1689, ts: new Date('2026-05-12T23:59:59.999').getTime() },
       ],
     }
-    expect(buildDividendArrivalItems([recorded], [event], '2026-05-13', new Set(), 'default')).toEqual([])
+    expect(buildDividendArrivalItems([recorded], [event], '2026-05-13', new Set(), 'default')).toEqual([
+      expect.objectContaining({ code: '601398', recorded: true }),
+    ])
   })
 })
