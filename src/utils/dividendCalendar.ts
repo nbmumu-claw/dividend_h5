@@ -7,6 +7,7 @@ export interface DividendEvent {
   isUS?: boolean
   recordDate: string   // YYYY-MM-DD
   exDate?: string      // YYYY-MM-DD
+  paymentDate?: string // YYYY-MM-DD；仅在上游有可靠派息日期时提供
   perShare: number     // 税前
   status: 'confirmed' | 'estimated'
 }
@@ -91,6 +92,8 @@ async function fetchAShareCalendarEvents(code: string): Promise<DividendEvent[]>
         name: '',
         recordDate: r.EQUITY_RECORD_DATE.slice(0, 10),
         exDate: r.EX_DIVIDEND_DATE ? r.EX_DIVIDEND_DATE.slice(0, 10) : undefined,
+        // A股已实施方案的除权日同时作为现金红利预计到账日；无正式日期则不触发到账喜报
+        paymentDate: r.EX_DIVIDEND_DATE ? r.EX_DIVIDEND_DATE.slice(0, 10) : undefined,
         perShare: dps,
         status: 'confirmed',
       })
@@ -233,7 +236,7 @@ export async function fetchCalendarEvents(
   name: string,
   isHK = false,
 ): Promise<DividendEvent[]> {
-  const key = `calEvent2:${code}`
+  const key = `calEvent3:${code}`
   const cached = cacheGet<DividendEvent[]>(key)
   if (cached) return cached.map(e => ({ ...e, name }))
 

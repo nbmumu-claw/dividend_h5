@@ -1,8 +1,9 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, lazy, Suspense, useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import TabBar from './components/TabBar'
 import ErrorBoundary from './components/ErrorBoundary'
+import DividendArrivalModal from './components/DividendArrivalModal'
 import { fetchExchangeRate, fetchUsdRate } from './utils/api'
 import { useStore } from './store'
 import { getSession, syncOnLogin, startAutoPush } from './utils/cloudSync'
@@ -32,6 +33,7 @@ function PageLoading() {
 }
 
 export default function App() {
+  const [startupReady, setStartupReady] = useState(false)
   const setExchangeRate = useStore(s => s.setExchangeRate)
   const setUsdRate = useStore(s => s.setUsdRate)
   const syncWatchlistDividends = useStore(s => s.syncWatchlistDividends)
@@ -54,6 +56,7 @@ export default function App() {
           startAutoPush()
         }
       } catch { /* 离线/未登录忽略 */ }
+      finally { setStartupReady(true) }
     })()
   }, [])
 
@@ -82,6 +85,7 @@ export default function App() {
         </Suspense>
       </ErrorBoundary>
       {!hideTabBar && <TabBar />}
+      <DividendArrivalModal enabled={startupReady} />
       <Analytics
         beforeSend={(event) => {
           // 每次访问只统计首屏（SPA 切换不再计数），且首屏再按 10% 概率抽样上报
