@@ -4,7 +4,7 @@ import { useStore } from '../store'
 import { fetchStockPrices } from '../utils/api'
 import { afterTax } from '../utils/tax'
 import { currencySymbol, isBShare } from '../utils/market'
-import { computeHolding, ensureTransactions, sharesAsOf, dividendShares, TX_LABEL, type TxType, type Transaction } from '../utils/holdings'
+import { computeHolding, ensureTransactions, findFirstOversell, sharesAsOf, dividendShares, TX_LABEL, type TxType, type Transaction } from '../utils/holdings'
 import { makeFeeCalc } from '../utils/fees'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
@@ -127,10 +127,9 @@ export default function HoldingDetail() {
   }
 
   const confirmTx = () => {
-    const p = parseFloat(txPrice) || 0
+    const p = Number(txPrice.trim())
     const ts = previewTs
     const base = editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs
-    const curShares = computeHolding(base).shares
 
     let qty: number
     let storedPrice = p
@@ -138,13 +137,12 @@ export default function HoldingDetail() {
       // 分红按「分红日期当时的持仓」算，而非当前总持仓
       qty = sharesAsOf(base, ts)
       if (qty <= 0) { showToast('该日期当时无持仓，无法记录分红'); return }
-      if (p <= 0) { showToast('请填写每股分红'); return }
+      if (!Number.isFinite(p) || p <= 0) { showToast('请填写有效的每股分红'); return }
       storedPrice = afterTax(p, stock)
     } else {
-      qty = parseInt(txQty, 10) || 0
-      if (qty <= 0) { showToast('请填写数量'); return }
-      if (p <= 0) { showToast('请填写价格'); return }
-      if (txType === 'sell' && qty > curShares) { showToast(`卖出不能超过持仓 ${curShares} 股`); return }
+      qty = Number(txQty.trim())
+      if (!Number.isInteger(qty) || qty <= 0) { showToast('请填写有效的整数数量'); return }
+      if (!Number.isFinite(p) || p <= 0) { showToast('请填写有效的价格'); return }
       if (txType === 'buy' && txNegative) storedPrice = -p
     }
 
@@ -154,13 +152,31 @@ export default function HoldingDetail() {
     const next = txs.slice()
     if (editingIdx >= 0) next[editingIdx] = tx
     else next.push(tx)
+    if (txType !== 'dividend') {
+      const issue = findFirstOversell(next)
+      if (issue) {
+        const ownIndex = editingIdx >= 0 ? editingIdx : txs.length
+        const prefix = issue.index === ownIndex && txType === 'sell'
+          ? '卖出数量不能超过该日期当时的可用持仓'
+          : `修改后 ${fmtDate(issue.transaction.ts)} 的卖出将超过当日可用持仓`
+        showToast(`${prefix}（${issue.available}股）`)
+        return
+      }
+    }
     setTransactions(stock.code, next)
     setShowForm(false); setEditingIdx(-1)
     showToast(editingIdx >= 0 ? '已更新' : '已记录')
   }
 
   const doDelete = (idx: number) => {
-    setTransactions(stock.code, txs.filter((_, i) => i !== idx))
+    const next = txs.filter((_, i) => i !== idx)
+    const issue = findFirstOversell(next)
+    if (issue) {
+      showToast(`删除后 ${fmtDate(issue.transaction.ts)} 的卖出将超过当日可用持仓（${issue.available}股）`)
+      setDeleteIdx(null)
+      return
+    }
+    setTransactions(stock.code, next)
     setDeleteIdx(null)
     showToast('已删除')
   }

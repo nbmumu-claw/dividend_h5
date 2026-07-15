@@ -27,6 +27,33 @@ export interface HoldingResult {
   cleared: boolean
 }
 
+export interface OversellIssue {
+  index: number
+  transaction: Transaction
+  available: number
+}
+
+/** 按交易时间顺序查找第一笔超额卖出；同一时刻按原数组顺序处理 */
+export function findFirstOversell(transactions: Transaction[] | undefined): OversellIssue | null {
+  const ordered = (transactions || [])
+    .map((transaction, index) => ({ transaction, index }))
+    .sort((a, b) => ((a.transaction.ts || 0) - (b.transaction.ts || 0)) || (a.index - b.index))
+
+  let shares = 0
+  for (const { transaction, index } of ordered) {
+    if (transaction.type === 'dividend') continue
+    const qty = Number(transaction.qty)
+    if (!Number.isFinite(qty) || qty <= 0) continue
+    if (transaction.type === 'sell') {
+      if (qty > shares) return { index, transaction, available: shares }
+      shares -= qty
+    } else {
+      shares += qty
+    }
+  }
+  return null
+}
+
 /** 截至某时间点（含）持有的净股数：只看该日期及之前的买入/卖出（分红不影响持仓） */
 export function sharesAsOf(transactions: Transaction[] | undefined, ts: number): number {
   let shares = 0
