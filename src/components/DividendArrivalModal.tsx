@@ -61,6 +61,7 @@ export default function DividendArrivalModal({ enabled }: Props) {
     [watchlist, events, handled, activeAccountId],
   )
   const total = items.reduce((sum, item) => sum + item.net, 0)
+  const recordedCount = items.filter(item => item.recorded).length
 
   const markHandled = (arrivalItems: DividendArrivalItem[]) => {
     setHandled(previous => {
@@ -88,9 +89,16 @@ export default function DividendArrivalModal({ enabled }: Props) {
       open={enabled && items.length > 0}
       onClose={close}
       footer={(
-        <button onClick={confirm} className="btn-primary w-full">
-          开心收下
-        </button>
+        <div className="w-full">
+          {recordedCount > 0 && (
+            <div className="mb-2 text-center text-xs text-emerald-600">
+              其中 {recordedCount} 笔已录入，本次不会重复记录
+            </div>
+          )}
+          <button onClick={confirm} className="btn-primary w-full">
+            开心收下
+          </button>
+        </div>
       )}
     >
       <div className="relative overflow-hidden rounded-2xl bg-amber-50 px-5 pb-5 pt-6">
