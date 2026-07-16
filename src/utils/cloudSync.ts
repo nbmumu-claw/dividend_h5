@@ -127,15 +127,21 @@ export async function getSession() {
 interface CloudDoc { data: Backup; updatedAt: number; _id: string }
 
 export async function loadFromCloud(): Promise<CloudDoc | null> {
-  // 历史竞态可能让同一用户存在多条文档：按 updatedAt 倒序取最新，避免读到旧快照
+  // 新格式以 uid 作为确定性 _id：优先精确读取，避免宽查询和历史自愈误删当前文档。
+  const uid = await resolveUid()
+  if (uid) {
+    try {
+      const res = await cbDb.collection(USER_DATA_COLLECTION).doc(uid).get() as unknown as { data?: CloudDoc | CloudDoc[] }
+      const direct = Array.isArray(res.data) ? res.data[0] : res.data
+      if (direct) return { data: direct.data, updatedAt: direct.updatedAt || 0, _id: direct._id || uid }
+    } catch { /* 兼容历史随机 id，继续走下面的本人文档查询 */ }
+  }
+
+  // 历史随机 id 文档：只选择最新者。这里不再自动删除，清理属于管理端运维职责。
   const res = await cbDb.collection(USER_DATA_COLLECTION).orderBy('updatedAt', 'desc').limit(100).get()
   const all = (res.data || []) as Array<{ data: Backup; updatedAt?: number; _id: string }>
-  const { latest, stale } = pickLatest(all)
+  const { latest } = pickLatest(all)
   if (!latest) return null
-  // 读时自愈：删除冗余副本（部署前已整体备份；删除失败下次登录再清）
-  for (const d of stale) {
-    try { await cbDb.collection(USER_DATA_COLLECTION).doc(d._id).remove() } catch { /* 下次再清 */ }
-  }
   return { data: latest.data, updatedAt: latest.updatedAt || 0, _id: latest._id }
 }
 

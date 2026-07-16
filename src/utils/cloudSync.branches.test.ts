@@ -48,6 +48,11 @@ vi.mock('./cloudbase', () => {
         return { _id }
       },
       doc: (id: string) => ({
+        get: async () => {
+          const d = state.docs.find(x => x._id === id)
+          if (!d) throw new Error('not found')
+          return { data: d }
+        },
         set: async (u: Partial<Doc>) => {
           state.calls.set.push(id)
           const d = state.docs.find(x => x._id === id)
@@ -152,7 +157,7 @@ describe('loadFromCloud（读取 + 读时自愈）', () => {
     expect(state.calls.remove).toEqual([]) // 关键：单文档用户无感、零删除
   })
 
-  it('多文档：返回最新一条，删除其余冗余', async () => {
+  it('多份历史文档：返回最新一条但不在客户端自动删除', async () => {
     state.docs = [
       { _id: 'old', updatedAt: 100 },
       { _id: 'new', updatedAt: 300 },
@@ -160,8 +165,19 @@ describe('loadFromCloud（读取 + 读时自愈）', () => {
     ]
     const r = await loadFromCloud()
     expect(r?._id).toBe('new') // 最新
-    expect(state.calls.remove.sort()).toEqual(['mid', 'old']) // 旧的被删
-    expect(state.docs.map(d => d._id)).toEqual(['new']) // 只剩最新
+    expect(state.calls.remove).toEqual([])
+    expect(state.docs.map(d => d._id)).toEqual(['old', 'new', 'mid'])
+  })
+
+  it('确定性 uid 文档存在时优先精确读取，不受其他历史文档时间影响', async () => {
+    state.docs = [
+      { _id: 'u1', data: { owner: 'current' }, updatedAt: 100 },
+      { _id: 'legacy', data: { owner: 'legacy' }, updatedAt: 999 },
+    ]
+    const r = await loadFromCloud()
+    expect(r?._id).toBe('u1')
+    expect(r?.data).toEqual({ owner: 'current' })
+    expect(state.calls.remove).toEqual([])
   })
 })
 
