@@ -6,10 +6,11 @@ vi.mock('./cloudSync', () => ({ getCurrentUid: vi.fn() }))
 import { ACCOUNT_BINDING_ALLOWED_UIDS, maskEmail } from './accountBinding'
 
 describe('accountBinding 灰度与脱敏', () => {
-  it('只对白名单中的渔人和渔人 test 开放', () => {
+  it('只对白名单中的渔人、渔人 test 和阿木开放', () => {
     expect(ACCOUNT_BINDING_ALLOWED_UIDS).toEqual(new Set([
       '2069679426588643328',
       '2069652702966587392',
+      '2077682590818500608',
     ]))
     expect(ACCOUNT_BINDING_ALLOWED_UIDS.has('other-user')).toBe(false)
   })

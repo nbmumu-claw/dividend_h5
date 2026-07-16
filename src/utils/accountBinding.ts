@@ -4,6 +4,7 @@ import { getCurrentUid } from './cloudSync'
 export const ACCOUNT_BINDING_ALLOWED_UIDS = new Set([
   '2069679426588643328', // 渔人
   '2069652702966587392', // 渔人 test
+  '2077682590818500608', // 阿木
 ])
 
 const TOKEN_COLLECTION = 'accountBindingTokens'
