@@ -65,7 +65,7 @@ vi.mock('./cloudbase', () => {
   }
 })
 
-import { loadFromCloud, saveToCloud } from './cloudSync'
+import { loadFromCloud, saveToCloud, shouldPullRemote } from './cloudSync'
 
 const META = 'cloud-sync-meta'
 
@@ -75,6 +75,14 @@ beforeEach(() => {
   idSeq = 0
   fakeAuth.currentUser = { uid: 'u1' } // 默认已登录
   for (const k of Object.keys(mem)) delete mem[k]
+})
+
+describe('跨端版本保护', () => {
+  it('仅当云端更新时间严格更新时拉取，避免旧 H5 内存覆盖小程序更新', () => {
+    expect(shouldPullRemote(200, 100)).toBe(true)
+    expect(shouldPullRemote(100, 100)).toBe(false)
+    expect(shouldPullRemote(99, 100)).toBe(false)
+  })
 })
 
 describe('loadFromCloud（读取 + 读时自愈）', () => {

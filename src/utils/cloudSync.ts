@@ -197,14 +197,31 @@ export async function resolveConflict(useCloud: boolean, cloud: CloudDoc) {
 
 // 自动上传：本地数据变化后 debounce 上传（登录态才生效）
 let pushTimer: ReturnType<typeof setTimeout> | null = null
+let pullTimer: ReturnType<typeof setInterval> | null = null
 let lastPushedJson = ''
 let unsub: (() => void) | null = null
+
+export function shouldPullRemote(remoteUpdatedAt: number, localUpdatedAt: number): boolean {
+  return Number(remoteUpdatedAt) > Number(localUpdatedAt)
+}
+
+async function pullIfRemoteNewer(): Promise<boolean> {
+  if (applyingRemote) return false
+  const session = await getSession()
+  if (!session || session.user?.is_anonymous) return false
+  const cloud = await loadFromCloud()
+  if (!cloud || !shouldPullRemote(cloud.updatedAt, loadMeta().updatedAt)) return false
+  applyRemote(cloud.data, cloud.updatedAt, cloud._id)
+  return true
+}
 
 function schedulePush() {
   if (pushTimer) clearTimeout(pushTimer)
   pushTimer = setTimeout(async () => {
     const session = await getSession()
     if (!session) return
+    // 小程序可能刚更新同一份 H5 云文档。上传前先比较版本，绝不用旧内存覆盖较新的云端。
+    if (await pullIfRemoteNewer()) return
     const backup = buildBackup()
     const json = JSON.stringify(backup)
     if (json === lastPushedJson) return
@@ -216,14 +233,19 @@ function schedulePush() {
 }
 
 export function startAutoPush() {
-  if (unsub) return
-  lastPushedJson = JSON.stringify(buildBackup())
-  unsub = useStore.subscribe(() => {
-    if (applyingRemote) return
-    schedulePush()
-  })
+  if (!unsub) {
+    lastPushedJson = JSON.stringify(buildBackup())
+    unsub = useStore.subscribe(() => {
+      if (applyingRemote) return
+      schedulePush()
+    })
+  }
+  if (!pullTimer) {
+    pullTimer = setInterval(() => { pullIfRemoteNewer().catch(() => {}) }, 30_000)
+  }
 }
 export function stopAutoPush() {
   if (unsub) { unsub(); unsub = null }
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null }
+  if (pullTimer) { clearInterval(pullTimer); pullTimer = null }
 }
