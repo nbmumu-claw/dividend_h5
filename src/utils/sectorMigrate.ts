@@ -16,13 +16,19 @@ type WithSector = { sector?: string }
 
 function renameList(list: unknown): void {
   if (!Array.isArray(list)) return
-  for (const x of list as WithSector[]) if (x) x.sector = canonicalSector(x.sector)
+  for (const x of list as WithSector[]) {
+    if (!x) continue
+    const next = canonicalSector(x.sector)
+    if (next !== x.sector) x.sector = next
+  }
 }
 
 function renameEdits(edits: unknown): void {
   if (!edits || typeof edits !== 'object') return
   for (const e of Object.values(edits as Record<string, WithSector>)) {
-    if (e) e.sector = canonicalSector(e.sector)
+    if (!e) continue
+    const next = canonicalSector(e.sector)
+    if (next !== e.sector) e.sector = next
   }
 }
 

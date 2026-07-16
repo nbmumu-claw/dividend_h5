@@ -35,6 +35,16 @@ describe('migrateRedFundSector（红利ETF→红利基金，多字段+幂等+兼
     expect((o.discoveryStaticEdits as Record<string, { sector: string }>)['515080'].sector).toBe('红利基金')
   })
 
+  it('仅含价格的静态编辑不能新增 sector 字段覆盖股票原始板块', () => {
+    const priceEdit = { price: 4.67, pctChg: -1.48 }
+    const o: Record<string, unknown> = {
+      discoveryStaticEdits: { '600795': priceEdit },
+    }
+    migrateRedFundSector(o)
+    expect(priceEdit).not.toHaveProperty('sector')
+    expect({ sector: '电力', ...priceEdit }).toEqual({ sector: '电力', price: 4.67, pctChg: -1.48 })
+  })
+
   it('多账户：accountSnapshots(Record) 与 accounts[].watchlist 都改名', () => {
     const o: Record<string, unknown> = {
       accountSnapshots: { acc2: [{ code: '510880', sector: '红利ETF' }] },
