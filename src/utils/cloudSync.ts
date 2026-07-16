@@ -2,8 +2,11 @@ import { cbAuth, cbDb, USER_DATA_COLLECTION } from './cloudbase'
 import { pickLatest } from './dedup'
 import { useStore } from '../store'
 
-// 本地同步元信息：记录上次同步时间与云端文档 id（与登录账号无关，按设备存）
+// 当前账号的同步元信息；账号切换时会归档到 USER_META_PREFIX + uid。
 const META_KEY = 'cloud-sync-meta'
+const ACTIVE_UID_KEY = 'cloud-sync-active-uid'
+const USER_BACKUP_PREFIX = 'cloud-sync-user-backup:'
+const USER_META_PREFIX = 'cloud-sync-user-meta:'
 
 interface SyncMeta { updatedAt: number; docId: string | null }
 interface Backup {
@@ -23,6 +26,54 @@ function loadMeta(): SyncMeta {
 }
 function saveMeta(m: SyncMeta) { try { localStorage.setItem(META_KEY, JSON.stringify(m)) } catch { /* ignore */ } }
 export function clearMeta() { try { localStorage.removeItem(META_KEY) } catch { /* ignore */ } }
+
+function emptyBackup(): Backup {
+  return {
+    watchlist: [], accounts: [], discoveryManualStocks: [], discoveryStaticEdits: {},
+    discoveryHiddenStocks: [], discoveryCustomSectors: undefined, gridPrefs: undefined, simStrategy: {},
+  }
+}
+
+/**
+ * 同一浏览器切换 H5 用户时，把业务数据和同步游标按 uid 分仓。
+ * 旧版本没有 ACTIVE_UID_KEY 时，可由确定性 docId 推断旧数据主人，避免把旧账号数据上传给新账号。
+ */
+export function activateUserStorage(uid: string) {
+  if (!uid) return
+  const meta = loadMeta()
+  const recorded = localStorage.getItem(ACTIVE_UID_KEY) || ''
+  const previousUid = recorded || meta.docId || ''
+  if (previousUid === uid) {
+    localStorage.setItem(ACTIVE_UID_KEY, uid)
+    return
+  }
+  if (previousUid) {
+    localStorage.setItem(USER_BACKUP_PREFIX + previousUid, JSON.stringify(buildBackup()))
+    localStorage.setItem(USER_META_PREFIX + previousUid, JSON.stringify(meta))
+  }
+  const savedBackup = localStorage.getItem(USER_BACKUP_PREFIX + uid)
+  const savedMeta = localStorage.getItem(USER_META_PREFIX + uid)
+  let backup: Backup = emptyBackup()
+  if (savedBackup) {
+    try { backup = JSON.parse(savedBackup) as Backup } catch { /* 损坏的单用户缓存按空数据处理，云端仍可恢复 */ }
+  }
+  useStore.getState().importBackup(backup as unknown as Record<string, unknown>)
+  if (savedMeta) localStorage.setItem(META_KEY, savedMeta)
+  else localStorage.removeItem(META_KEY)
+  localStorage.setItem(ACTIVE_UID_KEY, uid)
+  lastPushedJson = ''
+}
+
+/** 退出后归档当前用户数据，并把公共页面切回空白，防止下一个登录者先看到旧数据。 */
+export function deactivateUserStorage(uid: string) {
+  if (!uid) return
+  localStorage.setItem(USER_BACKUP_PREFIX + uid, JSON.stringify(buildBackup()))
+  localStorage.setItem(USER_META_PREFIX + uid, JSON.stringify(loadMeta()))
+  useStore.getState().importBackup(emptyBackup() as unknown as Record<string, unknown>)
+  localStorage.removeItem(META_KEY)
+  localStorage.removeItem(ACTIVE_UID_KEY)
+  lastPushedJson = ''
+}
 
 // 构造与「设置→导出备份」一致的数据快照
 function buildBackup(): Backup {
@@ -154,6 +205,9 @@ export type SyncOutcome =
 
 // 登录成功后调用：决定 拉 / 推 / 冲突
 export async function syncOnLogin(): Promise<SyncOutcome> {
+  const uid = await resolveUid()
+  if (!uid) throw new Error('无法识别当前登录账号')
+  activateUserStorage(uid)
   const cloud = await loadFromCloud()
   const meta = loadMeta()
   const local = buildBackup()

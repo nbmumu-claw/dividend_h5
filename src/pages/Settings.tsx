@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import AuthModal from '../components/AuthModal'
 import { cbAuth } from '../utils/cloudbase'
-import { syncOnLogin, resolveConflict, startAutoPush, stopAutoPush } from '../utils/cloudSync'
+import { syncOnLogin, resolveConflict, startAutoPush, stopAutoPush, deactivateUserStorage, getCurrentUid } from '../utils/cloudSync'
 import { cacheClear } from '../utils/cache'
 import type { BackupData } from '../types'
 import { Toast, useToast } from '../components/Toast'
@@ -117,8 +117,10 @@ export default function Settings() {
   }
   const handleLogout = async () => {
     if (!window.confirm('确定退出登录？\n本机数据会保留，重新登录可恢复云端数据。')) return
-    try { await cbAuth.signOut() } catch { /* ignore */ }
+    const uid = await getCurrentUid()
     stopAutoPush()
+    if (uid) deactivateUserStorage(uid)
+    try { await cbAuth.signOut() } catch { /* ignore */ }
     setAuthUser(null)
     showToast('已退出（本机数据保留）')
   }

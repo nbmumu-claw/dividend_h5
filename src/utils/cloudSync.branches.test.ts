@@ -21,8 +21,20 @@ let idSeq = 0
 // 可变的假登录态：默认已登录 uid=u1；置 null 可模拟「拿不到 uid → 走兜底旧逻辑」
 // 用 vi.hoisted 提升，供 vi.mock 工厂在返回对象里直接引用（否则 TDZ 报错）
 const fakeAuth = vi.hoisted(() => ({ currentUser: { uid: 'u1' } as { uid: string } | null }))
+const fakeStore = vi.hoisted(() => ({
+  state: {
+    watchlist: [] as unknown[], accounts: [] as unknown[], manualStocks: [] as unknown[],
+    staticEdits: {} as Record<string, unknown>, hiddenStocks: [] as unknown[], customSectors: [] as unknown[],
+    gridPrefs: {}, simStrategy: {}, gatherAccounts: () => [] as unknown[],
+    importBackup(data: Record<string, unknown>) {
+      fakeStore.state.watchlist = (data.watchlist as unknown[]) || []
+      fakeStore.state.accounts = (data.accounts as unknown[]) || []
+      fakeStore.state.manualStocks = (data.discoveryManualStocks as unknown[]) || []
+    },
+  },
+}))
 
-vi.mock('../store', () => ({ useStore: { getState: () => ({}) } }))
+vi.mock('../store', () => ({ useStore: { getState: () => fakeStore.state } }))
 vi.mock('./cloudbase', () => {
   const collection = () => {
     const api: Record<string, unknown> = {
@@ -65,7 +77,7 @@ vi.mock('./cloudbase', () => {
   }
 })
 
-import { loadFromCloud, saveToCloud, shouldPullRemote } from './cloudSync'
+import { activateUserStorage, deactivateUserStorage, loadFromCloud, saveToCloud, shouldPullRemote } from './cloudSync'
 
 const META = 'cloud-sync-meta'
 
@@ -75,6 +87,31 @@ beforeEach(() => {
   idSeq = 0
   fakeAuth.currentUser = { uid: 'u1' } // 默认已登录
   for (const k of Object.keys(mem)) delete mem[k]
+  fakeStore.state.watchlist = []
+  fakeStore.state.accounts = []
+})
+
+describe('浏览器多登录账号隔离', () => {
+  it('升级旧版本时用 meta.docId 识别旧数据主人，新账号得到空仓', () => {
+    fakeStore.state.watchlist = [{ code: 'OLD' }]
+    mem[META] = JSON.stringify({ updatedAt: 10, docId: 'old-uid' })
+    activateUserStorage('new-uid')
+    expect(fakeStore.state.watchlist).toEqual([])
+    expect(JSON.parse(mem['cloud-sync-user-backup:old-uid']).watchlist).toEqual([{ code: 'OLD' }])
+    expect(mem['cloud-sync-active-uid']).toBe('new-uid')
+    expect(mem[META]).toBeUndefined()
+  })
+
+  it('退出保存本账号快照并清空公共页面，重新登录恢复自己的快照', () => {
+    fakeStore.state.watchlist = [{ code: 'U1' }]
+    mem[META] = JSON.stringify({ updatedAt: 20, docId: 'u1' })
+    mem['cloud-sync-active-uid'] = 'u1'
+    deactivateUserStorage('u1')
+    expect(fakeStore.state.watchlist).toEqual([])
+    activateUserStorage('u1')
+    expect(fakeStore.state.watchlist).toEqual([{ code: 'U1' }])
+    expect(JSON.parse(mem[META]).docId).toBe('u1')
+  })
 })
 
 describe('跨端版本保护', () => {
