@@ -92,6 +92,23 @@ beforeEach(() => {
 })
 
 describe('浏览器多登录账号隔离', () => {
+  it('事故 UID 的污染快照只清理一次，之后新产生的正常快照不再被删除', () => {
+    const uid = '2069395240412368898'
+    fakeStore.state.watchlist = [{ code: 'POISONED' }]
+    mem['cloud-sync-active-uid'] = uid
+    mem['cloud-sync-user-backup:' + uid] = JSON.stringify({ watchlist: [{ code: 'POISONED' }] })
+    mem[META] = JSON.stringify({ updatedAt: 1, docId: uid })
+    activateUserStorage(uid)
+    expect(fakeStore.state.watchlist).toEqual([])
+    expect(mem['cloud-sync-user-backup:' + uid]).toBeUndefined()
+    expect(mem['cloud-sync-local-purge:' + uid]).toBe('2026-07-16-v1')
+
+    mem['cloud-sync-user-backup:' + uid] = JSON.stringify({ watchlist: [{ code: 'FUTURE' }] })
+    mem['cloud-sync-active-uid'] = 'another-user'
+    activateUserStorage(uid)
+    expect(fakeStore.state.watchlist).toEqual([{ code: 'FUTURE' }])
+  })
+
   it('升级旧版本时用 meta.docId 识别旧数据主人，新账号得到空仓', () => {
     fakeStore.state.watchlist = [{ code: 'OLD' }]
     mem[META] = JSON.stringify({ updatedAt: 10, docId: 'old-uid' })

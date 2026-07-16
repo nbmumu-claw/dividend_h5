@@ -7,6 +7,9 @@ const META_KEY = 'cloud-sync-meta'
 const ACTIVE_UID_KEY = 'cloud-sync-active-uid'
 const USER_BACKUP_PREFIX = 'cloud-sync-user-backup:'
 const USER_META_PREFIX = 'cloud-sync-user-meta:'
+const LOCAL_PURGE_PREFIX = 'cloud-sync-local-purge:'
+// 2026-07-16 浏览器跨账号缓存事故定向修复：每台设备仅清理一次，不影响该用户后续正常缓存。
+const LOCAL_PURGE_VERSIONS: Record<string, string> = { '2069395240412368898': '2026-07-16-v1' }
 
 interface SyncMeta { updatedAt: number; docId: string | null }
 interface Backup {
@@ -34,12 +37,27 @@ function emptyBackup(): Backup {
   }
 }
 
+function applyPendingLocalPurge(uid: string) {
+  const version = LOCAL_PURGE_VERSIONS[uid]
+  if (!version || localStorage.getItem(LOCAL_PURGE_PREFIX + uid) === version) return false
+  localStorage.removeItem(USER_BACKUP_PREFIX + uid)
+  localStorage.removeItem(USER_META_PREFIX + uid)
+  if (localStorage.getItem(ACTIVE_UID_KEY) === uid) {
+    useStore.getState().importBackup(emptyBackup() as unknown as Record<string, unknown>)
+    localStorage.removeItem(META_KEY)
+    localStorage.removeItem(ACTIVE_UID_KEY)
+  }
+  localStorage.setItem(LOCAL_PURGE_PREFIX + uid, version)
+  return true
+}
+
 /**
  * 同一浏览器切换 H5 用户时，把业务数据和同步游标按 uid 分仓。
  * 旧版本没有 ACTIVE_UID_KEY 时，可由确定性 docId 推断旧数据主人，避免把旧账号数据上传给新账号。
  */
 export function activateUserStorage(uid: string) {
   if (!uid) return
+  applyPendingLocalPurge(uid)
   const meta = loadMeta()
   const recorded = localStorage.getItem(ACTIVE_UID_KEY) || ''
   const previousUid = recorded || meta.docId || ''
