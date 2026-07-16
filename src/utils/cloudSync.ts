@@ -9,7 +9,7 @@ const USER_BACKUP_PREFIX = 'cloud-sync-user-backup:'
 const USER_META_PREFIX = 'cloud-sync-user-meta:'
 const LOCAL_PURGE_PREFIX = 'cloud-sync-local-purge:'
 // 2026-07-16 浏览器跨账号缓存事故定向修复：每台设备仅清理一次，不影响该用户后续正常缓存。
-const LOCAL_PURGE_VERSIONS: Record<string, string> = { '2077682590818500608': '2026-07-16-v1' }
+const LOCAL_PURGE_VERSIONS: Record<string, string> = { '2077682590818500608': '2026-07-16-v2' }
 
 interface SyncMeta { updatedAt: number; docId: string | null }
 interface Backup {

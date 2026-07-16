@@ -106,7 +106,7 @@ describe('浏览器多登录账号隔离', () => {
     activateUserStorage(uid)
     expect(fakeStore.state.watchlist).toEqual([])
     expect(mem['cloud-sync-user-backup:' + uid]).toBeUndefined()
-    expect(mem['cloud-sync-local-purge:' + uid]).toBe('2026-07-16-v1')
+    expect(mem['cloud-sync-local-purge:' + uid]).toBe('2026-07-16-v2')
 
     mem['cloud-sync-user-backup:' + uid] = JSON.stringify({ watchlist: [{ code: 'FUTURE' }] })
     mem['cloud-sync-active-uid'] = 'another-user'
