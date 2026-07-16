@@ -59,6 +59,18 @@ describe('migrateRedFundSector（红利ETF→红利基金，多字段+幂等+兼
     expect(o.customSectors).toEqual(['红利基金', '其他'])
   })
 
+  it('美股指数历史名称与小程序写回的美股名称统一，分类入口不会消失', () => {
+    const o: Record<string, unknown> = {
+      discoveryCustomSectors: ['电力', '美股指数', '美股', '其他'],
+      watchlist: [{ code: 'QQQ', sector: '美股指数', isUS: true }],
+      accounts: [{ id: 'default', watchlist: [{ code: 'VOO', sector: '美股', isUS: true }] }],
+    }
+    migrateRedFundSector(o)
+    expect(o.discoveryCustomSectors).toEqual(['电力', '美股', '其他'])
+    expect((o.watchlist as { sector: string }[])[0].sector).toBe('美股')
+    expect((o.accounts as { watchlist: { sector: string }[] }[])[0].watchlist[0].sector).toBe('美股')
+  })
+
   it('非目标板块不动；空/缺字段安全', () => {
     const o: Record<string, unknown> = { customSectors: ['银行', '电力'] }
     migrateRedFundSector(o)

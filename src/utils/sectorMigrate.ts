@@ -1,20 +1,28 @@
-// 板块「红利ETF」→「红利基金」改名迁移：场内 ETF + 场外基金统一归入「红利基金」。
+// 历史板块别名迁移：统一跨版本、跨端使用的板块名称。
 // 兼容老用户：板块列表 + 各处 stock.sector（自选/发现/手动/静态编辑/多账户）一并改名。
 // 纯函数、就地修改、幂等、容错——在 store.migrate(本地) 与 importBackup(云端) 两处共用。
 export const OLD_RED_SECTOR = '红利ETF'
 export const NEW_RED_SECTOR = '红利基金'
+export const OLD_US_SECTOR = '美股指数'
+export const NEW_US_SECTOR = '美股'
+
+function canonicalSector(sector: string | undefined): string | undefined {
+  if (sector === OLD_RED_SECTOR) return NEW_RED_SECTOR
+  if (sector === OLD_US_SECTOR) return NEW_US_SECTOR
+  return sector
+}
 
 type WithSector = { sector?: string }
 
 function renameList(list: unknown): void {
   if (!Array.isArray(list)) return
-  for (const x of list as WithSector[]) if (x && x.sector === OLD_RED_SECTOR) x.sector = NEW_RED_SECTOR
+  for (const x of list as WithSector[]) if (x) x.sector = canonicalSector(x.sector)
 }
 
 function renameEdits(edits: unknown): void {
   if (!edits || typeof edits !== 'object') return
   for (const e of Object.values(edits as Record<string, WithSector>)) {
-    if (e && e.sector === OLD_RED_SECTOR) e.sector = NEW_RED_SECTOR
+    if (e) e.sector = canonicalSector(e.sector)
   }
 }
 
@@ -23,7 +31,7 @@ function renameSectorArray(sectors: unknown): string[] | undefined {
   if (!Array.isArray(sectors)) return undefined
   const out: string[] = []
   for (const s of sectors as string[]) {
-    const n = s === OLD_RED_SECTOR ? NEW_RED_SECTOR : s
+    const n = canonicalSector(s) as string
     if (!out.includes(n)) out.push(n)
   }
   return out
