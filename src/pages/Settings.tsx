@@ -8,6 +8,7 @@ import { cacheClear } from '../utils/cache'
 import type { BackupData } from '../types'
 import { Toast, useToast } from '../components/Toast'
 import Modal from '../components/Modal'
+import MiniProgramBindingCard from '../components/MiniProgramBindingCard'
 import { afterTax } from '../utils/tax'
 
 // 统计备份内容（兼容多账户 data.accounts 与旧版单 data.watchlist）
@@ -292,6 +293,8 @@ export default function Settings() {
           </button>
         )}
       </div>
+
+      {authUser && <MiniProgramBindingCard email={authUser.email} showToast={showToast} />}
 
       {/* Stats */}
       <div className="mx-4 mb-4 card p-4">
