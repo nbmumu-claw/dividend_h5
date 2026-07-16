@@ -197,15 +197,16 @@ export async function resolveConflict(useCloud: boolean, cloud: CloudDoc) {
 
 // 自动上传：本地数据变化后 debounce 上传（登录态才生效）
 let pushTimer: ReturnType<typeof setTimeout> | null = null
-let pullTimer: ReturnType<typeof setInterval> | null = null
 let lastPushedJson = ''
 let unsub: (() => void) | null = null
+let pullPromise: Promise<boolean> | null = null
+let remoteListenersAttached = false
 
 export function shouldPullRemote(remoteUpdatedAt: number, localUpdatedAt: number): boolean {
   return Number(remoteUpdatedAt) > Number(localUpdatedAt)
 }
 
-async function pullIfRemoteNewer(): Promise<boolean> {
+async function doPullIfRemoteNewer(): Promise<boolean> {
   if (applyingRemote) return false
   const session = await getSession()
   if (!session || session.user?.is_anonymous) return false
@@ -213,6 +214,34 @@ async function pullIfRemoteNewer(): Promise<boolean> {
   if (!cloud || !shouldPullRemote(cloud.updatedAt, loadMeta().updatedAt)) return false
   applyRemote(cloud.data, cloud.updatedAt, cloud._id)
   return true
+}
+
+function pullIfRemoteNewer(): Promise<boolean> {
+  if (pullPromise) return pullPromise
+  pullPromise = doPullIfRemoteNewer().finally(() => { pullPromise = null })
+  return pullPromise
+}
+
+function onWindowFocus() {
+  pullIfRemoteNewer().catch(() => {})
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') onWindowFocus()
+}
+
+function attachRemoteListeners() {
+  if (remoteListenersAttached || typeof window === 'undefined' || typeof document === 'undefined') return
+  window.addEventListener('focus', onWindowFocus)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  remoteListenersAttached = true
+}
+
+function detachRemoteListeners() {
+  if (!remoteListenersAttached || typeof window === 'undefined' || typeof document === 'undefined') return
+  window.removeEventListener('focus', onWindowFocus)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  remoteListenersAttached = false
 }
 
 function schedulePush() {
@@ -240,12 +269,10 @@ export function startAutoPush() {
       schedulePush()
     })
   }
-  if (!pullTimer) {
-    pullTimer = setInterval(() => { pullIfRemoteNewer().catch(() => {}) }, 30_000)
-  }
+  attachRemoteListeners()
 }
 export function stopAutoPush() {
   if (unsub) { unsub(); unsub = null }
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null }
-  if (pullTimer) { clearInterval(pullTimer); pullTimer = null }
+  detachRemoteListeners()
 }
