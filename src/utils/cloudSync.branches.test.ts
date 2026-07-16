@@ -93,7 +93,7 @@ beforeEach(() => {
 
 describe('浏览器多登录账号隔离', () => {
   it('事故 UID 的污染快照只清理一次，之后新产生的正常快照不再被删除', () => {
-    const uid = '2069395240412368898'
+    const uid = '2077682590818500608'
     fakeStore.state.watchlist = [{ code: 'POISONED' }]
     mem['cloud-sync-active-uid'] = uid
     mem['cloud-sync-user-backup:' + uid] = JSON.stringify({ watchlist: [{ code: 'POISONED' }] })
