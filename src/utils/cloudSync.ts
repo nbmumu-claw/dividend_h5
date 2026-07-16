@@ -9,7 +9,7 @@ const USER_BACKUP_PREFIX = 'cloud-sync-user-backup:'
 const USER_META_PREFIX = 'cloud-sync-user-meta:'
 const LOCAL_PURGE_PREFIX = 'cloud-sync-local-purge:'
 // 2026-07-16 浏览器跨账号缓存事故定向修复：每台设备仅清理一次，不影响该用户后续正常缓存。
-const LOCAL_PURGE_VERSIONS: Record<string, string> = { '2077682590818500608': '2026-07-16-v2' }
+const LOCAL_PURGE_VERSIONS: Record<string, string> = { '2077682590818500608': '2026-07-16-v3' }
 
 interface SyncMeta { updatedAt: number; docId: string | null }
 interface Backup {
@@ -42,11 +42,11 @@ function applyPendingLocalPurge(uid: string) {
   if (!version || localStorage.getItem(LOCAL_PURGE_PREFIX + uid) === version) return false
   localStorage.removeItem(USER_BACKUP_PREFIX + uid)
   localStorage.removeItem(USER_META_PREFIX + uid)
-  if (localStorage.getItem(ACTIVE_UID_KEY) === uid) {
-    useStore.getState().importBackup(emptyBackup() as unknown as Record<string, unknown>)
-    localStorage.removeItem(META_KEY)
-    localStorage.removeItem(ACTIVE_UID_KEY)
-  }
+  // 这里已经由登录态确认了目标 uid。旧版本可能没有 ACTIVE_UID_KEY，或该键已被
+  // 跨账号缓存污染；定向事故清理不能依赖这个不可靠的旧标记，否则当前内存数据会再次上传。
+  useStore.getState().importBackup(emptyBackup() as unknown as Record<string, unknown>)
+  localStorage.removeItem(META_KEY)
+  localStorage.removeItem(ACTIVE_UID_KEY)
   localStorage.setItem(LOCAL_PURGE_PREFIX + uid, version)
   return true
 }

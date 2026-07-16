@@ -106,12 +106,25 @@ describe('浏览器多登录账号隔离', () => {
     activateUserStorage(uid)
     expect(fakeStore.state.watchlist).toEqual([])
     expect(mem['cloud-sync-user-backup:' + uid]).toBeUndefined()
-    expect(mem['cloud-sync-local-purge:' + uid]).toBe('2026-07-16-v2')
+    expect(mem['cloud-sync-local-purge:' + uid]).toBe('2026-07-16-v3')
 
     mem['cloud-sync-user-backup:' + uid] = JSON.stringify({ watchlist: [{ code: 'FUTURE' }] })
     mem['cloud-sync-active-uid'] = 'another-user'
     activateUserStorage(uid)
     expect(fakeStore.state.watchlist).toEqual([{ code: 'FUTURE' }])
+  })
+
+  it('事故 UID 缺少当前账号标记时仍清空内存数据，避免重新上传', () => {
+    const uid = '2077682590818500608'
+    fakeStore.state.watchlist = [{ code: 'POISONED' }]
+    mem[META] = JSON.stringify({ updatedAt: 1, docId: uid })
+
+    activateUserStorage(uid)
+
+    expect(fakeStore.state.watchlist).toEqual([])
+    expect(mem[META]).toBeUndefined()
+    expect(mem['cloud-sync-active-uid']).toBe(uid)
+    expect(mem['cloud-sync-local-purge:' + uid]).toBe('2026-07-16-v3')
   })
 
   it('升级旧版本时用 meta.docId 识别旧数据主人，新账号得到空仓', () => {
