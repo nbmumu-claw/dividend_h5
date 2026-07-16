@@ -13,7 +13,7 @@ export type Market = 'A' | 'HK' | 'ETF' | 'US'
 // 市场维度规则（先于名称匹配）；返回 H5 板块名
 function predictByMarket(mkt?: Market): string | null {
   if (mkt === 'ETF') return '红利基金'
-  if (mkt === 'US') return '美股'
+  if (mkt === 'US') return '美股指数'
   return null
 }
 

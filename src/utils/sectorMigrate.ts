@@ -3,8 +3,8 @@
 // 纯函数、就地修改、幂等、容错——在 store.migrate(本地) 与 importBackup(云端) 两处共用。
 export const OLD_RED_SECTOR = '红利ETF'
 export const NEW_RED_SECTOR = '红利基金'
-export const OLD_US_SECTOR = '美股指数'
-export const NEW_US_SECTOR = '美股'
+export const OLD_US_SECTOR = '美股'
+export const NEW_US_SECTOR = '美股指数'
 
 function canonicalSector(sector: string | undefined): string | undefined {
   if (sector === OLD_RED_SECTOR) return NEW_RED_SECTOR

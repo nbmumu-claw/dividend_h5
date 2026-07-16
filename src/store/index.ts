@@ -4,7 +4,7 @@ import type { Stock, WatchlistStock } from '../types'
 import { DEFAULT_SECTORS, STATIC_STOCKS } from '../data/stocks'
 import { applyHolding, ensureTransactions, type Transaction } from '../utils/holdings'
 import { makeFeeCalc, DEFAULT_FEE_CONFIG, type FeeConfig } from '../utils/fees'
-import { migrateRedFundSector, NEW_RED_SECTOR } from '../utils/sectorMigrate'
+import { migrateRedFundSector, NEW_RED_SECTOR, NEW_US_SECTOR } from '../utils/sectorMigrate'
 import { migrateStatsScope, type StatsScope } from '../utils/statsScopeMigrate'
 
 // 网格页偏好（纳入账号体系，跟随云同步）
@@ -451,10 +451,10 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 9,
+      version: 10,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[]; accounts?: unknown }
-        // v8：板块「红利ETF」→「红利基金」（板块名 + 各处 stock.sector 一并改，幂等）。先改名再做下方补板块逻辑
+        // v10：历史板块别名统一到 H5 标准名称（含“美股”→“美股指数”）。
         migrateRedFundSector(s as Record<string, unknown>)
         if (s?.customSectors && !s.customSectors.includes(NEW_RED_SECTOR)) {
           const sectors = [...s.customSectors]
@@ -463,11 +463,11 @@ export const useStore = create<AppState>()(
           else sectors.push(NEW_RED_SECTOR)
           s.customSectors = sectors
         }
-        if (s?.customSectors && !s.customSectors.includes('美股')) {
+        if (s?.customSectors && !s.customSectors.includes(NEW_US_SECTOR)) {
           const sectors = [...s.customSectors]
           const othersIdx = sectors.indexOf('其他')
-          if (othersIdx >= 0) sectors.splice(othersIdx, 0, '美股')
-          else sectors.push('美股')
+          if (othersIdx >= 0) sectors.splice(othersIdx, 0, NEW_US_SECTOR)
+          else sectors.push(NEW_US_SECTOR)
           s.customSectors = sectors
         }
         // v4：白酒与能源对换位置

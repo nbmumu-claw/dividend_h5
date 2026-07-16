@@ -9,7 +9,7 @@ describe('migrateRedFundSector（红利ETF→红利基金，多字段+幂等+兼
     }
     migrateRedFundSector(o)
     expect(o.customSectors).toEqual(['银行', '红利基金', '其他'])
-    expect(o.discoveryCustomSectors).toEqual(['红利基金', '美股'])
+    expect(o.discoveryCustomSectors).toEqual(['红利基金', '美股指数'])
   })
 
   it('各处 stock.sector 改名：watchlist / manualStocks / discoveryManualStocks', () => {
@@ -69,16 +69,16 @@ describe('migrateRedFundSector（红利ETF→红利基金，多字段+幂等+兼
     expect(o.customSectors).toEqual(['红利基金', '其他'])
   })
 
-  it('美股指数历史名称与小程序写回的美股名称统一，分类入口不会消失', () => {
+  it('小程序历史名称“美股”统一为 H5 标准名称“美股指数”', () => {
     const o: Record<string, unknown> = {
       discoveryCustomSectors: ['电力', '美股指数', '美股', '其他'],
       watchlist: [{ code: 'QQQ', sector: '美股指数', isUS: true }],
       accounts: [{ id: 'default', watchlist: [{ code: 'VOO', sector: '美股', isUS: true }] }],
     }
     migrateRedFundSector(o)
-    expect(o.discoveryCustomSectors).toEqual(['电力', '美股', '其他'])
-    expect((o.watchlist as { sector: string }[])[0].sector).toBe('美股')
-    expect((o.accounts as { watchlist: { sector: string }[] }[])[0].watchlist[0].sector).toBe('美股')
+    expect(o.discoveryCustomSectors).toEqual(['电力', '美股指数', '其他'])
+    expect((o.watchlist as { sector: string }[])[0].sector).toBe('美股指数')
+    expect((o.accounts as { watchlist: { sector: string }[] }[])[0].watchlist[0].sector).toBe('美股指数')
   })
 
   it('非目标板块不动；空/缺字段安全', () => {
