@@ -592,14 +592,20 @@ export default function YieldGrid() {
         </button>
         <div className="toolbar">
           <div className="filter">
-            <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
-            <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
-            {SIGNAL_TABS.map(tab => (
-              <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
-            ))}
-            {order.map(s => (
-              <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
-            ))}
+            <div className="filter-primary">
+              <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
+              <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
+            </div>
+            <div className="signal-tabs">
+              {SIGNAL_TABS.map(tab => (
+                <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
+              ))}
+            </div>
+            <div className="sector-tabs">
+              {order.map(s => (
+                <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
+              ))}
+            </div>
           </div>
           {!error && rows && (
             <button
@@ -1077,6 +1083,7 @@ const CSS = `
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
 .yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
   overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.yg-page .filter-primary, .yg-page .signal-tabs, .yg-page .sector-tabs { display: contents; }
 .yg-page .filter::-webkit-scrollbar { display: none; }
 .yg-page .chip { flex: 0 0 auto; padding: 5px 14px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #374151; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
@@ -1097,6 +1104,13 @@ const CSS = `
 .yg-page .orderbtn::before { content: ''; position: absolute; left: -20px; top: 0; bottom: 0; width: 20px;
   background: linear-gradient(to right, rgba(245,246,248,0), #f5f6f8); pointer-events: none; }
 .yg-page .orderbtn.on { background: #1f2328; color: #fff; border-color: #1f2328; }
+.yg-page.mobile .filter { display: grid; gap: 7px; overflow: visible; }
+.yg-page.mobile .filter-primary, .yg-page.mobile .signal-tabs, .yg-page.mobile .sector-tabs {
+  display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.yg-page.mobile .filter-primary::-webkit-scrollbar,
+.yg-page.mobile .signal-tabs::-webkit-scrollbar,
+.yg-page.mobile .sector-tabs::-webkit-scrollbar { display: none; }
+.yg-page.mobile .signal-tabs .chip { flex: 1 1 0; min-width: 0; padding-left: 6px; padding-right: 6px; }
 .yg-page.mobile .orderbtn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 15px;
   display: inline-flex; align-items: center; justify-content: center; }
 .yg-page h2 .moves { margin-left: auto; display: inline-flex; gap: 6px; }
