@@ -70,8 +70,8 @@ const sellBase = (name: string) => (HYDRO.has(name) ? 0.03 : 0.04)
 const SELL_MUTED = new Set(['中国广核', '中国核电'])
 
 // 网格设置（localStorage）：买入 / 卖出各自步长 + 档数
-type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; upperTolerance: number }
-const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.005, upperTolerance: 0.005 }
+type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; upperTolerance: number; yieldTolerance: number }
+const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.005, upperTolerance: 0.005, yieldTolerance: 0.0025 }
 const STEP_OPTIONS = [0.0025, 0.005]
 const COUNT_OPTIONS = [2, 4, 6, 8]
 function loadCfg(): GridCfg {
@@ -86,6 +86,7 @@ function loadCfg(): GridCfg {
       sellCount: okCnt(c.sellCount) ?? okCnt(c.count) ?? DEFAULT_CFG.sellCount,
       lowerTolerance: typeof c.lowerTolerance === 'number' ? c.lowerTolerance : DEFAULT_CFG.lowerTolerance,
       upperTolerance: typeof c.upperTolerance === 'number' ? c.upperTolerance : DEFAULT_CFG.upperTolerance,
+      yieldTolerance: typeof c.yieldTolerance === 'number' ? c.yieldTolerance : DEFAULT_CFG.yieldTolerance,
     }
   }
   return DEFAULT_CFG
@@ -540,8 +541,8 @@ export default function YieldGrid() {
   // 应用板块 / 自选 / 信号筛选，去掉空板块
   const filterSignal = (r: Row) => {
     const boll = bollByCode[r.code]
-    if (active === BUY_LOWER) return r.cy >= buyBase(r.name) && nearBand(r.price, boll?.lower, cfg.lowerTolerance)
-    if (active === SELL_UPPER) return !SELL_MUTED.has(r.name) && r.cy <= sellBase(r.name) && nearBand(r.price, boll?.upper, cfg.upperTolerance)
+    if (active === BUY_LOWER) return r.cy >= buyBase(r.name) - cfg.yieldTolerance && nearBand(r.price, boll?.lower, cfg.lowerTolerance)
+    if (active === SELL_UPPER) return !SELL_MUTED.has(r.name) && r.cy <= sellBase(r.name) + cfg.yieldTolerance && nearBand(r.price, boll?.upper, cfg.upperTolerance)
     if (active === NEAR_LOWER) return nearBand(r.price, boll?.lower, cfg.lowerTolerance)
     if (active === NEAR_UPPER) return nearBand(r.price, boll?.upper, cfg.upperTolerance)
     return true
@@ -902,6 +903,16 @@ export default function YieldGrid() {
                 </label>
               </div>
               <div className="text-xs text-gray-400 leading-relaxed">“买点下轨”和“近下轨”共用下轨偏差；“卖点上轨”和“近上轨”共用上轨偏差。</div>
+            </div>
+            <div className="space-y-3 bg-purple-50/60 rounded-xl p-3">
+              <div className="text-sm font-semibold text-purple-700">买卖点股息率浮动</div>
+              <label className="text-xs text-gray-500 block">
+                上下浮动（±百分点）
+                <input className="input-field text-sm mt-1" type="number" inputMode="decimal" min="0" max="5" step="0.05"
+                  value={+(cfg.yieldTolerance * 100).toFixed(2)}
+                  onChange={e => updateCfg({ yieldTolerance: Math.max(0, Math.min(5, Number(e.target.value))) / 100 })} />
+              </label>
+              <div className="text-xs text-gray-400 leading-relaxed">仅用于信号 Tab 筛选。默认 ±0.25 个百分点，例如普通买点放宽为 ≥4.75%，卖点放宽为 ≤4.25%。</div>
             </div>
             <div className="text-xs text-gray-400 leading-relaxed">
               买入从 5%（水电 4%）每档 +{+(cfg.buyStep * 100).toFixed(2)}% 共 {cfg.buyCount} 档；卖出从 4%（水电 3%）每档 −{+(cfg.sellStep * 100).toFixed(2)}% 共 {cfg.sellCount} 档（收益率 ≤0 的档位自动省略）。
