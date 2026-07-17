@@ -313,7 +313,7 @@ export default function HoldingDetail() {
               {visibleTx.map(t => (
                 <div key={t.idx} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
                   <button className="flex-1 flex items-center gap-3 text-left" onClick={() => openEdit(t)}>
-                    <span className={`tag flex-shrink-0 ${t.type === 'sell' ? 'tag-green' : t.type === 'dividend' ? 'tag-yellow' : 'tag-red'}`}>{TX_LABEL[t.type]}</span>
+                    <span className={`tag flex-shrink-0 ${t.type === 'sell' ? 'tag-sell' : t.type === 'dividend' ? 'tag-yellow' : 'tag-red'}`}>{TX_LABEL[t.type]}</span>
                     <div>
                       <div className="text-sm text-gray-800">{rowQty(t)} 股 @ {curSym}{Number(t.price).toFixed(3)}</div>
                       <div className="text-xs text-gray-400">{t.ts ? fmtDate(t.ts) : ''}</div>
