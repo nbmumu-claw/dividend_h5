@@ -592,20 +592,39 @@ export default function YieldGrid() {
         </button>
         <div className="toolbar">
           <div className="filter">
-            <div className="filter-primary">
-              <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
-              <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
-            </div>
-            <div className="signal-tabs">
-              {SIGNAL_TABS.map(tab => (
-                <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
-              ))}
-            </div>
-            <div className="sector-tabs">
-              {order.map(s => (
-                <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
-              ))}
-            </div>
+            {isMobile ? (
+              <>
+                <div className="mobile-main-tabs">
+                  <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
+                  <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
+                  {order.map(s => (
+                    <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
+                  ))}
+                </div>
+                <div className="signal-tabs">
+                  {SIGNAL_TABS.map(tab => (
+                    <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="filter-primary">
+                  <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
+                  <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
+                </div>
+                <div className="signal-tabs">
+                  {SIGNAL_TABS.map(tab => (
+                    <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
+                  ))}
+                </div>
+                <div className="sector-tabs">
+                  {order.map(s => (
+                    <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           {!error && rows && (
             <button
@@ -1104,17 +1123,13 @@ const CSS = `
 .yg-page .orderbtn::before { content: ''; position: absolute; left: -20px; top: 0; bottom: 0; width: 20px;
   background: linear-gradient(to right, rgba(245,246,248,0), #f5f6f8); pointer-events: none; }
 .yg-page .orderbtn.on { background: #1f2328; color: #fff; border-color: #1f2328; }
-.yg-page.mobile .filter { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 7px 8px; overflow: visible; }
-.yg-page.mobile .filter-primary, .yg-page.mobile .signal-tabs, .yg-page.mobile .sector-tabs {
-  display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-.yg-page.mobile .filter-primary { grid-column: 1; grid-row: 1; align-self: start; height: 32px; }
-.yg-page.mobile .sector-tabs { grid-column: 2; grid-row: 1; align-self: start; height: 32px; overflow-y: hidden; }
-.yg-page.mobile .signal-tabs { grid-column: 1 / -1; grid-row: 2; }
-.yg-page.mobile .filter-primary .chip, .yg-page.mobile .sector-tabs .chip {
-  height: 32px; display: inline-flex; align-items: center; padding-top: 5px; padding-bottom: 5px; }
-.yg-page.mobile .filter-primary::-webkit-scrollbar,
-.yg-page.mobile .signal-tabs::-webkit-scrollbar,
-.yg-page.mobile .sector-tabs::-webkit-scrollbar { display: none; }
+.yg-page.mobile .filter { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; overflow: visible; }
+.yg-page.mobile .mobile-main-tabs, .yg-page.mobile .signal-tabs {
+  display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px; overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.yg-page.mobile .mobile-main-tabs::-webkit-scrollbar,
+.yg-page.mobile .signal-tabs::-webkit-scrollbar { display: none; }
+.yg-page.mobile .mobile-main-tabs .chip { height: 32px; display: inline-flex; align-items: center; }
 .yg-page.mobile .signal-tabs .chip { flex: 1 1 0; min-width: 0; padding-left: 6px; padding-right: 6px; }
 .yg-page.mobile .orderbtn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 15px;
   display: inline-flex; align-items: center; justify-content: center; }
