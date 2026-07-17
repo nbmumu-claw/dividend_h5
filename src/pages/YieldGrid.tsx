@@ -1108,7 +1108,7 @@ const CSS = `
 .yg-page.mobile .filter-primary, .yg-page.mobile .signal-tabs, .yg-page.mobile .sector-tabs {
   display: flex; gap: 8px; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .yg-page.mobile .filter-primary { grid-column: 1; grid-row: 1; align-self: start; height: 32px; }
-.yg-page.mobile .sector-tabs { grid-column: 2; grid-row: 1; align-self: start; height: 32px; }
+.yg-page.mobile .sector-tabs { grid-column: 2; grid-row: 1; align-self: start; height: 32px; overflow-y: hidden; }
 .yg-page.mobile .signal-tabs { grid-column: 1 / -1; grid-row: 2; }
 .yg-page.mobile .filter-primary .chip, .yg-page.mobile .sector-tabs .chip {
   height: 32px; display: inline-flex; align-items: center; padding-top: 5px; padding-bottom: 5px; }
