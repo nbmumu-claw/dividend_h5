@@ -685,7 +685,7 @@ export default function YieldGrid() {
                         <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}{(() => { const lb = lastBuyMap.get(r.code); return lb ? ` · ${fmtDate(lb.ts)} ${lb.isFirst ? '建仓' : '加仓'} ${symOf(r.isHK, r.code)}${lb.price.toFixed(2)} × ${lb.qty} 股` : '' })()}</div>
-                      <BollStrip boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} />
+                      <BollStrip boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} />
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
                         {sellGridFor(r.name, cfg).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -915,7 +915,7 @@ export default function YieldGrid() {
 }
 
 // 自选星标
-function BollStrip({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
+function BollStrip({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: string; currentPrice: number }) {
   const points = [
     { label: '上轨', value: boll?.upper, cls: 'upper' },
     { label: '中轨', value: boll?.middle, cls: 'mid' },
@@ -925,7 +925,13 @@ function BollStrip({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
     <div className="boll-strip" title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
       {points.map(point => (
         <span className={point.cls} key={point.label}>
-          <i>{point.label}</i><b>{point.value != null ? `${symbol}${point.value.toFixed(2)}` : '--'}</b>
+          <i>{point.label}</i>
+          <b>
+            <strong>{point.value != null ? `${symbol}${point.value.toFixed(2)}` : '--'}</strong>
+            <em className={point.value != null && currentPrice > 0 ? chgClass((point.value / currentPrice - 1) * 100) : 'chg-flat'}>
+              {point.value != null && currentPrice > 0 ? `${point.value >= currentPrice ? '+' : ''}${((point.value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
+            </em>
+          </b>
         </span>
       ))}
     </div>
@@ -1148,13 +1154,15 @@ const CSS = `
 .yg-page .chead .ccy { margin-left: auto; font-size: 14px; font-variant-numeric: tabular-nums; }
 .yg-page .cmeta { font-size: 11.5px; color: #9ca3af; margin-top: 2px; }
 .yg-page .boll-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 7px; }
-.yg-page .boll-strip > span { display: flex; align-items: baseline; justify-content: center; gap: 4px; min-width: 0;
+.yg-page .boll-strip > span { display: flex; align-items: flex-start; justify-content: center; gap: 4px; min-width: 0;
   padding: 5px 3px; border: 1px solid #eef0f3; border-radius: 7px; background: #fafafa; font-variant-numeric: tabular-nums; }
-.yg-page .boll-strip i { font-style: normal; font-size: 10px; color: #9ca3af; }
-.yg-page .boll-strip b { font-size: 11.5px; white-space: nowrap; }
-.yg-page .boll-strip .mid b { color: #374151; }
-.yg-page .boll-strip .upper b { color: #dc2626; }
-.yg-page .boll-strip .lower b { color: #16a34a; }
+.yg-page .boll-strip i { padding-top: 1px; font-style: normal; font-size: 10px; color: #9ca3af; }
+.yg-page .boll-strip b { display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; }
+.yg-page .boll-strip strong { font-size: 11.5px; font-weight: 700; line-height: 1.15; }
+.yg-page .boll-strip em { margin-top: 3px; font-size: 9px; font-style: normal; font-weight: 500; line-height: 1; }
+.yg-page .boll-strip .mid strong { color: #374151; }
+.yg-page .boll-strip .upper strong { color: #dc2626; }
+.yg-page .boll-strip .lower strong { color: #16a34a; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }
