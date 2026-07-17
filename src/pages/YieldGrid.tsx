@@ -720,7 +720,7 @@ export default function YieldGrid() {
                             </span>
                           )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{(() => { const lb = lastBuyMap.get(r.code); return lb ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</span></> : null })()}</td>
                           <td className="px">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
-                          <BollCells boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} />
+                          <BollCells boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} />
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -932,10 +932,13 @@ function BollStrip({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
   )
 }
 
-function BollCells({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
+function BollCells({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: string; currentPrice: number }) {
   const cell = (value: number | undefined, cls: string) => (
     <td className={`boll-cell ${cls}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
-      {value != null ? `${symbol}${value.toFixed(2)}` : '--'}
+      <b>{value != null ? `${symbol}${value.toFixed(2)}` : '--'}</b>
+      <i className={value != null && currentPrice > 0 ? chgClass((value / currentPrice - 1) * 100) : 'chg-flat'}>
+        {value != null && currentPrice > 0 ? `${value >= currentPrice ? '+' : ''}${((value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
+      </i>
     </td>
   )
   return <>{cell(boll?.upper, 'upper')}{cell(boll?.middle, 'mid')}{cell(boll?.lower, 'lower')}</>
@@ -1110,7 +1113,9 @@ const CSS = `
 .yg-page .chg-dn { color: #16a34a; }
 .yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
-.yg-page td.boll-cell { padding-left: 12px; padding-right: 12px; white-space: nowrap; background: #fbfcfd; color: #475569; font-variant-numeric: tabular-nums; font-weight: 600; }
+.yg-page td.boll-cell { padding-left: 12px; padding-right: 12px; white-space: nowrap; background: #fbfcfd; color: #475569; font-variant-numeric: tabular-nums; }
+.yg-page td.boll-cell b { display: block; font-size: 13px; font-weight: 650; line-height: 1.2; }
+.yg-page td.boll-cell i { display: block; margin-top: 3px; font-size: 10px; font-style: normal; font-weight: 500; line-height: 1; }
 .yg-page td.boll-cell.upper { color: #dc2626; border-left: 1px solid #e2e8f0; }
 .yg-page td.boll-cell.mid { color: #475569; }
 .yg-page td.boll-cell.lower { color: #16a34a; border-right: 1px solid #e2e8f0; }
