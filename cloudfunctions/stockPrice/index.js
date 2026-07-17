@@ -19,6 +19,7 @@ const HANDLERS = {
   ownerType:  './handlers/ownerType',
   dividendHistory: './handlers/dividendHistory',
   search: './handlers/search',
+  weeklyBoll: './handlers/weeklyBoll',
 }
 
 // 懒加载，避免冷启动全量 require

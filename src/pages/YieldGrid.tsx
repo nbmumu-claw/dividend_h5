@@ -9,6 +9,7 @@ import { Toast, useToast } from '../components/Toast'
 import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
 import { useStore, type GridPrefs } from '../store'
 import { cbAuth } from '../utils/cloudbase'
+import { fetchWeeklyBoll, type WeeklyBoll } from '../utils/weeklyBoll'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -272,6 +273,14 @@ export default function YieldGrid() {
     const seen = new Set(STOCKS.map(s => s.code))
     return [...STOCKS, ...custom.filter(c => !seen.has(c.code))].filter(s => !hidden.has(s.code))
   }, [custom, hidden])
+  const [bollByCode, setBollByCode] = useState<Record<string, WeeklyBoll>>({})
+  useEffect(() => {
+    let alive = true
+    fetchWeeklyBoll(allStocks.map(stock => ({ code: stock.code, isHK: stock.isHK })))
+      .then(data => { if (alive) setBollByCode(data) })
+      .catch(() => { if (alive) setBollByCode({}) })
+    return () => { alive = false }
+  }, [allStocks])
   // 被隐藏的默认标的（用于「恢复」列表）
   const hiddenStocks = useMemo(() => STOCKS.filter(s => hidden.has(s.code)), [hidden])
 
@@ -555,7 +564,7 @@ export default function YieldGrid() {
         </div>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
-        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
+        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。周BOLL采用前复权周K、BOLL(20,2)、样本标准差。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
         <button className="yg-addbar" onClick={() => setShowAdd(true)}>
           <span className="plus">＋</span> 添加标的{custom.length > 0 ? ` ${custom.length}/${MAX_CUSTOM}` : ''}{custom.length >= MAX_CUSTOM ? '（已满，删除后可再加）' : ''}
         </button>
@@ -649,6 +658,7 @@ export default function YieldGrid() {
                         <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
                       <div className="cmeta">25年股息 {+r.dive.toFixed(4)}{(() => { const lb = lastBuyMap.get(r.code); return lb ? ` · ${fmtDate(lb.ts)} ${lb.isFirst ? '建仓' : '加仓'} ${symOf(r.isHK, r.code)}${lb.price.toFixed(2)} × ${lb.qty} 股` : '' })()}</div>
+                      <BollStrip boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} />
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
                         {sellGridFor(r.name, cfg).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -666,6 +676,7 @@ export default function YieldGrid() {
                     <thead>
                       <tr>
                         <th>股票</th><th>现价</th><th>现股息率</th><th>25年股息</th>
+                        <th className="th-boll mid">周BOLL中轨</th><th className="th-boll upper">上轨</th><th className="th-boll lower">下轨</th>
                         {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{fmtPct(y)}</th>)}
                         {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{fmtPct(y)}</th>)}
                       </tr>
@@ -683,6 +694,7 @@ export default function YieldGrid() {
                           <td className="px">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
+                          <BollCells boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} />
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
                           {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} cfg={cfg} />)}
                         </tr>
@@ -857,6 +869,32 @@ export default function YieldGrid() {
 }
 
 // 自选星标
+function BollStrip({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
+  const points = [
+    { label: '中轨', value: boll?.middle, cls: 'mid' },
+    { label: '上轨', value: boll?.upper, cls: 'upper' },
+    { label: '下轨', value: boll?.lower, cls: 'lower' },
+  ]
+  return (
+    <div className="boll-strip" title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
+      {points.map(point => (
+        <span className={point.cls} key={point.label}>
+          <i>{point.label}</i><b>{point.value != null ? `${symbol}${point.value.toFixed(2)}` : '--'}</b>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function BollCells({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
+  const cell = (value: number | undefined, cls: string) => (
+    <td className={`boll-cell ${cls}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
+      {value != null ? `${symbol}${value.toFixed(2)}` : '--'}
+    </td>
+  )
+  return <>{cell(boll?.middle, 'mid')}{cell(boll?.upper, 'upper')}{cell(boll?.lower, 'lower')}</>
+}
+
 function Star({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
     <button type="button" className={`fav${on ? ' on' : ''}`} onClick={onClick} aria-label={on ? '取消自选' : '加入自选'}>
@@ -1006,6 +1044,10 @@ const CSS = `
 .yg-page thead th { color: #6b7280; font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid #e5e7eb; white-space: nowrap; }
 .yg-page thead th.th-s { color: #16a34a; }
 .yg-page thead th.th-b { color: #7c3aed; }
+.yg-page thead th.th-boll { border-left: 1px solid #eef0f3; }
+.yg-page thead th.th-boll.mid { color: #374151; }
+.yg-page thead th.th-boll.upper { color: #dc2626; }
+.yg-page thead th.th-boll.lower { color: #16a34a; }
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
 .yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
@@ -1020,6 +1062,10 @@ const CSS = `
 .yg-page .chg-dn { color: #16a34a; }
 .yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
+.yg-page td.boll-cell { white-space: nowrap; font-variant-numeric: tabular-nums; border-left: 1px solid #f3f4f6; font-weight: 600; }
+.yg-page td.boll-cell.mid { color: #374151; }
+.yg-page td.boll-cell.upper { color: #dc2626; }
+.yg-page td.boll-cell.lower { color: #16a34a; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
 .yg-page .cy-lo { color: #9ca3af; }
@@ -1048,6 +1094,14 @@ const CSS = `
 .yg-page .chead .cpx { font-size: 13px; color: #374151; font-variant-numeric: tabular-nums; }
 .yg-page .chead .ccy { margin-left: auto; font-size: 14px; font-variant-numeric: tabular-nums; }
 .yg-page .cmeta { font-size: 11.5px; color: #9ca3af; margin-top: 2px; }
+.yg-page .boll-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 7px; }
+.yg-page .boll-strip > span { display: flex; align-items: baseline; justify-content: center; gap: 4px; min-width: 0;
+  padding: 5px 3px; border: 1px solid #eef0f3; border-radius: 7px; background: #fafafa; font-variant-numeric: tabular-nums; }
+.yg-page .boll-strip i { font-style: normal; font-size: 10px; color: #9ca3af; }
+.yg-page .boll-strip b { font-size: 11.5px; white-space: nowrap; }
+.yg-page .boll-strip .mid b { color: #374151; }
+.yg-page .boll-strip .upper b { color: #dc2626; }
+.yg-page .boll-strip .lower b { color: #16a34a; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }
