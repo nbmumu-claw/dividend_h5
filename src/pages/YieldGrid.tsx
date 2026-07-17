@@ -47,6 +47,11 @@ const SECTOR_ORDER = ['电力', '水电', '银行', '保险', '能源', '通讯'
 // 「其他」始终可用，作为预判不到板块时的兜底归属
 const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.sector === s))
 const ALL = '全部'
+const BUY_LOWER = '买点下轨'
+const SELL_UPPER = '卖点上轨'
+const NEAR_LOWER = '近下轨'
+const NEAR_UPPER = '近上轨'
+const SIGNAL_TABS = [BUY_LOWER, SELL_UPPER, NEAR_LOWER, NEAR_UPPER]
 
 // 板块顺序（localStorage）：保留已保存且仍存在的板块，新板块追加到末尾
 const MAX_CUSTOM = 10
@@ -65,8 +70,8 @@ const sellBase = (name: string) => (HYDRO.has(name) ? 0.03 : 0.04)
 const SELL_MUTED = new Set(['中国广核', '中国核电'])
 
 // 网格设置（localStorage）：买入 / 卖出各自步长 + 档数
-type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number }
-const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4 }
+type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; upperTolerance: number }
+const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.005, upperTolerance: 0.005 }
 const STEP_OPTIONS = [0.0025, 0.005]
 const COUNT_OPTIONS = [2, 4, 6, 8]
 function loadCfg(): GridCfg {
@@ -79,11 +84,16 @@ function loadCfg(): GridCfg {
       sellStep: okStep(c.sellStep) ?? okStep(c.step) ?? DEFAULT_CFG.sellStep,
       buyCount: okCnt(c.buyCount) ?? okCnt(c.count) ?? DEFAULT_CFG.buyCount,
       sellCount: okCnt(c.sellCount) ?? okCnt(c.count) ?? DEFAULT_CFG.sellCount,
+      lowerTolerance: typeof c.lowerTolerance === 'number' ? c.lowerTolerance : DEFAULT_CFG.lowerTolerance,
+      upperTolerance: typeof c.upperTolerance === 'number' ? c.upperTolerance : DEFAULT_CFG.upperTolerance,
     }
   }
   return DEFAULT_CFG
 }
 function saveCfg(c: GridCfg) { saveGp({ cfg: c }) }
+
+const nearBand = (price: number, band: number | undefined, tolerance: number) =>
+  band != null && band > 0 && Math.abs(price - band) / band <= tolerance
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000
 // 动态生成档位：买入从基准向上 buyCount 档（升序）；卖出从基准向下 sellCount 档、过滤 ≤0 后升序
@@ -359,7 +369,8 @@ export default function YieldGrid() {
   const [addForm, setAddForm] = useState<{ name: string; code: string; sector: string; dive: string; isHK: boolean }>({ name: '', code: '', sector: '', dive: '', isHK: false })
 
   // 网格设置
-  const cfg = useStore(s => s.gridPrefs.cfg)
+  const storedCfg = useStore(s => s.gridPrefs.cfg)
+  const cfg: GridCfg = { ...DEFAULT_CFG, ...storedCfg }
   const [showCfg, setShowCfg] = useState(false)
   const updateCfg = (partial: Partial<GridCfg>) => { saveCfg({ ...cfg, ...partial }) }
 
@@ -526,10 +537,20 @@ export default function YieldGrid() {
   const mins = now.getHours() * 60 + now.getMinutes()
   const priceLabel = date === todayStr && mins >= 570 && mins < 900 ? '盘中价' : '收盘价'
 
-  // 应用板块 / 自选筛选；自选时只保留已收藏标的，去掉空板块
+  // 应用板块 / 自选 / 信号筛选，去掉空板块
+  const filterSignal = (r: Row) => {
+    const boll = bollByCode[r.code]
+    if (active === BUY_LOWER) return r.cy >= buyBase(r.name) && nearBand(r.price, boll?.lower, cfg.lowerTolerance)
+    if (active === SELL_UPPER) return !SELL_MUTED.has(r.name) && r.cy <= sellBase(r.name) && nearBand(r.price, boll?.upper, cfg.upperTolerance)
+    if (active === NEAR_LOWER) return nearBand(r.price, boll?.lower, cfg.lowerTolerance)
+    if (active === NEAR_UPPER) return nearBand(r.price, boll?.upper, cfg.upperTolerance)
+    return true
+  }
   const visible = sectors
-    .map(g => (active === FAV ? { sector: g.sector, items: g.items.filter(r => favs.has(r.code)) } : g))
-    .filter(g => (active === ALL || active === FAV || g.sector === active) && g.items.length > 0)
+    .map(g => active === FAV
+      ? { sector: g.sector, items: g.items.filter(r => favs.has(r.code)) }
+      : SIGNAL_TABS.includes(active) ? { sector: g.sector, items: g.items.filter(filterSignal) } : g)
+    .filter(g => (active === ALL || active === FAV || SIGNAL_TABS.includes(active) || g.sector === active) && g.items.length > 0)
 
   // 一键折叠/展开当前 tab 下所有可见板块（沿用 collapsed 的按 tab 持久化）
   const visibleSectors = visible.map(g => g.sector)
@@ -572,6 +593,9 @@ export default function YieldGrid() {
           <div className="filter">
             <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
             <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
+            {SIGNAL_TABS.map(tab => (
+              <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
+            ))}
             {order.map(s => (
               <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
             ))}
@@ -610,7 +634,10 @@ export default function YieldGrid() {
         {!error && rows && active === FAV && visible.length === 0 && (
           <div className="state">暂无自选，点击股票右上角的 ★ 添加</div>
         )}
-        {!error && rows && active !== FAV && active !== ALL && visible.length === 0 && (
+        {!error && rows && SIGNAL_TABS.includes(active) && visible.length === 0 && (
+          <div className="state">暂无符合“{active}”条件的标的</div>
+        )}
+        {!error && rows && active !== FAV && active !== ALL && !SIGNAL_TABS.includes(active) && visible.length === 0 && (
           <div className="state">该板块暂无标的</div>
         )}
         {visible.map(({ sector, items }) => {
@@ -857,6 +884,24 @@ export default function YieldGrid() {
                   ))}
                 </div>
               </div>
+            </div>
+            <div className="space-y-3 bg-blue-50/60 rounded-xl p-3">
+              <div className="text-sm font-semibold text-blue-700">周轨附近偏差</div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs text-gray-500">
+                  下轨偏差（±%）
+                  <input className="input-field text-sm mt-1" type="number" inputMode="decimal" min="0" max="10" step="0.1"
+                    value={+(cfg.lowerTolerance * 100).toFixed(2)}
+                    onChange={e => updateCfg({ lowerTolerance: Math.max(0, Math.min(10, Number(e.target.value))) / 100 })} />
+                </label>
+                <label className="text-xs text-gray-500">
+                  上轨偏差（±%）
+                  <input className="input-field text-sm mt-1" type="number" inputMode="decimal" min="0" max="10" step="0.1"
+                    value={+(cfg.upperTolerance * 100).toFixed(2)}
+                    onChange={e => updateCfg({ upperTolerance: Math.max(0, Math.min(10, Number(e.target.value))) / 100 })} />
+                </label>
+              </div>
+              <div className="text-xs text-gray-400 leading-relaxed">“买点下轨”和“近下轨”共用下轨偏差；“卖点上轨”和“近上轨”共用上轨偏差。</div>
             </div>
             <div className="text-xs text-gray-400 leading-relaxed">
               买入从 5%（水电 4%）每档 +{+(cfg.buyStep * 100).toFixed(2)}% 共 {cfg.buyCount} 档；卖出从 4%（水电 3%）每档 −{+(cfg.sellStep * 100).toFixed(2)}% 共 {cfg.sellCount} 档（收益率 ≤0 的档位自动省略）。

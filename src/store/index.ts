@@ -14,7 +14,7 @@ export interface GridPrefs {
   hidden: string[]
   sectorOrder: string[]
   stockOrder: string[]
-  cfg: { buyStep: number; buyCount: number; sellStep: number; sellCount: number }
+  cfg: { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; upperTolerance: number }
   sort: { key: string; dir: 'asc' | 'desc' }
   active: string
   collapsed: Record<string, string[]> // 各 tab（筛选）下已折叠的板块名，互不影响
@@ -25,7 +25,7 @@ const DEFAULT_GRID_PREFS: GridPrefs = {
   hidden: [],
   sectorOrder: ['电力', '水电', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他'],
   stockOrder: [],
-  cfg: { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4 },
+  cfg: { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.005, upperTolerance: 0.005 },
   sort: { key: 'cy', dir: 'desc' },
   active: '全部',
   collapsed: {},
