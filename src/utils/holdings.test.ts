@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findFirstOversell, type Transaction } from './holdings'
+import { computeHolding, findFirstOversell, type Transaction } from './holdings'
 
 const day = (value: string) => new Date(`${value}T12:00:00`).getTime()
 const tx = (type: Transaction['type'], qty: number, date: string): Transaction => ({
@@ -58,5 +58,22 @@ describe('findFirstOversell', () => {
     ]
 
     expect(findFirstOversell(transactions)).toMatchObject({ index: 1, available: 40 })
+  })
+})
+
+describe('computeHolding', () => {
+  it('keeps the net result after a position is fully cleared', () => {
+    const transactions: Transaction[] = [
+      { type: 'buy', qty: 500, price: 25, ts: day('2026-01-01') },
+      { type: 'dividend', qty: 500, price: 0.18, ts: day('2026-02-01') },
+      { type: 'sell', qty: 500, price: 26, ts: day('2026-03-01') },
+    ]
+
+    expect(computeHolding(transactions)).toEqual({
+      shares: 0,
+      costPrice: '',
+      netAmount: -590,
+      cleared: true,
+    })
   })
 })

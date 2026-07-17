@@ -92,11 +92,13 @@ export default function HoldingDetail() {
   const dividend = Number(stock.dividendPerShare) || 0
   const yieldRate = price > 0 && dividend > 0 ? (dividend / price) * 100 : 0
 
-  const { shares, costPrice, cleared } = holding
+  const { shares, costPrice, netAmount, cleared } = holding
   const hasCost = typeof costPrice === 'number'
   const costNum = hasCost ? (costPrice as number) : 0
   const marketValue = shares > 0 && price > 0 ? shares * price : 0
-  const pl = hasCost ? (price - costNum) * shares : 0
+  // 清仓后成本价会置空，但净投入仍保留；此时 -netAmount 就是包含分红和费用的已实现累计盈亏。
+  const hasProfitLoss = hasCost || (cleared && txs.some(t => t.type === 'buy' || t.type === 'sell'))
+  const pl = cleared ? -netAmount : hasCost ? (price - costNum) * shares : 0
   const cdy = hasCost && costNum > 0 && dividend > 0 ? (dividend / costNum) * 100 : null
   const totalDividend = txs.reduce((sum, t) => (t.type === 'dividend' ? sum + dividendShares(txs, t) * Number(t.price) : sum), 0)
   // 某笔交易的实际作用股数（分红按当时持仓）
@@ -282,7 +284,7 @@ export default function HoldingDetail() {
             <Ov label="摊薄成本" value={cleared ? '已清仓' : hasCost ? `${curSym}${costNum.toFixed(3)}` : '--'} valueClass={hasCost && costNum < 0 ? 'text-red-600' : 'text-gray-800'} sub={hasCost && costNum < 0 ? '已回本' : undefined} />
             <Ov label="成本股息率 CDY" value={cdy != null ? `${cdy.toFixed(2)}%` : '--'} valueClass="text-red-600" />
             <Ov label="市值" value={marketValue > 0 ? `${curSym}${marketValue.toFixed(2)}` : '--'} />
-            <Ov label="浮动盈亏" value={hasCost ? `${pl >= 0 ? '+' : '-'}${curSym}${Math.abs(pl).toFixed(2)}` : '--'} valueClass={pl >= 0 ? 'text-red-600' : 'text-green-600'} />
+            <Ov label={cleared ? '累计盈亏' : '浮动盈亏'} value={hasProfitLoss ? `${pl >= 0 ? '+' : '-'}${curSym}${Math.abs(pl).toFixed(2)}` : '--'} valueClass={pl >= 0 ? 'text-red-600' : 'text-green-600'} />
             <Ov label="累计已收分红" value={totalDividend > 0 ? `${curSym}${totalDividend.toFixed(2)}` : '--'} valueClass="text-red-600" />
           </div>
           <div className="text-[11px] text-gray-400 leading-relaxed mt-3">

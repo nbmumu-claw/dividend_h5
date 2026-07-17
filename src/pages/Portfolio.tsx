@@ -9,6 +9,8 @@ import { afterTax } from '../utils/tax'
 import { fetchStockPrices } from '../utils/api'
 import { toCnyPrice, isBShare } from '../utils/market'
 import { isIncluded, resolveCategory, labelOf, colorOf, CATEGORIES, type Category } from '../utils/categories'
+import { computeHolding } from '../utils/holdings'
+import { makeFeeCalc } from '../utils/fees'
 import type { WatchlistStock } from '../types'
 
 const COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
@@ -20,6 +22,7 @@ export default function Portfolio() {
   const exchangeRate = useStore(s => s.exchangeRate)
   const usdRate = useStore(s => s.usdRate)
   const batchUpdateWatchlist = useStore(s => s.batchUpdateWatchlist)
+  const feeConfig = useStore(s => s.feeConfig)
   const categoryOverrides = useStore(s => s.categoryOverrides)
   const statsScope = useStore(s => s.statsScope)
   const accounts = useStore(s => s.accounts)
@@ -33,6 +36,7 @@ export default function Portfolio() {
   // 明细弹窗（沪/深市值、三大类成分股）
   const [detail, setDetail] = useState<{ title: string; items: { name: string; value: number }[] } | null>(null)
   const [showPnl, setShowPnl] = useState(false)
+  const [showRealizedPnl, setShowRealizedPnl] = useState(false)
   const [pnlDesc, setPnlDesc] = useState(true)
   // 持仓市值 / 成本金额 明细弹窗（按美股 / AH股分组）
   const [valueDetail, setValueDetail] = useState<'market' | 'cost' | null>(null)
@@ -75,6 +79,16 @@ export default function Portfolio() {
     [watchlist, statsScope]
   )
 
+  // 收益历史不应随清仓消失：统计范围只按市场筛选，不按当前持股数筛选。
+  const historyStocks = useMemo(
+    () => watchlist.filter(s => {
+      if (statsScope === 'us') return !!s.isUS
+      if (statsScope === 'nonus') return !s.isUS
+      return true
+    }),
+    [watchlist, statsScope]
+  )
+
   const holdingsWithDisplay = useMemo(() => {
     const nameCounts: Record<string, number> = {}
     for (const s of holdings) nameCounts[s.name] = (nameCounts[s.name] || 0) + 1
@@ -97,6 +111,8 @@ export default function Portfolio() {
     let allTimeDiv = 0
     const currentYearDivItems: { name: string; amount: number; ts: number }[] = []
     const allTimeByYear: Record<number, number> = {}
+    const realizedPnlItems: { name: string; code: string; amount: number }[] = []
+    let realizedPnl = 0
     const thisYear = new Date().getFullYear()
 
     holdings.forEach(s => {
@@ -121,8 +137,17 @@ export default function Portfolio() {
         : priceCny
       totalCost += costPriceCny * shares
 
-      // 实际分红汇总
+    })
+
+    // 实际分红汇总使用完整历史标的，清仓（0 股）后仍保留累计分红。
+    historyStocks.forEach(s => {
       const txs = s.transactions || []
+      const result = computeHolding(txs, makeFeeCalc(s, feeConfig))
+      if (result.cleared && txs.some(t => t.type === 'buy' || t.type === 'sell')) {
+        const amount = toCnyPrice(-result.netAmount, s, exchangeRate, usdRate)
+        realizedPnl += amount
+        realizedPnlItems.push({ name: s.name, code: s.code, amount })
+      }
       for (const t of txs) {
         if (t.type !== 'dividend') continue
         const amount = toCnyPrice((Number(t.qty) || 0) * (Number(t.price) || 0), s, exchangeRate, usdRate)
@@ -157,6 +182,9 @@ export default function Portfolio() {
       szItems: szItems.sort((a, b) => b.value - a.value),
       stockCount: watchlist.length,
       hasHoldings: holdings.length > 0,
+      hasHistory: historyStocks.some(s => (s.transactions?.length ?? 0) > 0),
+      realizedPnl,
+      realizedPnlItems: realizedPnlItems.sort((a, b) => b.amount - a.amount),
       // 实际分红
       currentYearDiv,
       currentYearDivItems, // 渲染时按 divSort 排序
@@ -165,7 +193,7 @@ export default function Portfolio() {
         .map(([year, total]) => ({ year: Number(year), total }))
         .sort((a, b) => b.year - a.year),
     }
-  }, [holdings, watchlist.length, exchangeRate, usdRate])
+  }, [holdings, historyStocks, watchlist.length, exchangeRate, usdRate, feeConfig])
 
   const valOf = useCallback((s: WatchlistStock) => {
     const shares = Number(s.shares) || 0
@@ -335,37 +363,50 @@ export default function Portfolio() {
               </div>
             ) : (
               <div className="text-right">
-                <div className="text-xs text-gray-400 mb-1">月均收入</div>
-                <div className="text-3xl font-bold text-red-600">¥{metrics.monthlyIncome.toFixed(0)}</div>
+                <div className="text-xs text-gray-400 mb-1 flex items-center justify-end gap-1">
+                  已实现盈亏
+                  {metrics.realizedPnlItems.length > 0 && (
+                    <button onClick={() => setShowRealizedPnl(true)} className="text-red-500 flex items-center">明细
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </button>
+                  )}
+                </div>
+                <div className={`text-3xl font-bold ${metrics.realizedPnl >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                  {metrics.realizedPnl >= 0 ? '+' : '-'}¥{Math.abs(metrics.realizedPnl).toFixed(0)}
+                </div>
               </div>
             )}
           </div>
 
           {/* 辅助数据：两列 */}
-          {metrics.hasHoldings && (
+          {(metrics.hasHoldings || metrics.hasHistory) && (
             <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-y-3 gap-x-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">月均收入</span>
-                <span className="font-medium text-red-600">¥{metrics.monthlyIncome.toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">整体股息率</span>
-                <span className="font-medium text-red-600">{metrics.overallYield.toFixed(2)}%</span>
-              </div>
-              <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setValueDetail('market')}>
-                <span className="text-gray-500 flex items-center gap-0.5">
-                  持仓市值
-                  <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </span>
-                <span className="font-medium text-red-600">¥{metrics.totalMarket.toFixed(0)}</span>
-              </button>
-              <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setValueDetail('cost')}>
-                <span className="text-gray-500 flex items-center gap-0.5">
-                  成本金额
-                  <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </span>
-                <span className="font-medium text-red-600">¥{metrics.totalCost.toFixed(0)}</span>
-              </button>
+              {metrics.hasHoldings && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">月均收入</span>
+                    <span className="font-medium text-red-600">¥{metrics.monthlyIncome.toFixed(0)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">整体股息率</span>
+                    <span className="font-medium text-red-600">{metrics.overallYield.toFixed(2)}%</span>
+                  </div>
+                  <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setValueDetail('market')}>
+                    <span className="text-gray-500 flex items-center gap-0.5">
+                      持仓市值
+                      <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                    <span className="font-medium text-red-600">¥{metrics.totalMarket.toFixed(0)}</span>
+                  </button>
+                  <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => setValueDetail('cost')}>
+                    <span className="text-gray-500 flex items-center gap-0.5">
+                      成本金额
+                      <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                    <span className="font-medium text-red-600">¥{metrics.totalCost.toFixed(0)}</span>
+                  </button>
+                </>
+              )}
               {metrics.hasShSz && (
                 <>
                   <button
@@ -404,6 +445,17 @@ export default function Portfolio() {
                 </span>
                 <span className="font-medium text-red-600">¥{metrics.allTimeDiv.toFixed(0)}</span>
               </button>
+              {metrics.hasHoldings && metrics.realizedPnlItems.length > 0 && (
+                <button className="col-span-2 flex justify-between items-center text-sm active:opacity-60" onClick={() => setShowRealizedPnl(true)}>
+                  <span className="text-gray-500 flex items-center gap-0.5">
+                    已实现盈亏
+                    <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </span>
+                  <span className={`font-medium ${metrics.realizedPnl >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {metrics.realizedPnl >= 0 ? '+' : '-'}¥{Math.abs(metrics.realizedPnl).toFixed(0)}
+                  </span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -588,6 +640,38 @@ export default function Portfolio() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* 清仓股票已实现盈亏明细 */}
+      <Modal open={showRealizedPnl} onClose={() => setShowRealizedPnl(false)} title="已实现盈亏明细">
+        {metrics.realizedPnlItems.length === 0 ? (
+          <div className="py-6 text-center text-sm text-gray-400">暂无清仓记录</div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-100 text-sm">
+              <span className="text-gray-400">合计</span>
+              <span className={`font-bold ${metrics.realizedPnl >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {metrics.realizedPnl >= 0 ? '+' : '-'}¥{Math.abs(metrics.realizedPnl).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {metrics.realizedPnlItems.map(item => (
+                <div key={item.code} className="flex items-center justify-between py-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-800 truncate">{item.name}</div>
+                    <div className="text-xs text-gray-400">{item.code} · 已清仓</div>
+                  </div>
+                  <div className={`text-sm font-bold ${item.amount >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {item.amount >= 0 ? '+' : '-'}¥{Math.abs(item.amount).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="pt-3 text-[11px] leading-relaxed text-gray-400">
+              已实现盈亏 = 累计卖出额 + 累计分红 − 累计买入额 − 交易费用，仅统计当前持仓为 0 的股票。
+            </p>
           </div>
         )}
       </Modal>
