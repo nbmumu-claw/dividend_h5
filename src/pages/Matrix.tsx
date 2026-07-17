@@ -7,6 +7,7 @@ import { fetchFundDividend } from '../utils/api'
 import { fetchListingYear } from '../utils/listingDate'
 import { isBShare } from '../utils/market'
 import { useStore } from '../store'
+import { fetchWeeklyBoll, type WeeklyBoll } from '../utils/weeklyBoll'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
 
@@ -68,6 +69,16 @@ export default function Matrix() {
   }, [dividend, currentPrice])
 
   const currentYield = currentPrice > 0 ? (dividend / currentPrice) * 100 : 0
+  const [boll, setBoll] = useState<WeeklyBoll | null>(null)
+
+  useEffect(() => {
+    if (!code || isUS) { setBoll(null); return }
+    let alive = true
+    fetchWeeklyBoll([{ code, isHK }])
+      .then(data => { if (alive) setBoll(data[code] || null) })
+      .catch(() => { if (alive) setBoll(null) })
+    return () => { alive = false }
+  }, [code, isHK, isUS])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const currentColRef = useRef<HTMLDivElement>(null)
@@ -212,6 +223,34 @@ export default function Matrix() {
               <div className="text-xs text-gray-400">每股红利</div>
             </div>
           </div>
+          {!isUS && (
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2 px-0.5">
+                <span className="text-[11px] font-semibold text-gray-500 tracking-wide">周 BOLL</span>
+                <span className="text-[10px] text-gray-300">前复权 · {boll?.weekDate || '加载中'}</span>
+              </div>
+              <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50/70">
+                {[
+                  { label: '上轨', value: boll?.upper, valueClass: 'text-red-600' },
+                  { label: '中轨', value: boll?.middle, valueClass: 'text-slate-600' },
+                  { label: '下轨', value: boll?.lower, valueClass: 'text-green-600' },
+                ].map((item, index) => {
+                  const gap = item.value != null && currentPrice > 0 ? (item.value / currentPrice - 1) * 100 : null
+                  return (
+                    <div key={item.label} className={`py-2 text-center ${index > 0 ? 'border-l border-slate-200' : ''}`}>
+                      <div className="text-[10px] text-gray-400">{item.label}</div>
+                      <div className={`mt-0.5 text-sm font-bold tabular-nums ${item.valueClass}`}>
+                        {item.value != null ? `${cs}${item.value.toFixed(2)}` : '--'}
+                      </div>
+                      <div className={`mt-0.5 text-[10px] font-medium tabular-nums ${gap == null ? 'text-gray-300' : gap > 0 ? 'text-red-500' : gap < 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                        {gap == null ? '--' : `${gap >= 0 ? '+' : ''}${gap.toFixed(2)}%`}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Matrix timeline */}
