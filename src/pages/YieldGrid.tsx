@@ -676,7 +676,7 @@ export default function YieldGrid() {
                     <thead>
                       <tr>
                         <th>股票</th><th>现价</th><th>现股息率</th><th>25年股息</th>
-                        <th className="th-boll mid">周BOLL中轨</th><th className="th-boll upper">上轨</th><th className="th-boll lower">下轨</th>
+                        <th className="th-boll upper"><span>上轨</span></th><th className="th-boll mid"><span>中轨</span></th><th className="th-boll lower"><span>下轨</span></th>
                         {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{fmtPct(y)}</th>)}
                         {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{fmtPct(y)}</th>)}
                       </tr>
@@ -871,8 +871,8 @@ export default function YieldGrid() {
 // 自选星标
 function BollStrip({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
   const points = [
-    { label: '中轨', value: boll?.middle, cls: 'mid' },
     { label: '上轨', value: boll?.upper, cls: 'upper' },
+    { label: '中轨', value: boll?.middle, cls: 'mid' },
     { label: '下轨', value: boll?.lower, cls: 'lower' },
   ]
   return (
@@ -892,7 +892,7 @@ function BollCells({ boll, symbol }: { boll?: WeeklyBoll; symbol: string }) {
       {value != null ? `${symbol}${value.toFixed(2)}` : '--'}
     </td>
   )
-  return <>{cell(boll?.middle, 'mid')}{cell(boll?.upper, 'upper')}{cell(boll?.lower, 'lower')}</>
+  return <>{cell(boll?.upper, 'upper')}{cell(boll?.middle, 'mid')}{cell(boll?.lower, 'lower')}</>
 }
 
 function Star({ on, onClick }: { on: boolean; onClick: () => void }) {
@@ -1044,10 +1044,12 @@ const CSS = `
 .yg-page thead th { color: #6b7280; font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid #e5e7eb; white-space: nowrap; }
 .yg-page thead th.th-s { color: #16a34a; }
 .yg-page thead th.th-b { color: #7c3aed; }
-.yg-page thead th.th-boll { border-left: 1px solid #eef0f3; }
-.yg-page thead th.th-boll.mid { color: #374151; }
-.yg-page thead th.th-boll.upper { color: #dc2626; }
-.yg-page thead th.th-boll.lower { color: #16a34a; }
+.yg-page thead th.th-boll { position: relative; padding-top: 14px; padding-bottom: 10px; background: #f8fafc; color: #64748b; }
+.yg-page thead th.th-boll::before { content: ''; position: absolute; top: 0; left: 28%; right: 28%; height: 2px; border-radius: 0 0 2px 2px; background: currentColor; opacity: .72; }
+.yg-page thead th.th-boll span { font-size: 12px; font-weight: 650; letter-spacing: .04em; }
+.yg-page thead th.th-boll.upper { color: #dc2626; border-left: 1px solid #e2e8f0; border-radius: 8px 0 0 0; }
+.yg-page thead th.th-boll.mid { color: #475569; }
+.yg-page thead th.th-boll.lower { color: #16a34a; border-right: 1px solid #e2e8f0; border-radius: 0 8px 0 0; }
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
 .yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
@@ -1062,10 +1064,10 @@ const CSS = `
 .yg-page .chg-dn { color: #16a34a; }
 .yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
-.yg-page td.boll-cell { white-space: nowrap; font-variant-numeric: tabular-nums; border-left: 1px solid #f3f4f6; font-weight: 600; }
-.yg-page td.boll-cell.mid { color: #374151; }
-.yg-page td.boll-cell.upper { color: #dc2626; }
-.yg-page td.boll-cell.lower { color: #16a34a; }
+.yg-page td.boll-cell { padding-left: 12px; padding-right: 12px; white-space: nowrap; background: #fbfcfd; color: #475569; font-variant-numeric: tabular-nums; font-weight: 600; }
+.yg-page td.boll-cell.upper { color: #dc2626; border-left: 1px solid #e2e8f0; }
+.yg-page td.boll-cell.mid { color: #475569; }
+.yg-page td.boll-cell.lower { color: #16a34a; border-right: 1px solid #e2e8f0; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
 .yg-page .cy-lo { color: #9ca3af; }
