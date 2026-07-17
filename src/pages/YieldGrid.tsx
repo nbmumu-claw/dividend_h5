@@ -675,8 +675,9 @@ export default function YieldGrid() {
                   <table>
                     <thead>
                       <tr>
-                        <th>股票</th><th>现价</th><th>现股息率</th><th>25年股息</th>
+                        <th>股票</th><th>现价</th>
                         <th className="th-boll upper"><span>上轨</span></th><th className="th-boll mid"><span>中轨</span></th><th className="th-boll lower"><span>下轨</span></th>
+                        <th>现股息率</th><th>25年股息</th>
                         {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{fmtPct(y)}</th>)}
                         {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{fmtPct(y)}</th>)}
                       </tr>
@@ -692,9 +693,9 @@ export default function YieldGrid() {
                             </span>
                           )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{(() => { const lb = lastBuyMap.get(r.code); return lb ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</span></> : null })()}</td>
                           <td className="px">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
+                          <BollCells boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} />
                           <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
                           <td className="dv">{+r.dive.toFixed(4)}</td>
-                          <BollCells boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} />
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
                           {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} cfg={cfg} />)}
                         </tr>
