@@ -979,12 +979,16 @@ function BollStrip({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: 
     <div className="boll-strip" title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
       {points.map(point => {
         const isClosest = closest === point.cls
-        const dir = isClosest && point.value != null ? (currentPrice >= point.value ? 'above' : 'below') : ''
         return (
-          <span className={`${point.cls}${isClosest ? ` closest ${dir}` : ''}`} key={point.label}>
+          <span className={`${point.cls}${isClosest ? ' closest' : ''}`} key={point.label}>
             <i>{point.label}</i>
             <b>
               <strong>{point.value != null ? `${symbol}${point.value.toFixed(2)}` : '--'}</strong>
+              {isClosest && point.value != null && (
+                <span className={`boll-arr ${currentPrice >= point.value ? 'above' : 'below'}`}>
+                  {currentPrice >= point.value ? '\u25B2' : '\u25BC'}
+                </span>
+              )}
               <em className={point.value != null && currentPrice > 0 ? chgClass((point.value / currentPrice - 1) * 100) : 'chg-flat'}>
                 {point.value != null && currentPrice > 0 ? `${point.value >= currentPrice ? '+' : ''}${((point.value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
               </em>
@@ -1000,10 +1004,16 @@ function BollCells({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: 
   const closest = getClosestBand(boll, currentPrice)
   const cell = (value: number | undefined, cls: string) => {
     const isClosest = closest === cls
-    const dir = isClosest && value != null ? (currentPrice >= value ? 'above' : 'below') : ''
     return (
-      <td className={`boll-cell ${cls}${isClosest ? ` closest ${dir}` : ''}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
-        <b>{value != null ? `${symbol}${value.toFixed(2)}` : '--'}</b>
+      <td className={`boll-cell ${cls}${isClosest ? ' closest' : ''}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
+        <b>
+          {value != null ? `${symbol}${value.toFixed(2)}` : '--'}
+          {isClosest && value != null && (
+            <span className={`boll-arr ${currentPrice >= value ? 'above' : 'below'}`}>
+              {currentPrice >= value ? '\u25B2' : '\u25BC'}
+            </span>
+          )}
+        </b>
         <i className={value != null && currentPrice > 0 ? chgClass((value / currentPrice - 1) * 100) : 'chg-flat'}>
           {value != null && currentPrice > 0 ? `${value >= currentPrice ? '+' : ''}${((value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
         </i>
@@ -1197,14 +1207,10 @@ const CSS = `
 .yg-page td.boll-cell.upper { color: #dc2626; border-left: 1px solid #e2e8f0; }
 .yg-page td.boll-cell.mid { color: #475569; }
 .yg-page td.boll-cell.lower { color: #16a34a; border-right: 1px solid #e2e8f0; }
-.yg-page td.boll-cell.closest.above { border-left: 3px solid; }
-.yg-page td.boll-cell.closest.below { border-right: 3px solid; }
-.yg-page td.boll-cell.upper.closest.above { background: #fef2f2; border-left-color: #ef4444; }
-.yg-page td.boll-cell.upper.closest.below { background: #fef2f2; border-right-color: #ef4444; }
-.yg-page td.boll-cell.mid.closest.above { background: #f1f5f9; border-left-color: #64748b; }
-.yg-page td.boll-cell.mid.closest.below { background: #f1f5f9; border-right-color: #64748b; }
-.yg-page td.boll-cell.lower.closest.above { background: #f0fdf4; border-left-color: #22c55e; }
-.yg-page td.boll-cell.lower.closest.below { background: #f0fdf4; border-right-color: #22c55e; }
+.yg-page td.boll-cell.closest { border-left: 3px solid; }
+.yg-page td.boll-cell.upper.closest { background: #fef2f2; border-left-color: #ef4444; }
+.yg-page td.boll-cell.mid.closest { background: #f1f5f9; border-left-color: #64748b; }
+.yg-page td.boll-cell.lower.closest { background: #f0fdf4; border-left-color: #22c55e; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
 .yg-page .cy-lo { color: #9ca3af; }
@@ -1243,14 +1249,13 @@ const CSS = `
 .yg-page .boll-strip .mid strong { color: #374151; }
 .yg-page .boll-strip .upper strong { color: #dc2626; }
 .yg-page .boll-strip .lower strong { color: #16a34a; }
-.yg-page .boll-strip > span.closest.above { border-left-width: 2px; margin-left: -1px; }
-.yg-page .boll-strip > span.closest.below { border-right-width: 2px; margin-right: -1px; }
-.yg-page .boll-strip > span.upper.closest.above { border-left-color: #fca5a5; background: #fef2f2; }
-.yg-page .boll-strip > span.upper.closest.below { border-right-color: #fca5a5; background: #fef2f2; }
-.yg-page .boll-strip > span.mid.closest.above { border-left-color: #94a3b8; background: #f8fafc; }
-.yg-page .boll-strip > span.mid.closest.below { border-right-color: #94a3b8; background: #f8fafc; }
-.yg-page .boll-strip > span.lower.closest.above { border-left-color: #86efac; background: #f0fdf4; }
-.yg-page .boll-strip > span.lower.closest.below { border-right-color: #86efac; background: #f0fdf4; }
+.yg-page .boll-strip > span.closest { border-left-width: 2px; margin-left: -1px; }
+.yg-page .boll-strip > span.upper.closest { border-left-color: #fca5a5; background: #fef2f2; }
+.yg-page .boll-strip > span.mid.closest { border-left-color: #94a3b8; background: #f8fafc; }
+.yg-page .boll-strip > span.lower.closest { border-left-color: #86efac; background: #f0fdf4; }
+.yg-page .boll-arr { font-size: 9px; margin-left: 2px; }
+.yg-page .boll-arr.above { color: #22c55e; }
+.yg-page .boll-arr.below { color: #dc2626; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }
