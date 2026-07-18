@@ -9,6 +9,8 @@ const SOURCES = {
   tx: {
     buildUrl: params => `https://smartbox.gtimg.cn/s3/?${new URLSearchParams(params)}`,
     contentType: 'text/plain; charset=utf-8',
+    binary: true,
+    decode: 'gbk',
   },
   em: {
     buildUrl: params => `https://searchapi.eastmoney.com/api/suggest/get?${new URLSearchParams(params)}`,
@@ -44,7 +46,11 @@ module.exports = async function searchHandler(params) {
     if (!res.ok) return upstreamError(`${source} search error: ${res.status}`)
 
     const body = config.binary
-      ? Buffer.from(await res.arrayBuffer())
+      ? (
+          config.decode
+            ? new TextDecoder(config.decode).decode(await res.arrayBuffer())
+            : Buffer.from(await res.arrayBuffer())
+        )
       : await res.text()
     return ok(body, {
       'Content-Type': res.headers.get('content-type') || config.contentType,
