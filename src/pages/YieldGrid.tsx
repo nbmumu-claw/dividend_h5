@@ -1254,8 +1254,8 @@ const CSS = `
 .yg-page .boll-strip > span.mid.closest { border-left-color: #94a3b8; background: #f8fafc; }
 .yg-page .boll-strip > span.lower.closest { border-left-color: #86efac; background: #f0fdf4; }
 .yg-page .boll-arr { font-size: 9px; margin-left: 2px; }
-.yg-page .boll-arr.above { color: #22c55e; }
-.yg-page .boll-arr.below { color: #dc2626; }
+.yg-page .boll-arr.above { color: #dc2626; }
+.yg-page .boll-arr.below { color: #22c55e; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }
