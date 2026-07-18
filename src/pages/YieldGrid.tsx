@@ -984,11 +984,6 @@ function BollStrip({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: 
             <i>{point.label}</i>
             <b>
               <strong>{point.value != null ? `${symbol}${point.value.toFixed(2)}` : '--'}</strong>
-              {isClosest && point.value != null && (
-                <span className={`boll-arr ${currentPrice >= point.value ? 'above' : 'below'}`}>
-                  {currentPrice >= point.value ? '\u25B2' : '\u25BC'}
-                </span>
-              )}
               <em className={point.value != null && currentPrice > 0 ? chgClass((point.value / currentPrice - 1) * 100) : 'chg-flat'}>
                 {point.value != null && currentPrice > 0 ? `${point.value >= currentPrice ? '+' : ''}${((point.value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
               </em>
@@ -1008,11 +1003,6 @@ function BollCells({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: 
       <td className={`boll-cell ${cls}${isClosest ? ' closest' : ''}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
         <b>
           {value != null ? `${symbol}${value.toFixed(2)}` : '--'}
-          {isClosest && value != null && (
-            <span className={`boll-arr ${currentPrice >= value ? 'above' : 'below'}`}>
-              {currentPrice >= value ? '\u25B2' : '\u25BC'}
-            </span>
-          )}
         </b>
         <i className={value != null && currentPrice > 0 ? chgClass((value / currentPrice - 1) * 100) : 'chg-flat'}>
           {value != null && currentPrice > 0 ? `${value >= currentPrice ? '+' : ''}${((value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
@@ -1253,9 +1243,6 @@ const CSS = `
 .yg-page .boll-strip > span.upper.closest { border-color: #fca5a5; background: #fef2f2; }
 .yg-page .boll-strip > span.mid.closest { border-color: #94a3b8; background: #f8fafc; }
 .yg-page .boll-strip > span.lower.closest { border-color: #86efac; background: #f0fdf4; }
-.yg-page .boll-arr { font-size: 9px; margin-left: 2px; }
-.yg-page .boll-arr.above { color: #dc2626; }
-.yg-page .boll-arr.below { color: #22c55e; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }
