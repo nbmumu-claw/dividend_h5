@@ -197,6 +197,23 @@ function tier(r: Row, y: number, kind: 'buy' | 'sell') {
   return { target, reached, label }
 }
 
+// BOLL 最近轨判断
+type BollBand = 'upper' | 'mid' | 'lower'
+
+function getClosestBand(
+  boll: WeeklyBoll | undefined,
+  currentPrice: number
+): BollBand | null {
+  if (!boll || boll.upper == null || boll.middle == null || boll.lower == null) return null
+  const dU = Math.abs(boll.upper - currentPrice)
+  const dM = Math.abs(boll.middle - currentPrice)
+  const dL = Math.abs(boll.lower - currentPrice)
+  const min = Math.min(dU, dM, dL)
+  if (min === dU) return 'upper'
+  if (min === dL) return 'lower'
+  return 'mid'
+}
+
 // 监听设备宽度：手机出卡片，PC 出表格，同一网址自适应
 function useIsMobile() {
   const q = '(max-width: 719px)'
@@ -952,6 +969,7 @@ export default function YieldGrid() {
 
 // 自选星标
 function BollStrip({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: string; currentPrice: number }) {
+  const closest = getClosestBand(boll, currentPrice)
   const points = [
     { label: '上轨', value: boll?.upper, cls: 'upper' },
     { label: '中轨', value: boll?.middle, cls: 'mid' },
@@ -960,7 +978,7 @@ function BollStrip({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: 
   return (
     <div className="boll-strip" title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
       {points.map(point => (
-        <span className={point.cls} key={point.label}>
+        <span className={`${point.cls}${closest === point.cls ? ' closest' : ''}`} key={point.label}>
           <i>{point.label}</i>
           <b>
             <strong>{point.value != null ? `${symbol}${point.value.toFixed(2)}` : '--'}</strong>
@@ -975,8 +993,9 @@ function BollStrip({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: 
 }
 
 function BollCells({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: string; currentPrice: number }) {
+  const closest = getClosestBand(boll, currentPrice)
   const cell = (value: number | undefined, cls: string) => (
-    <td className={`boll-cell ${cls}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
+    <td className={`boll-cell ${cls}${closest === cls ? ' closest' : ''}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
       <b>{value != null ? `${symbol}${value.toFixed(2)}` : '--'}</b>
       <i className={value != null && currentPrice > 0 ? chgClass((value / currentPrice - 1) * 100) : 'chg-flat'}>
         {value != null && currentPrice > 0 ? `${value >= currentPrice ? '+' : ''}${((value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
@@ -1170,6 +1189,10 @@ const CSS = `
 .yg-page td.boll-cell.upper { color: #dc2626; border-left: 1px solid #e2e8f0; }
 .yg-page td.boll-cell.mid { color: #475569; }
 .yg-page td.boll-cell.lower { color: #16a34a; border-right: 1px solid #e2e8f0; }
+.yg-page td.boll-cell.closest { background: #f8faf0; }
+.yg-page td.boll-cell.upper.closest { background: #fef2f2; border-left-color: #fca5a5; }
+.yg-page td.boll-cell.mid.closest { background: #f8fafc; border-left-color: #94a3b8; }
+.yg-page td.boll-cell.lower.closest { background: #f0fdf4; border-left-color: #86efac; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
 .yg-page .cy-lo { color: #9ca3af; }
@@ -1208,6 +1231,10 @@ const CSS = `
 .yg-page .boll-strip .mid strong { color: #374151; }
 .yg-page .boll-strip .upper strong { color: #dc2626; }
 .yg-page .boll-strip .lower strong { color: #16a34a; }
+.yg-page .boll-strip > span.closest { border-width: 2px; margin: -1px; }
+.yg-page .boll-strip > span.upper.closest { border-color: #fca5a5; background: #fef2f2; }
+.yg-page .boll-strip > span.mid.closest { border-color: #94a3b8; background: #f8fafc; }
+.yg-page .boll-strip > span.lower.closest { border-color: #86efac; background: #f0fdf4; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }
