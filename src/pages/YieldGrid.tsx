@@ -1189,10 +1189,10 @@ const CSS = `
 .yg-page td.boll-cell.upper { color: #dc2626; border-left: 1px solid #e2e8f0; }
 .yg-page td.boll-cell.mid { color: #475569; }
 .yg-page td.boll-cell.lower { color: #16a34a; border-right: 1px solid #e2e8f0; }
-.yg-page td.boll-cell.closest { background: #f8faf0; }
-.yg-page td.boll-cell.upper.closest { background: #fef2f2; border-left-color: #fca5a5; }
-.yg-page td.boll-cell.mid.closest { background: #f8fafc; border-left-color: #94a3b8; }
-.yg-page td.boll-cell.lower.closest { background: #f0fdf4; border-left-color: #86efac; }
+.yg-page td.boll-cell.closest { border-left: 3px solid; }
+.yg-page td.boll-cell.upper.closest { background: #fef2f2; border-left-color: #ef4444; }
+.yg-page td.boll-cell.mid.closest { background: #f1f5f9; border-left-color: #64748b; }
+.yg-page td.boll-cell.lower.closest { background: #f0fdf4; border-left-color: #22c55e; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
 .yg-page .cy-lo { color: #9ca3af; }
