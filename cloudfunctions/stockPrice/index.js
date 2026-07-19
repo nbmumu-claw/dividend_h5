@@ -20,6 +20,7 @@ const HANDLERS = {
   dividendHistory: './handlers/dividendHistory',
   search: './handlers/search',
   weeklyBoll: './handlers/weeklyBoll',
+  periodBoll: './handlers/periodBoll',
 }
 
 // 懒加载，避免冷启动全量 require
