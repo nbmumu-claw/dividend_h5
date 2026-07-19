@@ -10,6 +10,7 @@ import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
 import { useStore, type GridPrefs } from '../store'
 import { cbAuth } from '../utils/cloudbase'
 import { fetchWeeklyBoll, type WeeklyBoll } from '../utils/weeklyBoll'
+import WeeklyBollPosition from '../components/WeeklyBollPosition'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -195,23 +196,6 @@ function tier(r: Row, y: number, kind: 'buy' | 'sell') {
   const pct = Math.round((kind === 'buy' ? (r.price - target) : (target - r.price)) / r.price * 100)
   const label = reached ? '已达' : `${kind === 'buy' ? '↓' : '↑'}${pct}%`
   return { target, reached, label }
-}
-
-// BOLL 最近轨判断
-type BollBand = 'upper' | 'mid' | 'lower'
-
-function getClosestBand(
-  boll: WeeklyBoll | undefined,
-  currentPrice: number
-): BollBand | null {
-  if (!boll || boll.upper == null || boll.middle == null || boll.lower == null) return null
-  const dU = Math.abs(boll.upper - currentPrice)
-  const dM = Math.abs(boll.middle - currentPrice)
-  const dL = Math.abs(boll.lower - currentPrice)
-  const min = Math.min(dU, dM, dL)
-  if (min === dU) return 'upper'
-  if (min === dL) return 'lower'
-  return 'mid'
 }
 
 // 监听设备宽度：手机出卡片，PC 出表格，同一网址自适应
@@ -723,12 +707,26 @@ export default function YieldGrid() {
                           </span>
                         )}
                         <span className="cnm">{r.name}</span>
-                        <span className="cpx">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
-                        <span className={`ccy ${cyClass(r.cy)}`}>{(r.cy * 100).toFixed(2)}%</span>
                         <Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />
                       </div>
-                      <div className="cmeta">25年股息 {+r.dive.toFixed(4)}{(() => { const lb = lastBuyMap.get(r.code); return lb ? ` · ${fmtDate(lb.ts)} ${lb.isFirst ? '建仓' : '加仓'} ${symOf(r.isHK, r.code)}${lb.price.toFixed(2)} × ${lb.qty} 股` : '' })()}</div>
-                      <BollStrip boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} />
+                      <div className="quote-summary quote-summary-mobile" data-testid={`yield-grid-quote-${r.code}`}>
+                        <div className="quote-metric">
+                          <small>现价</small>
+                          <span className="value-line"><b>{symOf(r.isHK, r.code)}{r.price.toFixed(2)}</b><i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
+                        </div>
+                        <div className="quote-metric">
+                          <small>25年股息</small>
+                          <span className="value-line"><b>{+r.dive.toFixed(4)}</b></span>
+                        </div>
+                        <div className="quote-metric">
+                          <small>现股息率</small>
+                          <span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span>
+                        </div>
+                      </div>
+                      {(() => { const lb = lastBuyMap.get(r.code); return lb ? <div className="cmeta">{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</div> : null })()}
+                      <div className="boll-strip" data-testid={`yield-grid-boll-${r.code}`}>
+                        <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} compact />
+                      </div>
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
                         {sellGridFor(r.name, cfg).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} />)}
@@ -745,9 +743,12 @@ export default function YieldGrid() {
                   <table>
                     <thead>
                       <tr>
-                        <th>股票</th><th>现价</th>
-                        <th className="th-boll upper"><span>上轨</span></th><th className="th-boll mid"><span>中轨</span></th><th className="th-boll lower"><span>下轨</span></th>
-                        <th>现股息率</th><th>25年股息</th>
+                        <th>股票</th>
+                        <th className="quote-summary-head">
+                          <span className="quote-summary-title">价格与股息</span>
+                          <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i></span>
+                        </th>
+                        <th className="th-boll-position"><span>周 BOLL 位置</span></th>
                         {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{fmtPct(y)}</th>)}
                         {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{fmtPct(y)}</th>)}
                       </tr>
@@ -762,10 +763,18 @@ export default function YieldGrid() {
                               <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
                             </span>
                           )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{(() => { const lb = lastBuyMap.get(r.code); return lb ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</span></> : null })()}</td>
-                          <td className="px">{symOf(r.isHK, r.code)}{r.price.toFixed(2)}<i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></td>
-                          <BollCells boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} />
-                          <td className={cyClass(r.cy)}>{(r.cy * 100).toFixed(2)}%</td>
-                          <td className="dv">{+r.dive.toFixed(4)}</td>
+                          <td className="quote-summary-cell" data-testid={`yield-grid-quote-${r.code}`}>
+                            <div className="quote-summary">
+                              <div className="quote-metric">
+                                <span className="value-line"><b>{symOf(r.isHK, r.code)}{r.price.toFixed(2)}</b><i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
+                              </div>
+                              <div className="quote-metric"><span className="value-line"><b>{+r.dive.toFixed(4)}</b></span></div>
+                              <div className="quote-metric"><span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span></div>
+                            </div>
+                          </td>
+                          <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
+                            <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} compact />
+                          </td>
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
                           {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} cfg={cfg} />)}
                         </tr>
@@ -968,51 +977,6 @@ export default function YieldGrid() {
 }
 
 // 自选星标
-function BollStrip({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: string; currentPrice: number }) {
-  const closest = getClosestBand(boll, currentPrice)
-  const points = [
-    { label: '上轨', value: boll?.upper, cls: 'upper' },
-    { label: '中轨', value: boll?.middle, cls: 'mid' },
-    { label: '下轨', value: boll?.lower, cls: 'lower' },
-  ]
-  return (
-    <div className="boll-strip" title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
-      {points.map(point => {
-        const isClosest = closest === point.cls
-        return (
-          <span className={`${point.cls}${isClosest ? ' closest' : ''}`} key={point.label}>
-            <i>{point.label}</i>
-            <b>
-              <strong>{point.value != null ? `${symbol}${point.value.toFixed(2)}` : '--'}</strong>
-              <em className={point.value != null && currentPrice > 0 ? chgClass((point.value / currentPrice - 1) * 100) : 'chg-flat'}>
-                {point.value != null && currentPrice > 0 ? `${point.value >= currentPrice ? '+' : ''}${((point.value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
-              </em>
-            </b>
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-function BollCells({ boll, symbol, currentPrice }: { boll?: WeeklyBoll; symbol: string; currentPrice: number }) {
-  const closest = getClosestBand(boll, currentPrice)
-  const cell = (value: number | undefined, cls: string) => {
-    const isClosest = closest === cls
-    return (
-      <td className={`boll-cell ${cls}${isClosest ? ' closest' : ''}`} title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : '周BOLL加载中'}>
-        <b>
-          {value != null ? `${symbol}${value.toFixed(2)}` : '--'}
-        </b>
-        <i className={value != null && currentPrice > 0 ? chgClass((value / currentPrice - 1) * 100) : 'chg-flat'}>
-          {value != null && currentPrice > 0 ? `${value >= currentPrice ? '+' : ''}${((value / currentPrice - 1) * 100).toFixed(2)}%` : '--'}
-        </i>
-      </td>
-    )
-  }
-  return <>{cell(boll?.upper, 'upper')}{cell(boll?.middle, 'mid')}{cell(boll?.lower, 'lower')}</>
-}
-
 function Star({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
     <button type="button" className={`fav${on ? ' on' : ''}`} onClick={onClick} aria-label={on ? '取消自选' : '加入自选'}>
@@ -1171,12 +1135,16 @@ const CSS = `
 .yg-page thead th { color: #6b7280; font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid #e5e7eb; white-space: nowrap; }
 .yg-page thead th.th-s { color: #16a34a; }
 .yg-page thead th.th-b { color: #7c3aed; }
-.yg-page thead th.th-boll { position: relative; padding-top: 14px; padding-bottom: 10px; background: #f8fafc; color: #64748b; }
-.yg-page thead th.th-boll::before { content: ''; position: absolute; top: 0; left: 28%; right: 28%; height: 2px; border-radius: 0 0 2px 2px; background: currentColor; opacity: .72; }
-.yg-page thead th.th-boll span { font-size: 12px; font-weight: 650; letter-spacing: .04em; }
-.yg-page thead th.th-boll.upper { color: #dc2626; border-left: 1px solid #e2e8f0; border-radius: 8px 0 0 0; }
-.yg-page thead th.th-boll.mid { color: #475569; }
-.yg-page thead th.th-boll.lower { color: #16a34a; border-right: 1px solid #e2e8f0; border-radius: 0 8px 0 0; }
+.yg-page thead th.quote-summary-head { min-width: 252px; padding: 6px 8px 7px; background: #f8fafc;
+  border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
+.yg-page .quote-summary-title { display: block; margin-bottom: 4px; color: #374151; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.15fr .85fr 1fr; align-items: center; }
+.yg-page .quote-summary-labels i { font-style: normal; font-size: 10px; font-weight: 500; color: #94a3b8; }
+.yg-page thead th.th-boll-position { position: relative; min-width: 242px; padding-top: 14px; padding-bottom: 10px;
+  background: #f8fafc; color: #64748b; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
+.yg-page thead th.th-boll-position::before { content: ''; position: absolute; top: 0; left: 38%; right: 38%; height: 2px;
+  border-radius: 0 0 2px 2px; background: #e03025; opacity: .72; }
+.yg-page thead th.th-boll-position span { font-size: 12px; font-weight: 650; letter-spacing: .04em; }
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
 .yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
@@ -1184,23 +1152,25 @@ const CSS = `
 .yg-page .fav svg { width: 18px; height: 18px; }
 .yg-page .fav.on { color: #f59e0b; }
 .yg-page .fav.on svg { fill: #f59e0b; }
-.yg-page .chead .fav { margin-left: 6px; align-self: center; }
-.yg-page td.px { color: #374151; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.yg-page td.px i, .yg-page .chead .cpx i { font-style: normal; margin-left: 5px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.yg-page .chead .fav { margin-left: auto; align-self: center; }
 .yg-page .chg-up { color: #dc2626; }
 .yg-page .chg-dn { color: #16a34a; }
 .yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
-.yg-page td.boll-cell { padding-left: 12px; padding-right: 12px; white-space: nowrap; background: #fbfcfd; color: #475569; font-variant-numeric: tabular-nums; }
-.yg-page td.boll-cell b { display: block; font-size: 13px; font-weight: 650; line-height: 1.2; }
-.yg-page td.boll-cell i { display: block; margin-top: 3px; font-size: 10px; font-style: normal; font-weight: 500; line-height: 1; }
-.yg-page td.boll-cell.upper { color: #dc2626; border-left: 1px solid #e2e8f0; }
-.yg-page td.boll-cell.mid { color: #475569; }
-.yg-page td.boll-cell.lower { color: #16a34a; border-right: 1px solid #e2e8f0; }
-.yg-page td.boll-cell.closest { border: 2px solid; border-radius: 4px; }
-.yg-page td.boll-cell.upper.closest { background: #fef2f2; border-color: #ef4444; }
-.yg-page td.boll-cell.mid.closest { background: #f1f5f9; border-color: #64748b; }
-.yg-page td.boll-cell.lower.closest { background: #f0fdf4; border-color: #22c55e; }
+.yg-page td.quote-summary-cell { min-width: 252px; padding: 8px; background: #fbfcfd;
+  border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
+.yg-page .quote-summary { display: grid; grid-template-columns: 1.15fr .85fr 1fr; align-items: stretch; overflow: hidden;
+  border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
+.yg-page .quote-metric { display: flex; min-width: 0; min-height: 48px; flex-direction: column; align-items: center;
+  justify-content: center; padding: 5px 4px; }
+.yg-page .quote-metric + .quote-metric { border-left: 1px solid #edf0f4; }
+.yg-page .quote-metric small { margin-bottom: 3px; color: #9ca3af; font-size: 9px; line-height: 1; }
+.yg-page .quote-metric .value-line { display: flex; min-width: 0; align-items: baseline; justify-content: center;
+  gap: 3px; white-space: nowrap; color: #374151; }
+.yg-page .quote-metric .value-line b { font-size: 12.5px; font-weight: 700; }
+.yg-page .quote-metric .value-line i { font-size: 9px; font-style: normal; font-weight: 500; }
+.yg-page td.boll-position-cell { min-width: 242px; padding: 7px 12px 8px; background: #fbfcfd;
+  border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
 .yg-page .cy-lo { color: #9ca3af; }
@@ -1226,23 +1196,12 @@ const CSS = `
 .yg-page .chead { display: flex; align-items: baseline; gap: 8px; }
 .yg-page .chead .yg-del { align-self: center; }
 .yg-page .chead .cnm { font-weight: 700; font-size: 15px; }
-.yg-page .chead .cpx { font-size: 13px; color: #374151; font-variant-numeric: tabular-nums; }
-.yg-page .chead .ccy { margin-left: auto; font-size: 14px; font-variant-numeric: tabular-nums; }
-.yg-page .cmeta { font-size: 11.5px; color: #9ca3af; margin-top: 2px; }
-.yg-page .boll-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 7px; }
-.yg-page .boll-strip > span { display: flex; align-items: flex-start; justify-content: center; gap: 4px; min-width: 0;
-  padding: 5px 3px; border: 1px solid #eef0f3; border-radius: 7px; background: #fafafa; font-variant-numeric: tabular-nums; }
-.yg-page .boll-strip i { padding-top: 1px; font-style: normal; font-size: 10px; color: #9ca3af; }
-.yg-page .boll-strip b { display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; }
-.yg-page .boll-strip strong { font-size: 11.5px; font-weight: 700; line-height: 1.15; }
-.yg-page .boll-strip em { margin-top: 3px; font-size: 9px; font-style: normal; font-weight: 500; line-height: 1; }
-.yg-page .boll-strip .mid strong { color: #374151; }
-.yg-page .boll-strip .upper strong { color: #dc2626; }
-.yg-page .boll-strip .lower strong { color: #16a34a; }
-.yg-page .boll-strip > span.closest { border-width: 2px; }
-.yg-page .boll-strip > span.upper.closest { border-color: #fca5a5; background: #fef2f2; }
-.yg-page .boll-strip > span.mid.closest { border-color: #94a3b8; background: #f8fafc; }
-.yg-page .boll-strip > span.lower.closest { border-color: #86efac; background: #f0fdf4; }
+.yg-page .quote-summary-mobile { margin-top: 7px; background: #f8fafc; }
+.yg-page .quote-summary-mobile .quote-metric { min-height: 52px; padding: 6px 3px; }
+.yg-page .quote-summary-mobile .quote-metric .value-line b { font-size: 12px; }
+.yg-page .cmeta { font-size: 11.5px; color: #9ca3af; margin-top: 5px; }
+.yg-page .boll-strip { margin-top: 7px; padding: 7px 7px 6px; border: 1px solid #eef0f3; border-radius: 8px;
+  background: #fbfcfd; font-variant-numeric: tabular-nums; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }

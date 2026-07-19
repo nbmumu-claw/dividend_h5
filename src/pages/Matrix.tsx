@@ -8,6 +8,7 @@ import { fetchListingYear } from '../utils/listingDate'
 import { isBShare } from '../utils/market'
 import { useStore } from '../store'
 import { fetchWeeklyBoll, type WeeklyBoll } from '../utils/weeklyBoll'
+import WeeklyBollPosition from '../components/WeeklyBollPosition'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
 
@@ -70,13 +71,20 @@ export default function Matrix() {
 
   const currentYield = currentPrice > 0 ? (dividend / currentPrice) * 100 : 0
   const [boll, setBoll] = useState<WeeklyBoll | null>(null)
+  const [bollLoading, setBollLoading] = useState(false)
 
   useEffect(() => {
-    if (!code || isUS) { setBoll(null); return }
+    if (!code || isUS) {
+      setBoll(null)
+      setBollLoading(false)
+      return
+    }
     let alive = true
+    setBollLoading(true)
     fetchWeeklyBoll([{ code, isHK }])
       .then(data => { if (alive) setBoll(data[code] || null) })
       .catch(() => { if (alive) setBoll(null) })
+      .finally(() => { if (alive) setBollLoading(false) })
     return () => { alive = false }
   }, [code, isHK, isUS])
 
@@ -224,31 +232,14 @@ export default function Matrix() {
             </div>
           </div>
           {!isUS && (
-            <div className="mt-4 pt-3 border-t border-gray-100">
+            <div className="mt-4 pt-3 border-t border-gray-100" data-testid="weekly-boll-position">
               <div className="flex items-center justify-between mb-2 px-0.5">
                 <span className="text-[11px] font-semibold text-gray-500 tracking-wide">周 BOLL</span>
-                <span className="text-[10px] text-gray-300">前复权 · {boll?.weekDate || '加载中'}</span>
+                <span className="text-[10px] text-gray-300">
+                  前复权 · {boll?.weekDate || (bollLoading ? '加载中' : '暂无数据')}
+                </span>
               </div>
-              <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50/70">
-                {[
-                  { label: '上轨', value: boll?.upper, valueClass: 'text-red-600' },
-                  { label: '中轨', value: boll?.middle, valueClass: 'text-slate-600' },
-                  { label: '下轨', value: boll?.lower, valueClass: 'text-green-600' },
-                ].map((item, index) => {
-                  const gap = item.value != null && currentPrice > 0 ? (item.value / currentPrice - 1) * 100 : null
-                  return (
-                    <div key={item.label} className={`py-2 text-center ${index > 0 ? 'border-l border-slate-200' : ''}`}>
-                      <div className="text-[10px] text-gray-400">{item.label}</div>
-                      <div className={`mt-0.5 text-sm font-bold tabular-nums ${item.valueClass}`}>
-                        {item.value != null ? `${cs}${item.value.toFixed(2)}` : '--'}
-                      </div>
-                      <div className={`mt-0.5 text-[10px] font-medium tabular-nums ${gap == null ? 'text-gray-300' : gap > 0 ? 'text-red-500' : gap < 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                        {gap == null ? '--' : `${gap >= 0 ? '+' : ''}${gap.toFixed(2)}%`}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <WeeklyBollPosition boll={boll} currentPrice={currentPrice} symbol={cs} loading={bollLoading} />
             </div>
           )}
         </div>
