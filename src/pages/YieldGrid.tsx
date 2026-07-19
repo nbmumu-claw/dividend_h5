@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
@@ -9,8 +9,11 @@ import { Toast, useToast } from '../components/Toast'
 import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
 import { useStore, type GridPrefs } from '../store'
 import { cbAuth } from '../utils/cloudbase'
-import { fetchWeeklyBoll, type WeeklyBoll } from '../utils/weeklyBoll'
+import { fetchPeriodBoll, type BollPeriod, type PeriodBoll } from '../utils/periodBoll'
 import WeeklyBollPosition from '../components/WeeklyBollPosition'
+import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSwitch'
+import BollPeriodOverview from '../components/BollPeriodOverview'
+import { shouldUsePriceCache } from '../utils/priceCachePolicy'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -168,14 +171,6 @@ function loadPriceCache(): PriceCache | null {
   try { const c = JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) || 'null'); return c && c.data ? c : null } catch { return null }
 }
 function savePriceCache(c: PriceCache) { try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(c)) } catch { /* ignore */ } }
-// 周一~五 9:30–15:00 视为交易时段（无节假日日历，近似）
-function marketPhase(d: Date = new Date()): 'trading' | 'lunch' | 'closed' {
-  const day = d.getDay(); const mins = d.getHours() * 60 + d.getMinutes()
-  if (day < 1 || day > 5) return 'closed'
-  if ((mins >= 570 && mins < 690) || (mins >= 780 && mins < 900)) return 'trading' // 09:30–11:30、13:00–15:00
-  if (mins >= 690 && mins < 780) return 'lunch' // 11:30–13:00 午休
-  return 'closed'
-}
 // 日期展示：MM-DD
 function fmtDate(ts: number): string {
   const d = new Date(ts), p = (n: number) => String(n).padStart(2, '0')
@@ -285,14 +280,43 @@ export default function YieldGrid() {
     const seen = new Set(STOCKS.map(s => s.code))
     return [...STOCKS, ...custom.filter(c => !seen.has(c.code))].filter(s => !hidden.has(s.code))
   }, [custom, hidden])
-  const [bollByCode, setBollByCode] = useState<Record<string, WeeklyBoll>>({})
+  const [bollPeriod, setBollPeriod] = useState<BollPeriod>('week')
+  const [bollByPeriod, setBollByPeriod] = useState<Record<BollPeriod, Record<string, PeriodBoll>>>(() => ({ day: {}, week: {}, month: {} }))
+  const [bollLoading, setBollLoading] = useState<Partial<Record<BollPeriod, boolean>>>({})
+  const loadedBollKeys = useRef<Partial<Record<BollPeriod, string>>>({})
+  const requestedBollKeys = useRef<Partial<Record<BollPeriod, string>>>({})
+  const bollInputs = useMemo(() => allStocks.map(stock => ({ code: stock.code, isHK: stock.isHK })), [allStocks])
+  const bollRequestKey = useMemo(() => allStocks.map(stock => `${stock.code}:${stock.isHK ? 1 : 0}`).join(','), [allStocks])
+  const loadBollPeriod = useCallback((period: BollPeriod): Promise<void> => {
+    if (loadedBollKeys.current[period] === bollRequestKey || requestedBollKeys.current[period] === bollRequestKey) return Promise.resolve()
+    requestedBollKeys.current[period] = bollRequestKey
+    setBollLoading(current => ({ ...current, [period]: true }))
+    return fetchPeriodBoll(period, bollInputs)
+      .then(data => {
+        if (requestedBollKeys.current[period] !== bollRequestKey) return
+        setBollByPeriod(current => ({ ...current, [period]: data }))
+        loadedBollKeys.current[period] = bollRequestKey
+      })
+      .catch(() => {
+        if (requestedBollKeys.current[period] === bollRequestKey) setBollByPeriod(current => ({ ...current, [period]: {} }))
+      })
+      .finally(() => {
+        if (requestedBollKeys.current[period] !== bollRequestKey) return
+        requestedBollKeys.current[period] = undefined
+        setBollLoading(current => ({ ...current, [period]: false }))
+      })
+  }, [bollInputs, bollRequestKey])
   useEffect(() => {
-    let alive = true
-    fetchWeeklyBoll(allStocks.map(stock => ({ code: stock.code, isHK: stock.isHK })))
-      .then(data => { if (alive) setBollByCode(data) })
-      .catch(() => { if (alive) setBollByCode({}) })
-    return () => { alive = false }
-  }, [allStocks])
+    void loadBollPeriod(bollPeriod)
+  }, [bollPeriod, loadBollPeriod])
+  useEffect(() => {
+    if (loadedBollKeys.current.week !== bollRequestKey) return
+    const timer = window.setTimeout(() => {
+      void loadBollPeriod('day').finally(() => loadBollPeriod('month'))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [bollByPeriod.week, bollRequestKey, loadBollPeriod])
+  const bollByCode = bollByPeriod[bollPeriod]
   // 被隐藏的默认标的（用于「恢复」列表）
   const hiddenStocks = useMemo(() => STOCKS.filter(s => hidden.has(s.code)), [hidden])
 
@@ -464,26 +488,8 @@ export default function YieldGrid() {
 
     const cache = loadPriceCache()
     const cacheCoversAll = !!cache && codes.every(c => cache.data[c])
-    const phase = marketPhase()
     const now = new Date()
-    const curMins = now.getHours() * 60 + now.getMinutes()
-    // 缓存是否在“今天某时刻（分钟）之后”抓取的
-    const cacheFetchedTodayAfter = (m: number) => !!cache && (() => {
-      const f = new Date(cache.fetchedAt)
-      return f.getFullYear() === now.getFullYear() && f.getMonth() === now.getMonth()
-        && f.getDate() === now.getDate() && f.getHours() * 60 + f.getMinutes() >= m
-    })()
-    // 是否直接读缓存（不刷新）：
-    //  · 午休：缓存须已是今天 11:30（午盘收盘）后抓取，否则补拉一次拿午盘收盘价
-    //  · 当天收盘后(≥15:00)：缓存须已是今天 15:00 后抓取，否则补拉一次拿收盘价
-    //  · 其余休市(盘前/周末/隔夜)：缓存若抓于盘中(非定格价)则补拉一次拿最近收盘价，否则直接读
-    const afterCloseToday = phase === 'closed' && now.getDay() >= 1 && now.getDay() <= 5 && curMins >= 900
-    let useCache = false
-    if (cacheCoversAll) {
-      if (phase === 'lunch') useCache = cacheFetchedTodayAfter(690)
-      else if (afterCloseToday) useCache = cacheFetchedTodayAfter(900)
-      else if (phase === 'closed') useCache = marketPhase(new Date(cache!.fetchedAt)) !== 'trading'
-    }
+    const useCache = shouldUsePriceCache(cache?.fetchedAt ?? 0, cacheCoversAll, now)
     if (useCache) {
       build(cache!.data, cache!.fetchedAt, cache!.latestDate)
       return
@@ -587,7 +593,7 @@ export default function YieldGrid() {
         </div>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
-        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。周BOLL采用前复权周K、BOLL(20,2)、样本标准差。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
+        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。BOLL采用前复权日/周/月K、BOLL(20,2)、样本标准差；月线包含本月未完成月线。日/周/月 BOLL 数据采用缓存更新，盘中显示可能存在短暂延迟。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，非投资建议。</div>
         <button className="yg-addbar" onClick={() => setShowAdd(true)}>
           <span className="plus">＋</span> 添加标的{custom.length > 0 ? ` ${custom.length}/${MAX_CUSTOM}` : ''}{custom.length >= MAX_CUSTOM ? '（已满，删除后可再加）' : ''}
         </button>
@@ -725,7 +731,13 @@ export default function YieldGrid() {
                       </div>
                       {(() => { const lb = lastBuyMap.get(r.code); return lb ? <div className="cmeta">{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</div> : null })()}
                       <div className="boll-strip" data-testid={`yield-grid-boll-${r.code}`}>
-                        <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} compact />
+                        <div className="boll-mobile-head">
+                          <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
+                          <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} />
+                        </div>
+                        <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} />
+                        {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
+                        <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                       </div>
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
@@ -748,7 +760,10 @@ export default function YieldGrid() {
                           <span className="quote-summary-title">价格与股息</span>
                           <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i></span>
                         </th>
-                        <th className="th-boll-position"><span>周 BOLL 位置</span></th>
+                        <th className="th-boll-position">
+                          <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
+                          <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} compact />
+                        </th>
                         {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{fmtPct(y)}</th>)}
                         {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{fmtPct(y)}</th>)}
                       </tr>
@@ -773,7 +788,9 @@ export default function YieldGrid() {
                             </div>
                           </td>
                           <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
-                            <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} compact />
+                            <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} compact />
+                            {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
+                            <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                           </td>
                           {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
                           {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} cfg={cfg} />)}
@@ -1144,7 +1161,8 @@ const CSS = `
   background: #f8fafc; color: #64748b; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
 .yg-page thead th.th-boll-position::before { content: ''; position: absolute; top: 0; left: 38%; right: 38%; height: 2px;
   border-radius: 0 0 2px 2px; background: #e03025; opacity: .72; }
-.yg-page thead th.th-boll-position span { font-size: 12px; font-weight: 650; letter-spacing: .04em; }
+.yg-page thead th.th-boll-position > span { display: inline-block; margin-right: 8px; font-size: 12px; font-weight: 650; letter-spacing: .04em; vertical-align: middle; }
+.yg-page thead th.th-boll-position [data-testid="boll-period-switch"] { vertical-align: middle; }
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
 .yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
@@ -1202,6 +1220,9 @@ const CSS = `
 .yg-page .cmeta { font-size: 11.5px; color: #9ca3af; margin-top: 5px; }
 .yg-page .boll-strip { margin-top: 7px; padding: 7px 7px 6px; border: 1px solid #eef0f3; border-radius: 8px;
   background: #fbfcfd; font-variant-numeric: tabular-nums; }
+.yg-page .boll-mobile-head { display: flex; min-height: 38px; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.yg-page .boll-mobile-head > span { color: #64748b; font-size: 11px; font-weight: 650; letter-spacing: .04em; }
+.yg-page .boll-month-note { margin: 0 2px -2px; color: #d97706; font-size: 9px; text-align: right; }
 .yg-page .glabel { font-size: 11px; font-weight: 600; margin: 9px 0 5px; }
 .yg-page .glabel.sell { color: #16a34a; }
 .yg-page .glabel.buy { color: #ea580c; }

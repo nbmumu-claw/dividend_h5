@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { calculateWeeklyBoll, isWeeklyBollCacheFresh } from './weeklyBoll'
+import { describe, expect, it, vi } from 'vitest'
+import { calculateWeeklyBoll, fetchWeeklyBoll, isWeeklyBollCacheFresh } from './weeklyBoll'
 
 describe('calculateWeeklyBoll', () => {
   it('uses the latest 20 closes and sample standard deviation', () => {
@@ -37,5 +37,31 @@ describe('isWeeklyBollCacheFresh', () => {
     const beforeClose = shanghaiTime('2026-07-17T14:50:00')
     const afterClose = shanghaiTime('2026-07-17T16:00:00')
     expect(isWeeklyBollCacheFresh(beforeClose, false, 10 * 60_000, afterClose)).toBe(false)
+  })
+})
+
+describe('fetchWeeklyBoll compatibility adapter', () => {
+  it('uses periodBoll week data and preserves weekDate', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      data: {
+        sh600011: {
+          middle: 7,
+          upper: 8,
+          lower: 6,
+          latestClose: 7.1,
+          periodDate: '2026-07-17',
+          isPartial: false,
+          expiresAt: Date.now() + 60_000,
+        },
+      },
+    })))
+
+    await expect(fetchWeeklyBoll([{ code: '600011' }])).resolves.toEqual({
+      '600011': { middle: 7, upper: 8, lower: 6, weekDate: '2026-07-17' },
+    })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('action=periodBoll')
+    expect(url).toContain('period=week')
+    fetchMock.mockRestore()
   })
 })

@@ -1,4 +1,12 @@
 import type { WeeklyBoll } from '../utils/weeklyBoll'
+import type { BollPeriod } from '../utils/periodBoll'
+import { BOLL_PERIOD_LABELS } from './BollPeriodSwitch'
+
+type BollPositionData = Pick<WeeklyBoll, 'middle' | 'upper' | 'lower'> & {
+  periodDate?: string
+  weekDate?: string
+  isPartial?: boolean
+}
 
 export interface WeeklyBollPositionResult {
   position: number
@@ -9,7 +17,7 @@ export interface WeeklyBollPositionResult {
 }
 
 export function getWeeklyBollPosition(
-  boll: WeeklyBoll | null | undefined,
+  boll: BollPositionData | null | undefined,
   currentPrice: number,
 ): WeeklyBollPositionResult | null {
   if (!boll || currentPrice <= 0 || boll.upper <= boll.lower) return null
@@ -25,13 +33,21 @@ export function getWeeklyBollPosition(
     return { position, zone: '位于下轨', gapLabel: '较下轨', gap: 0, tone: 'green' }
   }
   if (currentPrice < boll.middle && !near(boll.middle)) {
-    return { position, zone: '中下轨之间', gapLabel: '距中轨', gap: (currentPrice / boll.middle - 1) * 100, tone: 'green' }
+    const lowerGap = (currentPrice / boll.lower - 1) * 100
+    const middleGap = (currentPrice / boll.middle - 1) * 100
+    return Math.abs(lowerGap) <= Math.abs(middleGap)
+      ? { position, zone: '中下轨之间', gapLabel: '距下轨', gap: lowerGap, tone: 'green' }
+      : { position, zone: '中下轨之间', gapLabel: '距中轨', gap: middleGap, tone: 'green' }
   }
   if (near(boll.middle)) {
     return { position, zone: '位于中轨', gapLabel: '较中轨', gap: 0, tone: 'neutral' }
   }
   if (currentPrice < boll.upper && !near(boll.upper)) {
-    return { position, zone: '中上轨之间', gapLabel: '距中轨', gap: (currentPrice / boll.middle - 1) * 100, tone: 'red' }
+    const middleGap = (currentPrice / boll.middle - 1) * 100
+    const upperGap = (currentPrice / boll.upper - 1) * 100
+    return Math.abs(middleGap) <= Math.abs(upperGap)
+      ? { position, zone: '中上轨之间', gapLabel: '距中轨', gap: middleGap, tone: 'red' }
+      : { position, zone: '中上轨之间', gapLabel: '距上轨', gap: upperGap, tone: 'red' }
   }
   if (near(boll.upper)) {
     return { position, zone: '位于上轨', gapLabel: '较上轨', gap: 0, tone: 'red' }
@@ -40,15 +56,27 @@ export function getWeeklyBollPosition(
 }
 
 interface Props {
-  boll?: WeeklyBoll | null
+  boll?: BollPositionData | null
   currentPrice: number
   symbol: string
   loading?: boolean
   compact?: boolean
+  period?: BollPeriod
+  unavailableText?: string
 }
 
-export default function WeeklyBollPosition({ boll, currentPrice, symbol, loading = false, compact = false }: Props) {
+export default function WeeklyBollPosition({
+  boll,
+  currentPrice,
+  symbol,
+  loading = false,
+  compact = false,
+  period = 'week',
+  unavailableText,
+}: Props) {
   const result = getWeeklyBollPosition(boll, currentPrice)
+  const periodLabel = BOLL_PERIOD_LABELS[period]
+  const periodDate = boll?.periodDate || boll?.weekDate
   const overflowDirection = result?.zone === '低于下轨' ? 'below' : result?.zone === '高于上轨' ? 'above' : null
   const rulerHeight = compact ? 'h-[58px]' : 'h-[78px] sm:h-[84px]'
   const trackTop = compact ? 'top-5' : 'top-8 sm:top-9'
@@ -60,8 +88,9 @@ export default function WeeklyBollPosition({ boll, currentPrice, symbol, loading
     <div
       className={compact ? 'min-w-[218px]' : undefined}
       data-weekly-boll-ruler
+      data-boll-period={period}
       data-boll-zone={result?.zone || 'unavailable'}
-      title={boll?.weekDate ? `前复权周K · ${boll.weekDate}` : loading ? '周BOLL加载中' : '暂无周BOLL数据'}
+      title={periodDate ? `前复权${periodLabel}K · ${periodDate}` : loading ? `${periodLabel}BOLL加载中` : unavailableText || `暂无${periodLabel}BOLL数据`}
     >
       <div className={`relative mx-1 ${rulerHeight}`}>
         <div className={`absolute inset-x-0 flex h-1.5 overflow-hidden rounded-full bg-slate-100 ${trackTop}`}>
@@ -127,7 +156,7 @@ export default function WeeklyBollPosition({ boll, currentPrice, symbol, loading
       </div>
 
       <div className={`flex items-center justify-between gap-2 px-0.5 ${compact ? 'min-h-5 text-[9px]' : 'min-h-6 text-[11px]'}`}>
-        <strong className="text-slate-700">{result?.zone || (loading ? '正在计算位置' : '暂无周 BOLL 数据')}</strong>
+        <strong className="text-slate-700">{result?.zone || (loading ? '正在计算位置' : unavailableText || `暂无${periodLabel} BOLL 数据`)}</strong>
         {result && (
           <span className={`shrink-0 rounded-full font-semibold tabular-nums ${compact ? 'px-1.5 py-0.5' : 'px-2 py-1'} ${
             result.tone === 'green'

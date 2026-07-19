@@ -22,4 +22,15 @@ describe('getWeeklyBollPosition', () => {
     expect(getWeeklyBollPosition({ ...boll, upper: 10 }, 12)).toBeNull()
     expect(getWeeklyBollPosition(boll, 0)).toBeNull()
   })
+
+  it('shows the nearest rail inside each half of the band', () => {
+    const nearLower = getWeeklyBollPosition(boll, 11)
+    const nearUpper = getWeeklyBollPosition(boll, 19)
+    expect(nearLower).toMatchObject({ gapLabel: '距下轨' })
+    expect(nearLower?.gap).toBeCloseTo(10)
+    expect(getWeeklyBollPosition(boll, 14)).toMatchObject({ gapLabel: '距中轨' })
+    expect(getWeeklyBollPosition(boll, 16)).toMatchObject({ gapLabel: '距中轨' })
+    expect(nearUpper).toMatchObject({ gapLabel: '距上轨' })
+    expect(nearUpper?.gap).toBeCloseTo(-5)
+  })
 })

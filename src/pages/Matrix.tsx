@@ -1,5 +1,5 @@
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import Disclaimer from '../components/Disclaimer'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import type { DividendHistory } from '../utils/dividendHistory'
@@ -7,8 +7,10 @@ import { fetchFundDividend } from '../utils/api'
 import { fetchListingYear } from '../utils/listingDate'
 import { isBShare } from '../utils/market'
 import { useStore } from '../store'
-import { fetchWeeklyBoll, type WeeklyBoll } from '../utils/weeklyBoll'
+import { fetchPeriodBoll, type BollPeriod, type PeriodBoll } from '../utils/periodBoll'
 import WeeklyBollPosition from '../components/WeeklyBollPosition'
+import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSwitch'
+import BollPeriodOverview from '../components/BollPeriodOverview'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
 
@@ -70,23 +72,48 @@ export default function Matrix() {
   }, [dividend, currentPrice])
 
   const currentYield = currentPrice > 0 ? (dividend / currentPrice) * 100 : 0
-  const [boll, setBoll] = useState<WeeklyBoll | null>(null)
-  const [bollLoading, setBollLoading] = useState(false)
+  const [bollPeriod, setBollPeriod] = useState<BollPeriod>('week')
+  const [bollByPeriod, setBollByPeriod] = useState<Record<BollPeriod, PeriodBoll | null>>(() => ({ day: null, week: null, month: null }))
+  const [bollLoading, setBollLoading] = useState<Partial<Record<BollPeriod, boolean>>>({})
+  const loadedBollPeriods = useRef<Partial<Record<BollPeriod, string>>>({})
+  const requestedBollPeriods = useRef<Partial<Record<BollPeriod, string>>>({})
+  const boll = bollByPeriod[bollPeriod]
 
+  const loadBollPeriod = useCallback((period: BollPeriod): Promise<void> => {
+    if (!code || isUS || isHK) return Promise.resolve()
+    if (loadedBollPeriods.current[period] === code || requestedBollPeriods.current[period] === code) return Promise.resolve()
+    requestedBollPeriods.current[period] = code
+    setBollLoading(current => ({ ...current, [period]: true }))
+    return fetchPeriodBoll(period, [{ code }])
+      .then(data => {
+        if (requestedBollPeriods.current[period] !== code) return
+        setBollByPeriod(current => ({ ...current, [period]: data[code] || null }))
+        loadedBollPeriods.current[period] = code
+      })
+      .catch(() => {
+        if (requestedBollPeriods.current[period] === code) setBollByPeriod(current => ({ ...current, [period]: null }))
+      })
+      .finally(() => {
+        if (requestedBollPeriods.current[period] !== code) return
+        requestedBollPeriods.current[period] = undefined
+        setBollLoading(current => ({ ...current, [period]: false }))
+      })
+  }, [code, isHK, isUS])
   useEffect(() => {
-    if (!code || isUS) {
-      setBoll(null)
-      setBollLoading(false)
+    if (!code || isUS || isHK) {
+      setBollByPeriod({ day: null, week: null, month: null })
+      setBollLoading({})
       return
     }
-    let alive = true
-    setBollLoading(true)
-    fetchWeeklyBoll([{ code, isHK }])
-      .then(data => { if (alive) setBoll(data[code] || null) })
-      .catch(() => { if (alive) setBoll(null) })
-      .finally(() => { if (alive) setBollLoading(false) })
-    return () => { alive = false }
-  }, [code, isHK, isUS])
+    void loadBollPeriod(bollPeriod)
+  }, [bollPeriod, code, isHK, isUS, loadBollPeriod])
+  useEffect(() => {
+    if (loadedBollPeriods.current.week !== code) return
+    const timer = window.setTimeout(() => {
+      void loadBollPeriod('day').finally(() => loadBollPeriod('month'))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [bollByPeriod.week, code, loadBollPeriod])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const currentColRef = useRef<HTMLDivElement>(null)
@@ -233,13 +260,18 @@ export default function Matrix() {
           </div>
           {!isUS && (
             <div className="mt-4 pt-3 border-t border-gray-100" data-testid="weekly-boll-position">
-              <div className="flex items-center justify-between mb-2 px-0.5">
-                <span className="text-[11px] font-semibold text-gray-500 tracking-wide">周 BOLL</span>
-                <span className="text-[10px] text-gray-300">
-                  前复权 · {boll?.weekDate || (bollLoading ? '加载中' : '暂无数据')}
-                </span>
+              <div className="mb-2 flex items-start justify-between gap-3 px-0.5">
+                <div className="min-w-0 pt-0.5">
+                  <div className="text-[11px] font-semibold tracking-wide text-gray-500">{BOLL_PERIOD_LABELS[bollPeriod]} BOLL</div>
+                  <div className="mt-0.5 text-[10px] text-gray-300">
+                    {isHK ? '港股暂不支持' : `前复权 · ${boll?.periodDate || (bollLoading[bollPeriod] ? '加载中' : '暂无数据')}`}
+                  </div>
+                  {bollPeriod === 'month' && !isHK && <div className="mt-0.5 text-[10px] text-amber-600">{boll?.periodDate ? `截至 ${boll.periodDate.slice(5)} · ` : ''}本月未完</div>}
+                </div>
+                <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} />
               </div>
-              <WeeklyBollPosition boll={boll} currentPrice={currentPrice} symbol={cs} loading={bollLoading} />
+              <BollPeriodOverview values={bollByPeriod} currentPrice={currentPrice} loading={bollLoading} unsupported={isHK} />
+              <WeeklyBollPosition boll={boll} currentPrice={currentPrice} symbol={cs} loading={Boolean(bollLoading[bollPeriod])} period={bollPeriod} unavailableText={isHK ? '港股暂不支持 BOLL' : undefined} />
             </div>
           )}
         </div>
