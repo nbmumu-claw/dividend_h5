@@ -13,7 +13,7 @@ import { fetchPeriodBoll, type BollPeriod, type PeriodBoll } from '../utils/peri
 import WeeklyBollPosition from '../components/WeeklyBollPosition'
 import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSwitch'
 import BollPeriodOverview from '../components/BollPeriodOverview'
-import { shouldUsePriceCache } from '../utils/priceCachePolicy'
+import { closeFinalizationDelayMs, hasSettledCloseQuote, isCloseSettled, shouldUsePriceCache } from '../utils/priceCachePolicy'
 import {
   EMPTY_BOLL_FILTERS,
   getSingleActiveBollPeriod,
@@ -263,6 +263,7 @@ export default function YieldGrid() {
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
+  const [priceRefreshKey, setPriceRefreshKey] = useState(0)
   // 网格偏好全部从 store 读取（而非 useState 初始化），云同步后自动刷新
   const storedActive = useStore(s => s.gridPrefs.active || ALL)
   const active = LEGACY_SIGNAL_TABS.has(storedActive) ? ALL : storedActive
@@ -532,21 +533,40 @@ export default function YieldGrid() {
     const cache = loadPriceCache()
     const cacheCoversAll = !!cache && codes.every(c => cache.data[c])
     const now = new Date()
-    const useCache = shouldUsePriceCache(cache?.fetchedAt ?? 0, cacheCoversAll, now)
+    const closeSettled = isCloseSettled(now)
+    const staleCloseCodes = closeSettled
+      ? codes.filter(code => {
+          const quote = cache?.data[code]
+          return !quote || !hasSettledCloseQuote(quote.tradeDate, quote.tradeTime, now)
+        })
+      : []
+    let alive = true
+    const finalRefreshDelay = closeFinalizationDelayMs(now)
+    const finalRefreshTimer = finalRefreshDelay === null ? undefined : window.setTimeout(() => {
+      setPriceRefreshKey(value => value + 1)
+    }, finalRefreshDelay)
+    const cleanup = () => {
+      alive = false
+      if (finalRefreshTimer !== undefined) window.clearTimeout(finalRefreshTimer)
+    }
+    const useCache = shouldUsePriceCache(cache?.fetchedAt ?? 0, cacheCoversAll, now, closeSettled && staleCloseCodes.length === 0)
     if (useCache) {
       build(cache!.data, cache!.fetchedAt, cache!.latestDate)
-      return
+      return cleanup
     }
-    let alive = true
-    fetchStockPrices(allStocks.map(s => ({ code: s.code, isHK: s.isHK })))
+    const stocksToFetch = closeSettled && cache
+      ? allStocks.filter(stock => staleCloseCodes.includes(stock.code))
+      : allStocks
+    fetchStockPrices(stocksToFetch.map(s => ({ code: s.code, isHK: s.isHK })), closeSettled)
       .then(prices => {
         if (!alive) return
-        const data: Record<string, PriceSnap> = {}
-        let latest = ''
-        for (const c of codes) {
+        const data: Record<string, PriceSnap> = closeSettled && cache ? { ...cache.data } : {}
+        for (const c of stocksToFetch.map(stock => stock.code)) {
           const q = prices[c]
-          if (q && q.price) { data[c] = { price: q.price, pctChg: q.pctChg ?? 0, tradeDate: q.tradeDate || '', tradeTime: q.tradeTime || '' }; if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate }
+          if (q && q.price) data[c] = { price: q.price, pctChg: q.pctChg ?? 0, tradeDate: q.tradeDate || '', tradeTime: q.tradeTime || '' }
         }
+        let latest = ''
+        for (const c of codes) if (data[c]?.tradeDate && data[c].tradeDate > latest) latest = data[c].tradeDate
         const now = Date.now()
         if (Object.keys(data).length) savePriceCache({ fetchedAt: now, latestDate: latest, data })
         build(data, now, latest)
@@ -557,8 +577,8 @@ export default function YieldGrid() {
         if (cacheCoversAll) build(cache!.data, cache!.fetchedAt, cache!.latestDate)
         else setError('行情获取失败，请稍后刷新。')
       })
-    return () => { alive = false }
-  }, [custom, hidden])
+    return cleanup
+  }, [custom, hidden, priceRefreshKey])
 
   // 按板块分组（保持配置中板块出现顺序）
   const sectors: { sector: string; items: Row[] }[] = []
