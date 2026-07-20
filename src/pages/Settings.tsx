@@ -3,7 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import AuthModal from '../components/AuthModal'
 import { cbAuth } from '../utils/cloudbase'
-import { syncOnLogin, resolveConflict, startAutoPush, stopAutoPush, deactivateUserStorage, getCurrentUid } from '../utils/cloudSync'
+import {
+  approveNextEmptyOverwrite,
+  deactivateUserStorage,
+  getCloudSyncStatus,
+  getCurrentUid,
+  resolveConflict,
+  startAutoPush,
+  stopAutoPush,
+  subscribeCloudSyncStatus,
+  syncOnLogin,
+  type CloudSyncStatus,
+} from '../utils/cloudSync'
 import { cacheClear } from '../utils/cache'
 import type { BackupData } from '../types'
 import { Toast, useToast } from '../components/Toast'
@@ -32,6 +43,13 @@ function fmtBackupTime(iso?: string): string {
     const p = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
   } catch { return '' }
+}
+
+function syncStatusText(status: CloudSyncStatus): string {
+  if (status.state === 'syncing') return '正在同步…'
+  if (status.state === 'error' || status.state === 'blocked') return status.message || '同步异常'
+  if (status.lastSuccessfulAt) return `上次同步 ${fmtBackupTime(new Date(status.lastSuccessfulAt).toISOString())}`
+  return '等待首次同步'
 }
 
 interface Achievement {
@@ -95,12 +113,14 @@ export default function Settings() {
   // 账户 / 云同步
   const [showAuth, setShowAuth] = useState(false)
   const [authUser, setAuthUser] = useState<{ email?: string; user_metadata?: { nickName?: string } } | null>(null)
+  const [cloudSyncStatus, setCloudSyncStatus] = useState(getCloudSyncStatus)
   useEffect(() => {
     cbAuth.getSession().then(({ data }) => {
       const s = data?.session
       setAuthUser(s && !s.user?.is_anonymous ? s.user : null)
     }).catch(() => {})
   }, [])
+  useEffect(() => subscribeCloudSyncStatus(setCloudSyncStatus), [])
   const handleAuthed = async () => {
     const { data } = await cbAuth.getSession()
     setAuthUser(data?.session?.user ?? null)
@@ -235,6 +255,7 @@ export default function Settings() {
 
   const handleClearWatchlist = () => {
     if (window.confirm('确定清空「当前账户」的自选列表？\n\n· 仅清空当前账户，其他账户不受影响\n· 若已登录，会同步删除云端该账户数据\n· 此操作不可恢复')) {
+      if (authUser) approveNextEmptyOverwrite()
       setWatchlist([])
       showToast('自选列表已清空')
     }
@@ -275,10 +296,12 @@ export default function Settings() {
       {/* 账户 / 云同步 */}
       <div className="mx-4 mb-4 card p-4">
         {authUser ? (
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-gray-800 truncate">{authUser.user_metadata?.nickName || authUser.email}</div>
-              <div className="text-xs text-gray-400 mt-0.5">已登录 · 数据自动云同步</div>
+              <div className={`text-xs mt-0.5 ${cloudSyncStatus.state === 'error' || cloudSyncStatus.state === 'blocked' ? 'text-red-600' : cloudSyncStatus.state === 'success' ? 'text-green-600' : 'text-gray-400'}`}>
+                {syncStatusText(cloudSyncStatus)}
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={handleRename} className="text-xs text-gray-500 border border-gray-200 rounded-full px-3 py-1">改名</button>

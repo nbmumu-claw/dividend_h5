@@ -23,6 +23,33 @@ interface Backup {
   simStrategy?: unknown
 }
 
+export type CloudSyncStatus = {
+  state: 'idle' | 'syncing' | 'success' | 'error' | 'blocked'
+  lastSuccessfulAt: number | null
+  message?: string
+}
+
+let syncStatus: CloudSyncStatus = { state: 'idle', lastSuccessfulAt: null }
+const syncStatusListeners = new Set<(status: CloudSyncStatus) => void>()
+
+function setSyncStatus(state: CloudSyncStatus['state'], message?: string, lastSuccessfulAt = syncStatus.lastSuccessfulAt) {
+  syncStatus = { state, lastSuccessfulAt, ...(message ? { message } : {}) }
+  syncStatusListeners.forEach(listener => listener(syncStatus))
+}
+
+export function getCloudSyncStatus(): CloudSyncStatus {
+  if (!syncStatus.lastSuccessfulAt) {
+    const updatedAt = loadMeta().updatedAt
+    if (updatedAt) syncStatus = { ...syncStatus, lastSuccessfulAt: updatedAt }
+  }
+  return syncStatus
+}
+
+export function subscribeCloudSyncStatus(listener: (status: CloudSyncStatus) => void) {
+  syncStatusListeners.add(listener)
+  return () => { syncStatusListeners.delete(listener) }
+}
+
 function loadMeta(): SyncMeta {
   try { const m = JSON.parse(localStorage.getItem(META_KEY) || ''); return { updatedAt: m.updatedAt || 0, docId: m.docId || null } }
   catch { return { updatedAt: 0, docId: null } }
@@ -91,6 +118,7 @@ export function deactivateUserStorage(uid: string) {
   localStorage.removeItem(META_KEY)
   localStorage.removeItem(ACTIVE_UID_KEY)
   lastPushedJson = ''
+  setSyncStatus('idle', undefined, null)
 }
 
 // 构造与「设置→导出备份」一致的数据快照
@@ -109,6 +137,10 @@ function buildBackup(): Backup {
 }
 function backupHasData(b?: Backup | null): boolean {
   return !!b && (countStocks(b) > 0)
+}
+
+export function shouldBlockEmptyOverwrite(local: Backup, cloud: Backup, explicitlyApproved = false): boolean {
+  return !explicitlyApproved && !backupHasData(local) && backupHasData(cloud)
 }
 // 统计所有账户的持仓/自选总数（用于判断数据是否骤减）
 function countStocks(b?: Backup | null): number {
@@ -148,12 +180,23 @@ export async function loadFromCloud(): Promise<CloudDoc | null> {
 // 串行化所有云端保存：同一时刻只允许一个保存在跑，杜绝并发各自 add 造成重复文档（根因修复）
 let saveChain: Promise<unknown> = Promise.resolve()
 export function saveToCloud(payload: Backup, updatedAt: number): Promise<string> {
+  setSyncStatus('syncing')
   const run = saveChain.then(
     () => doSaveToCloud(payload, updatedAt),
     () => doSaveToCloud(payload, updatedAt),
   )
-  saveChain = run.catch(() => { /* 保持链路不因单次失败中断 */ })
-  return run
+  const tracked = run.then(
+    id => {
+      setSyncStatus('success', undefined, updatedAt)
+      return id
+    },
+    error => {
+      setSyncStatus('error', '同步失败，请检查网络后重试')
+      throw error
+    },
+  )
+  saveChain = tracked.catch(() => { /* 保持链路不因单次失败中断 */ })
+  return tracked
 }
 
 // 取当前登录用户的 uid（= 云端 _openid）。currentUser 在刚开 App 时可能尚未就绪，兜底走 getLoginState。
@@ -216,6 +259,7 @@ function applyRemote(data: Backup, updatedAt: number, docId: string) {
     useStore.getState().importBackup(data as unknown as Record<string, unknown>)
     saveMeta({ updatedAt, docId })
     lastPushedJson = JSON.stringify(buildBackup())
+    setSyncStatus('success', undefined, updatedAt)
   } finally {
     setTimeout(() => { applyingRemote = false }, 0)
   }
@@ -229,37 +273,51 @@ export type SyncOutcome =
 
 // 登录成功后调用：决定 拉 / 推 / 冲突
 export async function syncOnLogin(): Promise<SyncOutcome> {
-  const uid = await resolveUid()
-  if (!uid) throw new Error('无法识别当前登录账号')
-  activateUserStorage(uid)
-  const cloud = await loadFromCloud()
-  const meta = loadMeta()
-  const local = buildBackup()
-  const firstSync = meta.updatedAt === 0 && !meta.docId
+  setSyncStatus('syncing')
+  try {
+    const uid = await resolveUid()
+    if (!uid) throw new Error('无法识别当前登录账号')
+    activateUserStorage(uid)
+    const cloud = await loadFromCloud()
+    const meta = loadMeta()
+    const local = buildBackup()
+    const firstSync = meta.updatedAt === 0 && !meta.docId
 
-  if (!cloud) {
-    // 云端空：上传本地（老用户本地数据被原样保留并上传，绝不丢）
+    if (!cloud) {
+      // 云端空：上传本地（老用户本地数据被原样保留并上传，绝不丢）
+      const now = Date.now()
+      await saveToCloud(local, now)
+      return { action: 'pushed-initial' }
+    }
+
+    // 老用户红线：首次同步且本地与云端都有数据 → 不自动覆盖，交给用户选
+    if (firstSync && backupHasData(local) && backupHasData(cloud.data)) {
+      saveMeta({ updatedAt: 0, docId: cloud._id })
+      setSyncStatus('blocked', '云端与本机都有数据，等待选择')
+      return { action: 'conflict', cloud, local }
+    }
+
+    // 即使本地游标异常地比云端新，只要本机已空而云端仍有数据，就先恢复云端，
+    // 绝不允许缓存清空、迁移异常等状态在登录时覆盖真实数据。
+    if (shouldBlockEmptyOverwrite(local, cloud.data)) {
+      applyRemote(cloud.data, cloud.updatedAt, cloud._id)
+      return { action: 'pulled' }
+    }
+
+    // 云端更新、或时间相等（本地可能被异常清空但 meta 没更新）→ 一律以云端为准拉取，
+    // 绝不用「时间相等的本地」覆盖云端，避免清空/异常状态把云端真实数据冲掉。
+    // 仅当本地确有更晚的、已记录的改动（cloud < meta）才上传。
+    if (cloud.updatedAt >= meta.updatedAt) {
+      applyRemote(cloud.data, cloud.updatedAt, cloud._id)
+      return { action: 'pulled' }
+    }
     const now = Date.now()
     await saveToCloud(local, now)
-    return { action: 'pushed-initial' }
+    return { action: 'pushed' }
+  } catch (error) {
+    setSyncStatus('error', '同步失败，请检查网络后重试')
+    throw error
   }
-
-  // 老用户红线：首次同步且本地与云端都有数据 → 不自动覆盖，交给用户选
-  if (firstSync && backupHasData(local) && backupHasData(cloud.data)) {
-    saveMeta({ updatedAt: 0, docId: cloud._id })
-    return { action: 'conflict', cloud, local }
-  }
-
-  // 云端更新、或时间相等（本地可能被异常清空但 meta 没更新）→ 一律以云端为准拉取，
-  // 绝不用「时间相等的本地」覆盖云端，避免清空/异常状态把云端真实数据冲掉。
-  // 仅当本地确有更晚的、已记录的改动（cloud < meta）才上传。
-  if (cloud.updatedAt >= meta.updatedAt) {
-    applyRemote(cloud.data, cloud.updatedAt, cloud._id)
-    return { action: 'pulled' }
-  }
-  const now = Date.now()
-  await saveToCloud(local, now)
-  return { action: 'pushed' }
 }
 
 // 用户在冲突弹窗里的选择
@@ -279,6 +337,12 @@ let lastPushedJson = ''
 let unsub: (() => void) | null = null
 let pullPromise: Promise<boolean> | null = null
 let remoteListenersAttached = false
+let emptyOverwriteApprovalExpiresAt = 0
+let lastBlockedJson = ''
+
+export function approveNextEmptyOverwrite() {
+  emptyOverwriteApprovalExpiresAt = Date.now() + 15_000
+}
 
 export function shouldPullRemote(remoteUpdatedAt: number, localUpdatedAt: number): boolean {
   return Number(remoteUpdatedAt) > Number(localUpdatedAt)
@@ -325,17 +389,39 @@ function detachRemoteListeners() {
 function schedulePush() {
   if (pushTimer) clearTimeout(pushTimer)
   pushTimer = setTimeout(async () => {
-    const session = await getSession()
-    if (!session) return
-    // 小程序可能刚更新同一份 H5 云文档。上传前先比较版本，绝不用旧内存覆盖较新的云端。
-    if (await pullIfRemoteNewer()) return
-    const backup = buildBackup()
-    const json = JSON.stringify(backup)
-    if (json === lastPushedJson) return
     try {
+      const session = await getSession()
+      if (!session || session.user?.is_anonymous) return
+      setSyncStatus('syncing')
+      const cloud = await loadFromCloud()
+      const meta = loadMeta()
+      // 小程序或其他设备可能刚更新同一文档。上传前先比较版本，绝不用旧内存覆盖较新的云端。
+      if (cloud && shouldPullRemote(cloud.updatedAt, meta.updatedAt)) {
+        applyRemote(cloud.data, cloud.updatedAt, cloud._id)
+        return
+      }
+      const backup = buildBackup()
+      const json = JSON.stringify(backup)
+      if (json === lastPushedJson) {
+        setSyncStatus('success', undefined, meta.updatedAt || syncStatus.lastSuccessfulAt)
+        return
+      }
+      const explicitlyApproved = emptyOverwriteApprovalExpiresAt >= Date.now()
+      emptyOverwriteApprovalExpiresAt = 0
+      if (cloud && shouldBlockEmptyOverwrite(backup, cloud.data, explicitlyApproved)) {
+        setSyncStatus('blocked', '已阻止空数据覆盖云端，请刷新页面恢复云端数据')
+        if (json !== lastBlockedJson && typeof window !== 'undefined') {
+          lastBlockedJson = json
+          window.alert('检测到本机数据为空、云端仍有数据。为防止误删，已停止上传。\n\n请刷新页面恢复云端数据；如确需清空，请在设置中使用“清空当前账户”并确认。')
+        }
+        return
+      }
       await saveToCloud(backup, Date.now())
       lastPushedJson = json
-    } catch { /* 网络失败下次再传 */ }
+      lastBlockedJson = ''
+    } catch {
+      setSyncStatus('error', '同步失败，请检查网络后重试')
+    }
   }, 4000)
 }
 

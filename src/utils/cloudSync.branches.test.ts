@@ -82,7 +82,7 @@ vi.mock('./cloudbase', () => {
   }
 })
 
-import { activateUserStorage, deactivateUserStorage, loadFromCloud, saveToCloud, shouldPullRemote } from './cloudSync'
+import { activateUserStorage, deactivateUserStorage, loadFromCloud, saveToCloud, shouldBlockEmptyOverwrite, shouldPullRemote, syncOnLogin } from './cloudSync'
 
 const META = 'cloud-sync-meta'
 
@@ -154,6 +154,39 @@ describe('跨端版本保护', () => {
     expect(shouldPullRemote(200, 100)).toBe(true)
     expect(shouldPullRemote(100, 100)).toBe(false)
     expect(shouldPullRemote(99, 100)).toBe(false)
+  })
+
+  it('本地空、云端非空时阻止自动覆盖', () => {
+    const empty = { watchlist: [], accounts: [] }
+    const cloud = { watchlist: [{ code: '600900' }], accounts: [] }
+    expect(shouldBlockEmptyOverwrite(empty as never, cloud as never)).toBe(true)
+  })
+
+  it('用户明确确认清空后允许一次空覆盖', () => {
+    const empty = { watchlist: [], accounts: [] }
+    const cloud = { watchlist: [{ code: '600900' }], accounts: [] }
+    expect(shouldBlockEmptyOverwrite(empty as never, cloud as never, true)).toBe(false)
+  })
+
+  it('云端本来就是空数据时不误拦截', () => {
+    const empty = { watchlist: [], accounts: [] }
+    expect(shouldBlockEmptyOverwrite(empty as never, empty as never)).toBe(false)
+  })
+
+  it('登录时本地游标较新但内容为空，仍恢复非空云端而不上传', async () => {
+    state.docs = [{
+      _id: 'u1',
+      updatedAt: 100,
+      data: { watchlist: [{ code: '600900' }], accounts: [] },
+    }]
+    mem[META] = JSON.stringify({ updatedAt: 200, docId: 'u1' })
+    mem['cloud-sync-active-uid'] = 'u1'
+
+    const result = await syncOnLogin()
+
+    expect(result.action).toBe('pulled')
+    expect(fakeStore.state.watchlist).toEqual([{ code: '600900' }])
+    expect(state.calls.set).toEqual([])
   })
 })
 
