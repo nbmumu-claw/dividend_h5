@@ -43,7 +43,7 @@ export default function Support() {
         </div>
 
         <div className="card p-4">
-          <div className="text-xs font-medium text-gray-500 mb-1">小红书 · 34.4K 赞与收藏</div>
+          <div className="text-xs font-medium text-gray-500 mb-1">小红书 · 40K 赞与收藏</div>
           <p className="text-sm text-gray-600 mb-3">
             分享红利投资心得与数据更新，欢迎关注我的主页{' '}
             <a href={xhsLink} target="_blank" rel="noopener noreferrer" className="text-red-500 underline break-all">{xhsLink}</a>
