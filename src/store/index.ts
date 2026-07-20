@@ -25,7 +25,7 @@ const DEFAULT_GRID_PREFS: GridPrefs = {
   hidden: [],
   sectorOrder: ['电力', '水电', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他'],
   stockOrder: [],
-  cfg: { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.005, upperTolerance: 0.005, yieldTolerance: 0.0025 },
+  cfg: { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.0025, upperTolerance: 0.0025, yieldTolerance: 0.0025 },
   sort: { key: 'cy', dir: 'desc' },
   active: '全部',
   collapsed: {},

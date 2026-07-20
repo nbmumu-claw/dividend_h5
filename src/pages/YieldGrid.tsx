@@ -14,6 +14,15 @@ import WeeklyBollPosition from '../components/WeeklyBollPosition'
 import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSwitch'
 import BollPeriodOverview from '../components/BollPeriodOverview'
 import { shouldUsePriceCache } from '../utils/priceCachePolicy'
+import {
+  EMPTY_BOLL_FILTERS,
+  getSingleActiveBollPeriod,
+  matchesBollPosition,
+  matchesYieldStatus,
+  type BollFilters,
+  type BollPositionFilter,
+  type YieldStatusFilter,
+} from '../utils/yieldGridFilters'
 
 // 静态配置：板块 / 名称 / 代码 / 25年度股息预估。现价每次打开实时拉取。
 const STOCKS: { sector: string; name: string; code: string; dive: number }[] = [
@@ -51,11 +60,20 @@ const SECTOR_ORDER = ['电力', '水电', '银行', '保险', '能源', '通讯'
 // 「其他」始终可用，作为预判不到板块时的兜底归属
 const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.sector === s))
 const ALL = '全部'
-const BUY_LOWER = '买点下轨'
-const SELL_UPPER = '卖点上轨'
-const NEAR_LOWER = '近下轨'
-const NEAR_UPPER = '近上轨'
-const SIGNAL_TABS = [BUY_LOWER, SELL_UPPER, NEAR_LOWER, NEAR_UPPER]
+const LEGACY_SIGNAL_TABS = new Set(['买点下轨', '卖点上轨', '近下轨', '近上轨'])
+const BOLL_PERIODS: BollPeriod[] = ['day', 'week', 'month']
+const YIELD_FILTER_OPTIONS: { value: YieldStatusFilter; label: string; description: string }[] = [
+  { value: 'all', label: '不限', description: '不判断当前股息率状态' },
+  { value: 'buy-zone', label: '买点区', description: '包含接近买点及达到买点的标的' },
+  { value: 'neutral', label: '中性区间', description: '位于买入与卖出标准之间' },
+  { value: 'sell-zone', label: '卖点区', description: '包含接近卖点及达到卖点的标的' },
+]
+const BOLL_FILTER_OPTIONS: { value: Exclude<BollPositionFilter, 'all'>; short: string; summary: string; label: string }[] = [
+  { value: 'lower-zone', short: '下轨', summary: '下', label: '下轨区' },
+  { value: 'lower-half', short: '中下', summary: '中下', label: '中下区' },
+  { value: 'upper-half', short: '中上', summary: '中上', label: '中上区' },
+  { value: 'upper-zone', short: '上轨', summary: '上', label: '上轨区' },
+]
 
 // 板块顺序（localStorage）：保留已保存且仍存在的板块，新板块追加到末尾
 const MAX_CUSTOM = 10
@@ -75,7 +93,7 @@ const SELL_MUTED = new Set(['中国广核', '中国核电'])
 
 // 网格设置（localStorage）：买入 / 卖出各自步长 + 档数
 type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; upperTolerance: number; yieldTolerance: number }
-const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.005, upperTolerance: 0.005, yieldTolerance: 0.0025 }
+const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.0025, upperTolerance: 0.0025, yieldTolerance: 0.0025 }
 const STEP_OPTIONS = [0.0025, 0.005]
 const COUNT_OPTIONS = [2, 4, 6, 8]
 function loadCfg(): GridCfg {
@@ -96,9 +114,6 @@ function loadCfg(): GridCfg {
   return DEFAULT_CFG
 }
 function saveCfg(c: GridCfg) { saveGp({ cfg: c }) }
-
-const nearBand = (price: number, band: number | undefined, tolerance: number) =>
-  band != null && band > 0 && Math.abs(price - band) / band <= tolerance
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000
 // 动态生成档位：买入从基准向上 buyCount 档（升序）；卖出从基准向下 sellCount 档、过滤 ≤0 后升序
@@ -249,8 +264,12 @@ export default function YieldGrid() {
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
   // 网格偏好全部从 store 读取（而非 useState 初始化），云同步后自动刷新
-  const active = useStore(s => s.gridPrefs.active || ALL)
+  const storedActive = useStore(s => s.gridPrefs.active || ALL)
+  const active = LEGACY_SIGNAL_TABS.has(storedActive) ? ALL : storedActive
   const switchActive = (v: string) => saveActive(v)
+  useEffect(() => {
+    if (LEGACY_SIGNAL_TABS.has(storedActive)) saveActive(ALL)
+  }, [storedActive])
   const favsArr = useStore(s => s.gridPrefs.favs)
   const favs = useMemo(() => new Set(favsArr), [favsArr])
   const toggleFav = (code: string) => {
@@ -399,6 +418,30 @@ export default function YieldGrid() {
   const cfg: GridCfg = { ...DEFAULT_CFG, ...storedCfg }
   const [showCfg, setShowCfg] = useState(false)
   const updateCfg = (partial: Partial<GridCfg>) => { saveCfg({ ...cfg, ...partial }) }
+  const [yieldFilter, setYieldFilter] = useState<YieldStatusFilter>('all')
+  const [bollFilters, setBollFilters] = useState<BollFilters>({ ...EMPTY_BOLL_FILTERS })
+  const [filterPanel, setFilterPanel] = useState<'yield' | 'boll' | null>(null)
+  const singleActiveBollPeriod = getSingleActiveBollPeriod(bollFilters)
+  useEffect(() => {
+    if (singleActiveBollPeriod) setBollPeriod(singleActiveBollPeriod)
+  }, [singleActiveBollPeriod])
+  const yieldFilterLabel = YIELD_FILTER_OPTIONS.find(option => option.value === yieldFilter)?.label ?? '不限'
+  const bollFilterSummary = BOLL_PERIODS.flatMap(period => {
+    const value = bollFilters[period]
+    if (value === 'all') return []
+    const option = BOLL_FILTER_OPTIONS.find(item => item.value === value)
+    return option ? [`${BOLL_PERIOD_LABELS[period]}${option.summary}`] : []
+  }).join(' · ') || '不限'
+  const hasActiveFilters = yieldFilter !== 'all' || BOLL_PERIODS.some(period => bollFilters[period] !== 'all')
+  const clearFilters = () => {
+    setYieldFilter('all')
+    setBollFilters({ ...EMPTY_BOLL_FILTERS })
+  }
+  const resetFilterThresholds = () => updateCfg({
+    lowerTolerance: DEFAULT_CFG.lowerTolerance,
+    upperTolerance: DEFAULT_CFG.upperTolerance,
+    yieldTolerance: DEFAULT_CFG.yieldTolerance,
+  })
 
   const [searching, setSearching] = useState(false)
   useEffect(() => {
@@ -545,20 +588,29 @@ export default function YieldGrid() {
   const mins = now.getHours() * 60 + now.getMinutes()
   const priceLabel = date === todayStr && mins >= 570 && mins < 900 ? '盘中价' : '收盘价'
 
-  // 应用板块 / 自选 / 信号筛选，去掉空板块
-  const filterSignal = (r: Row) => {
-    const boll = bollByCode[r.code]
-    if (active === BUY_LOWER) return r.cy >= buyBase(r.name) - cfg.yieldTolerance && nearBand(r.price, boll?.lower, cfg.lowerTolerance)
-    if (active === SELL_UPPER) return !SELL_MUTED.has(r.name) && r.cy <= sellBase(r.name) + cfg.yieldTolerance && nearBand(r.price, boll?.upper, cfg.upperTolerance)
-    if (active === NEAR_LOWER) return nearBand(r.price, boll?.lower, cfg.lowerTolerance)
-    if (active === NEAR_UPPER) return nearBand(r.price, boll?.upper, cfg.upperTolerance)
-    return true
+  // 板块 Tab 决定范围；股息率状态与多周期 BOLL 条件在范围内叠加（周期之间为“且”）。
+  const matchesFilters = (r: Row) => {
+    if (!matchesYieldStatus(
+      r.cy,
+      yieldFilter,
+      buyBase(r.name),
+      sellBase(r.name),
+      cfg.yieldTolerance,
+      !SELL_MUTED.has(r.name),
+    )) return false
+    const tolerances = { lower: cfg.lowerTolerance, upper: cfg.upperTolerance }
+    return BOLL_PERIODS.every(period => matchesBollPosition(
+      r.price,
+      bollByPeriod[period][r.code],
+      bollFilters[period],
+      tolerances,
+    ))
   }
   const visible = sectors
     .map(g => active === FAV
-      ? { sector: g.sector, items: g.items.filter(r => favs.has(r.code)) }
-      : SIGNAL_TABS.includes(active) ? { sector: g.sector, items: g.items.filter(filterSignal) } : g)
-    .filter(g => (active === ALL || active === FAV || SIGNAL_TABS.includes(active) || g.sector === active) && g.items.length > 0)
+      ? { sector: g.sector, items: g.items.filter(r => favs.has(r.code)).filter(matchesFilters) }
+      : { sector: g.sector, items: g.items.filter(matchesFilters) })
+    .filter(g => (active === ALL || active === FAV || g.sector === active) && g.items.length > 0)
 
   // 一键折叠/展开当前 tab 下所有可见板块（沿用 collapsed 的按 tab 持久化）
   const visibleSectors = visible.map(g => g.sector)
@@ -599,49 +651,49 @@ export default function YieldGrid() {
         </button>
         <div className="toolbar">
           <div className="filter">
-            {isMobile ? (
-              <>
-                <div className="mobile-main-tabs">
-                  <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
-                  <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
-                  {order.map(s => (
-                    <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
-                  ))}
-                </div>
-                <div className="signal-tabs">
-                  {SIGNAL_TABS.map(tab => (
-                    <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="filter-primary">
-                  <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
-                  <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
-                </div>
-                <div className="signal-tabs">
-                  {SIGNAL_TABS.map(tab => (
-                    <button key={tab} className={`chip${active === tab ? ' active' : ''}`} onClick={() => switchActive(tab)}>{tab}</button>
-                  ))}
-                </div>
-                <div className="sector-tabs">
-                  {order.map(s => (
-                    <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
-                  ))}
-                </div>
-              </>
-            )}
+            <div className="tabs-row">
+              <div className="main-tabs">
+                <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
+                <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
+                {order.map(s => (
+                  <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
+                ))}
+              </div>
+              {!error && rows && (
+                <button
+                  className={`orderbtn${editOrder ? ' on' : ''}`}
+                  onClick={() => { setEditOrder(e => !e); if (!editOrder) { switchActive(ALL); clearFilters() } }}
+                  aria-label={editOrder ? '完成编辑' : '编辑（排序/删除）'}
+                >
+                  {editOrder ? (isMobile ? '✓' : '✓ 完成') : (isMobile ? '✎' : '✎ 编辑')}
+                </button>
+              )}
+            </div>
+            <div className="filter-controls" aria-label="标的筛选">
+              <button
+                type="button"
+                className={`filter-select yield${yieldFilter !== 'all' ? ' selected' : ''}`}
+                onClick={() => setFilterPanel('yield')}
+              >
+                <span className="filter-select-label">股息率状态</span>
+                <strong>{yieldFilterLabel}</strong>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path d="m6 8 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={`filter-select boll${BOLL_PERIODS.some(period => bollFilters[period] !== 'all') ? ' selected' : ''}`}
+                onClick={() => setFilterPanel('boll')}
+              >
+                <span className="filter-select-label">BOLL 位置</span>
+                <strong>{bollFilterSummary}</strong>
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <path d="m6 8 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
           </div>
-          {!error && rows && (
-            <button
-              className={`orderbtn${editOrder ? ' on' : ''}`}
-              onClick={() => { setEditOrder(e => !e); if (!editOrder) switchActive(ALL) }}
-              aria-label={editOrder ? '完成编辑' : '编辑（排序/删除）'}
-            >
-              {editOrder ? (isMobile ? '✓' : '✓ 完成') : (isMobile ? '✎' : '✎ 编辑')}
-            </button>
-          )}
         </div>
         {!error && rows && (
           <div className="sortbar">
@@ -665,12 +717,12 @@ export default function YieldGrid() {
         {error && <div className="state">{error}</div>}
         {!error && !rows && <div className="state">加载中…</div>}
         {!error && rows && active === FAV && visible.length === 0 && (
-          <div className="state">暂无自选，点击股票右上角的 ★ 添加</div>
+          <div className="state">{hasActiveFilters ? '当前自选中暂无符合筛选条件的标的' : '暂无自选，点击股票右上角的 ★ 添加'}</div>
         )}
-        {!error && rows && SIGNAL_TABS.includes(active) && visible.length === 0 && (
-          <div className="state">暂无符合“{active}”条件的标的</div>
+        {!error && rows && active !== FAV && hasActiveFilters && visible.length === 0 && (
+          <div className="state filter-empty">暂无符合当前条件的标的 <button type="button" onClick={clearFilters}>清除筛选</button></div>
         )}
-        {!error && rows && active !== FAV && active !== ALL && !SIGNAL_TABS.includes(active) && visible.length === 0 && (
+        {!error && rows && active !== FAV && !hasActiveFilters && active !== ALL && visible.length === 0 && (
           <div className="state">该板块暂无标的</div>
         )}
         {visible.map(({ sector, items }) => {
@@ -902,6 +954,65 @@ export default function YieldGrid() {
           </div>
         </Modal>
 
+        <Modal
+          open={filterPanel === 'yield'}
+          onClose={() => setFilterPanel(null)}
+          title="股息率状态"
+          headerRight={yieldFilter !== 'all' ? <button type="button" className="filter-clear" onClick={() => setYieldFilter('all')}>清除</button> : undefined}
+        >
+          <div className="yield-filter-list">
+            {YIELD_FILTER_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                className={`yield-filter-option${yieldFilter === option.value ? ' selected' : ''}`}
+                onClick={() => { setYieldFilter(option.value); setFilterPanel(null) }}
+              >
+                <span className="filter-radio" aria-hidden="true" />
+                <span><strong>{option.label}</strong><small>{option.description}</small></span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+
+        <Modal
+          open={filterPanel === 'boll'}
+          onClose={() => setFilterPanel(null)}
+          title="多周期 BOLL 位置"
+          headerRight={BOLL_PERIODS.some(period => bollFilters[period] !== 'all') ? <button type="button" className="filter-clear" onClick={() => setBollFilters({ ...EMPTY_BOLL_FILTERS })}>清除</button> : undefined}
+        >
+          <div className="boll-filter-panel">
+            <p>每个周期单选，多个周期之间同时满足。下轨和上轨包含越界区域，中下和中上覆盖轨道内部。</p>
+            {BOLL_PERIODS.map(period => (
+              <div className="boll-filter-period" key={period}>
+                <div className="boll-filter-period-head">
+                  <strong>{BOLL_PERIOD_LABELS[period]}线</strong>
+                  {period === 'month' && <span>本月未完</span>}
+                </div>
+                <div className="boll-filter-grid" role="group" aria-label={`${BOLL_PERIOD_LABELS[period]}线 BOLL 位置`}>
+                  <button
+                    type="button"
+                    className={bollFilters[period] === 'all' ? 'selected' : ''}
+                    onClick={() => setBollFilters(current => ({ ...current, [period]: 'all' }))}
+                  >不限</button>
+                  {BOLL_FILTER_OPTIONS.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={bollFilters[period] === option.value ? 'selected' : ''}
+                      title={option.label}
+                      onClick={() => {
+                        setBollFilters(current => ({ ...current, [period]: option.value }))
+                        void loadBollPeriod(period)
+                      }}
+                    >{option.short}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+
         <Modal open={showCfg} onClose={() => setShowCfg(false)} title="网格设置">
           <div className="space-y-4 pb-2">
             <div className="space-y-3 bg-orange-50/60 rounded-xl p-3">
@@ -954,33 +1065,39 @@ export default function YieldGrid() {
                 </div>
               </div>
             </div>
-            <div className="space-y-3 bg-blue-50/60 rounded-xl p-3">
-              <div className="text-sm font-semibold text-blue-700">周轨附近偏差</div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-xs text-gray-500">
-                  下轨偏差（±%）
-                  <input className="input-field text-sm mt-1" type="number" inputMode="decimal" min="0" max="10" step="0.1"
-                    value={+(cfg.lowerTolerance * 100).toFixed(2)}
-                    onChange={e => updateCfg({ lowerTolerance: Math.max(0, Math.min(10, Number(e.target.value))) / 100 })} />
-                </label>
-                <label className="text-xs text-gray-500">
-                  上轨偏差（±%）
-                  <input className="input-field text-sm mt-1" type="number" inputMode="decimal" min="0" max="10" step="0.1"
-                    value={+(cfg.upperTolerance * 100).toFixed(2)}
-                    onChange={e => updateCfg({ upperTolerance: Math.max(0, Math.min(10, Number(e.target.value))) / 100 })} />
-                </label>
+            <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-gray-800">筛选判定设置</div>
+                <button type="button" className="text-xs text-gray-500 underline underline-offset-2" onClick={resetFilterThresholds}>恢复默认</button>
               </div>
-              <div className="text-xs text-gray-400 leading-relaxed">“买点下轨”和“近下轨”共用下轨偏差；“卖点上轨”和“近上轨”共用上轨偏差。</div>
-            </div>
-            <div className="space-y-3 bg-purple-50/60 rounded-xl p-3">
-              <div className="text-sm font-semibold text-purple-700">买卖点股息率浮动</div>
-              <label className="text-xs text-gray-500 block">
-                上下浮动（±百分点）
-                <input className="input-field text-sm mt-1" type="number" inputMode="decimal" min="0" max="5" step="0.05"
-                  value={+(cfg.yieldTolerance * 100).toFixed(2)}
-                  onChange={e => updateCfg({ yieldTolerance: Math.max(0, Math.min(5, Number(e.target.value))) / 100 })} />
-              </label>
-              <div className="text-xs text-gray-400 leading-relaxed">仅用于信号 Tab 筛选。默认 ±0.25 个百分点，例如普通买点放宽为 ≥4.75%，卖点放宽为 ≤4.25%。</div>
+              <div className="space-y-2">
+                <div>
+                  <div className="text-xs font-medium text-gray-600">BOLL 轨道区域范围</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-gray-400">下轨仅向上计算，跌破后不限；上轨仅向下计算，突破后不限。</div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    ['下轨上方', 'lowerTolerance'],
+                    ['上轨下方', 'upperTolerance'],
+                  ] as const).map(([label, key]) => (
+                    <label key={key} className="text-xs text-gray-500">
+                      {label}（%）
+                      <input className="input-field mt-1 text-sm" type="number" inputMode="decimal" min="0.25" max="3" step="0.25"
+                        value={+(cfg[key] * 100).toFixed(2)}
+                        onChange={e => updateCfg({ [key]: Math.max(0.25, Math.min(3, Number(e.target.value))) / 100 })} />
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t border-gray-200 pt-3">
+                <label className="block text-xs text-gray-500">
+                  <span className="font-medium text-gray-600">股息率买卖点区域范围（百分点）</span>
+                  <input className="input-field mt-1 text-sm" type="number" inputMode="decimal" min="0.05" max="0.5" step="0.05"
+                    value={+(cfg.yieldTolerance * 100).toFixed(2)}
+                    onChange={e => updateCfg({ yieldTolerance: Math.max(0.05, Math.min(0.5, Number(e.target.value))) / 100 })} />
+                </label>
+                <div className="mt-2 text-xs leading-relaxed text-gray-400">买点区向买点下方扩展，达到买点后不限；卖点区向卖点上方扩展，达到卖点后不限。默认 0.25。</div>
+              </div>
             </div>
             <div className="text-xs text-gray-400 leading-relaxed">
               买入从 5%（水电 4%）每档 +{+(cfg.buyStep * 100).toFixed(2)}% 共 {cfg.buyCount} 档；卖出从 4%（水电 3%）每档 −{+(cfg.sellStep * 100).toFixed(2)}% 共 {cfg.sellCount} 档（收益率 ≤0 的档位自动省略）。
@@ -1106,15 +1223,28 @@ const CSS = `
 .yg-page .ft-div { flex: 1 1 0; min-width: 16px; }
 .yg-page .ft-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
   border: 0; background: none; font-family: inherit; cursor: pointer; color: inherit; text-align: left; }
-.yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
+.yg-page .toolbar { position: sticky; top: 0; z-index: 5; display: block;
   padding: 10px 0; margin: -2px 0 14px; background: #f5f6f8; box-shadow: 0 6px 8px -6px rgba(0,0,0,.06); }
-.yg-page .filter { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; flex-wrap: nowrap;
-  overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.yg-page .filter-primary, .yg-page .signal-tabs, .yg-page .sector-tabs { display: contents; }
-.yg-page .filter::-webkit-scrollbar { display: none; }
+.yg-page .filter { min-width: 0; display: grid; gap: 8px; }
+.yg-page .tabs-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.yg-page .main-tabs { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.yg-page .main-tabs::-webkit-scrollbar { display: none; }
+.yg-page .main-tabs .chip { height: 32px; display: inline-flex; align-items: center; }
+.yg-page .filter-controls { width: min(100%, 440px); display: grid; grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); gap: 8px; }
+.yg-page .filter-select { position: relative; min-width: 0; height: 44px; padding: 5px 32px 5px 11px; border: 1px solid #e5e7eb;
+  border-radius: 10px; background: #fff; color: #1f2328; font-family: inherit; text-align: left; cursor: pointer; }
+.yg-page .filter-select-label { display: block; margin-bottom: 1px; color: #9ca3af; font-size: 10px; line-height: 1; }
+.yg-page .filter-select strong { display: block; overflow: hidden; color: #374151; font-size: 13px; font-weight: 600;
+  line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.yg-page .filter-select svg { position: absolute; top: 50%; right: 10px; width: 18px; height: 18px; color: #9ca3af; transform: translateY(-50%); }
+.yg-page .filter-select.selected { border-color: #1f2328; box-shadow: 0 0 0 1px rgba(31,35,40,.04); }
+.yg-page .filter-select.selected .filter-select-label { color: #6b7280; }
+.yg-page .filter-select.selected strong { color: #1f2328; }
 .yg-page .chip { flex: 0 0 auto; padding: 5px 14px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #374151; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .chip.active { background: #1f2328; color: #fff; border-color: #1f2328; }
+.yg-page .filter-empty button { margin-left: 5px; border: 0; background: none; color: #dc2626; font-family: inherit; font-size: inherit; cursor: pointer; }
 .yg-page section { background: #fff; border-radius: 14px; padding: 14px 16px 18px;
   margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .yg-page h2 { font-size: 17px; margin: 4px 2px 12px; display: flex; align-items: center; gap: 8px; }
@@ -1131,14 +1261,11 @@ const CSS = `
 .yg-page .orderbtn::before { content: ''; position: absolute; left: -20px; top: 0; bottom: 0; width: 20px;
   background: linear-gradient(to right, rgba(245,246,248,0), #f5f6f8); pointer-events: none; }
 .yg-page .orderbtn.on { background: #1f2328; color: #fff; border-color: #1f2328; }
-.yg-page.mobile .filter { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; overflow: visible; }
-.yg-page.mobile .mobile-main-tabs, .yg-page.mobile .signal-tabs {
-  display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px; overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-.yg-page.mobile .mobile-main-tabs::-webkit-scrollbar,
-.yg-page.mobile .signal-tabs::-webkit-scrollbar { display: none; }
-.yg-page.mobile .mobile-main-tabs .chip { height: 32px; display: inline-flex; align-items: center; }
-.yg-page.mobile .signal-tabs .chip { flex: 1 1 0; min-width: 0; padding-left: 6px; padding-right: 6px; }
+.yg-page.mobile .filter-controls { gap: 6px; }
+.yg-page.mobile .filter-select { height: 38px; padding: 3px 28px 3px 9px; border-radius: 8px; }
+.yg-page.mobile .filter-select-label { margin-bottom: 0; font-size: 9px; line-height: 1; }
+.yg-page.mobile .filter-select strong { font-size: 12px; line-height: 1.15; }
+.yg-page.mobile .filter-select svg { right: 8px; width: 16px; height: 16px; }
 .yg-page.mobile .orderbtn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 15px;
   display: inline-flex; align-items: center; justify-content: center; }
 .yg-page h2 .moves { margin-left: auto; display: inline-flex; gap: 6px; }
@@ -1240,4 +1367,30 @@ const CSS = `
 .yg-page .tier.sell.hit b { color: #14532d; }
 .yg-page .tier.sell.hit span { color: #166534; }
 .yg-page .tier.sell.hit i { color: #14532d; }
+
+/* 筛选面板通过 portal 挂载到 body，样式不使用 .yg-page 前缀。 */
+.filter-clear { border: 0; background: none; color: #6b7280; font-size: 12px; font-family: inherit; cursor: pointer; }
+.yield-filter-list { display: grid; gap: 4px; }
+.yield-filter-option { width: 100%; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px;
+  padding: 10px 8px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #1f2328;
+  font-family: inherit; text-align: left; cursor: pointer; }
+.yield-filter-option:hover { background: #f9fafb; }
+.yield-filter-option.selected { border-color: #d1d5db; background: #f9fafb; }
+.filter-radio { width: 16px; height: 16px; border: 1.5px solid #c4c9d0; border-radius: 50%; }
+.yield-filter-option.selected .filter-radio { border: 5px solid #1f2328; }
+.yield-filter-option strong { display: block; font-size: 14px; font-weight: 650; }
+.yield-filter-option small { display: block; margin-top: 2px; color: #9ca3af; font-size: 11px; line-height: 1.4; }
+.boll-filter-panel > p { margin: 0 0 14px; color: #9ca3af; font-size: 11px; line-height: 1.55; }
+.boll-filter-period + .boll-filter-period { margin-top: 16px; padding-top: 14px; border-top: 1px solid #eef0f3; }
+.boll-filter-period-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.boll-filter-period-head strong { color: #374151; font-size: 13px; }
+.boll-filter-period-head span { color: #d97706; font-size: 10px; }
+.boll-filter-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.boll-filter-grid button { min-width: 0; height: 36px; padding: 0 2px; border: 1px solid #e5e7eb; border-radius: 8px;
+  background: #fff; color: #6b7280; font-family: inherit; font-size: 12px; cursor: pointer; }
+.boll-filter-grid button.selected { border-color: #1f2328; background: #1f2328; color: #fff; font-weight: 600; }
+@media (max-width: 359px) {
+  .boll-filter-grid { gap: 3px; }
+  .boll-filter-grid button { font-size: 11px; }
+}
 `
