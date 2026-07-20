@@ -65,12 +65,16 @@ function parseTxResponse(body) {
   return result
 }
 
+async function decodeTencentResponse(res) {
+  return new TextDecoder('gbk').decode(await res.arrayBuffer())
+}
+
 async function fetchTencent(codesStr) {
   const res = await fetch(`https://qt.gtimg.cn/q=${encodeURIComponent(codesStr)}`, {
     headers: { Referer: 'https://finance.qq.com' },
   })
   if (!res.ok) throw new Error(`Tencent upstream error: ${res.status}`)
-  return res.text()
+  return decodeTencentResponse(res)
 }
 
 // ── Yahoo 降级 ─────────────────────────────────────────────────────────
@@ -240,3 +244,5 @@ module.exports = async function stockPriceHandler(params) {
 
   return ok(parts.join('\n'), { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=10' })
 }
+
+module.exports.decodeTencentResponse = decodeTencentResponse

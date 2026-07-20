@@ -4,7 +4,8 @@ export default async function handler(req, res) {
     headers: { Referer: 'https://finance.qq.com' },
   })
   const buffer = await response.arrayBuffer()
-  res.setHeader('Content-Type', response.headers.get('content-type') || 'text/plain')
+  const text = new TextDecoder('gbk').decode(buffer)
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=5')
-  res.send(Buffer.from(buffer))
+  res.send(text)
 }

@@ -380,8 +380,7 @@ export function searchStocksLocal(keyword: string): SearchResult[] {
 async function searchViaTencent(keyword: string): Promise<SearchResult[]> {
   const params = new URLSearchParams({ v: '2', type: 'S', count: '8', q: keyword })
   const res = await fetchSearchApi('tx', params, '/api/stock-search-tx')
-  const buf = await res.arrayBuffer()
-  const text = new TextDecoder('gbk').decode(buf)
+  const text = await res.text()
   const match = text.match(/="([^"]+)"/)
   if (!match || !match[1]) return []
   return parseCloudResults(match[1], 'tencent')
