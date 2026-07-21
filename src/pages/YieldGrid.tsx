@@ -883,7 +883,7 @@ export default function YieldGrid() {
                               <button type="button" className="yg-mv" disabled={items[items.length - 1].code === r.code} onClick={() => moveStock(items, r.code, 1)} aria-label="下移">↓</button>
                               <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
                             </span>
-                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{(() => { const lb = lastBuyMap.get(r.code); return lb ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</span></> : null })()}</td>
+                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{(() => { const lb = lastBuyMap.get(r.code); return lb ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} <br />{symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</span></> : null })()}</td>
                           <td className="quote-summary-cell" data-testid={`yield-grid-quote-${r.code}`}>
                             <div className="quote-summary">
                               <div className="quote-metric">
