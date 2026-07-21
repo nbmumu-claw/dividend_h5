@@ -1224,7 +1224,7 @@ const CSS = `
 .yg-page { min-height: 100vh; padding: 28px 20px 48px; background: #f5f6f8;
   font-family: "PingFang SC","Microsoft YaHei",sans-serif; color: #1f2328; }
 .yg-page * { box-sizing: border-box; }
-.yg-page .wrap { max-width: 1100px; margin: 0 auto; }
+.yg-page .wrap { max-width: 1280px; margin: 0 auto; }
 .yg-page .yg-topbar { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
 .yg-page .yg-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 0 -6px;
   padding: 4px 6px; background: none; border: 0; cursor: pointer; color: #6b7280; font-size: 14px;
@@ -1337,7 +1337,7 @@ const CSS = `
 .yg-page h2 .moves button:disabled { color: #d1d5db; cursor: default; }
 .yg-page h2 .moves button:active:not(:disabled) { background: #f0f1f4; }
 .yg-page .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.yg-page table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.yg-page table { width: 100%; border-collapse: collapse; font-size: 13.5px; table-layout: fixed; }
 .yg-page th, .yg-page td { padding: 7px 6px; text-align: center; border-bottom: 1px solid #eef0f3; }
 .yg-page thead th { color: #6b7280; font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid #e5e7eb; white-space: nowrap; }
 .yg-page thead th.th-s { color: #16a34a; }
@@ -1345,15 +1345,15 @@ const CSS = `
 .yg-page thead th.ordinal-group { padding: 9px 6px; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
 .yg-page thead th.ordinal-group.sell { color: #16a34a; background: #f7fcf8; }
 .yg-page thead th.ordinal-group.buy { color: #ea580c; background: #fffaf5; }
-.yg-page thead th.ordinal-slot { min-width: 88px; padding: 8px 5px; font-size: 11.5px; }
+.yg-page thead th.ordinal-slot { padding: 8px 5px; font-size: 11.5px; }
 .yg-page thead th.ordinal-slot.sell { color: #16a34a; background: #fbfefb; }
 .yg-page thead th.ordinal-slot.buy { color: #ea580c; background: #fffcf8; }
-.yg-page thead th.quote-summary-head { min-width: 252px; padding: 6px 8px 7px; background: #f8fafc;
+.yg-page thead th.quote-summary-head { width: 252px; min-width: 252px; padding: 6px 8px 7px; background: #f8fafc;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
 .yg-page .quote-summary-title { display: block; margin-bottom: 4px; color: #374151; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
 .yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.15fr .85fr 1fr; align-items: center; }
 .yg-page .quote-summary-labels i { font-style: normal; font-size: 10px; font-weight: 500; color: #94a3b8; }
-.yg-page thead th.th-boll-position { position: relative; min-width: 242px; padding-top: 14px; padding-bottom: 10px;
+.yg-page thead th.th-boll-position { position: relative; width: 264px; min-width: 264px; padding-top: 14px; padding-bottom: 10px;
   background: #f8fafc; color: #64748b; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
 .yg-page thead th.th-boll-position::before { content: ''; position: absolute; top: 0; left: 38%; right: 38%; height: 2px;
   border-radius: 0 0 2px 2px; background: #e03025; opacity: .72; }
@@ -1383,7 +1383,7 @@ const CSS = `
   gap: 3px; white-space: nowrap; color: #374151; }
 .yg-page .quote-metric .value-line b { font-size: 12.5px; font-weight: 700; }
 .yg-page .quote-metric .value-line i { font-size: 9px; font-style: normal; font-weight: 500; }
-.yg-page td.boll-position-cell { min-width: 242px; padding: 7px 12px 8px; background: #fbfcfd;
+.yg-page td.boll-position-cell { min-width: 264px; padding: 7px 12px 8px; background: #fbfcfd;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
@@ -1391,7 +1391,7 @@ const CSS = `
 .yg-page td.g { font-variant-numeric: tabular-nums; line-height: 1.25; }
 .yg-page td.g b { font-weight: 600; color: #1f2328; }
 .yg-page td.g span { display: block; font-size: 10.5px; color: #9ca3af; margin-top: 1px; }
-.yg-page td.g.ordinal { min-width: 88px; padding: 10px 5px; }
+.yg-page td.g.ordinal { padding: 10px 5px; }
 .yg-page td.g.ordinal i { display: block; margin-bottom: 3px; font-size: 10.5px; font-style: normal; font-weight: 600; }
 .yg-page td.g.ordinal.sell i { color: #16a34a; }
 .yg-page td.g.ordinal.buy i { color: #ea580c; }
