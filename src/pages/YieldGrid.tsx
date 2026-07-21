@@ -1224,7 +1224,7 @@ const CSS = `
 .yg-page { min-height: 100vh; padding: 28px 20px 48px; background: #f5f6f8;
   font-family: "PingFang SC","Microsoft YaHei",sans-serif; color: #1f2328; }
 .yg-page * { box-sizing: border-box; }
-.yg-page .wrap { max-width: 1280px; margin: 0 auto; }
+.yg-page .wrap { max-width: 1440px; margin: 0 auto; }
 .yg-page .yg-topbar { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
 .yg-page .yg-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 0 -6px;
   padding: 4px 6px; background: none; border: 0; cursor: pointer; color: #6b7280; font-size: 14px;
@@ -1360,7 +1360,8 @@ const CSS = `
 .yg-page thead th.th-boll-position > span { display: inline-block; margin-right: 8px; font-size: 12px; font-weight: 650; letter-spacing: .04em; vertical-align: middle; }
 .yg-page thead th.th-boll-position [data-testid="boll-period-switch"] { vertical-align: middle; }
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
-.yg-page td.nm { text-align: left; font-weight: 600; white-space: nowrap; }
+.yg-page td.nm { width: 120px; min-width: 120px; text-align: left; font-weight: 600; white-space: nowrap; }
+.yg-page thead th:first-child { width: 120px; min-width: 120px; }
 .yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
 .yg-page td.nm .fav { margin-right: 5px; }
 .yg-page .fav svg { width: 18px; height: 18px; }
