@@ -17,3 +17,4 @@ localhost*.pem
 .env.*
 !.env.example
 .vercel
+screenshots/
