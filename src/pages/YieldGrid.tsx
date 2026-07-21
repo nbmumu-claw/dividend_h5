@@ -96,6 +96,7 @@ type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount:
 const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.0025, upperTolerance: 0.0025, yieldTolerance: 0.0025 }
 const STEP_OPTIONS = [0.0025, 0.005]
 const COUNT_OPTIONS = [2, 4, 6, 8]
+const ORDINAL_MARKS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧']
 function loadCfg(): GridCfg {
   const c = gp().cfg as Record<string, unknown> | undefined
   if (c && typeof c === 'object') {
@@ -355,6 +356,14 @@ export default function YieldGrid() {
   // 板块折叠（遮挡）：按 tab（active 筛选）分桶持久化，互不影响；默认不折叠
   const collapsedMap = useStore(s => s.gridPrefs.collapsed)
   const collapsed = useMemo(() => new Set(collapsedMap?.[active] ?? []), [collapsedMap, active])
+  const [groupBySector, setGroupBySector] = useState(() => localStorage.getItem('yg-group-by-sector') !== '0')
+  const toggleGroupBySector = () => {
+    setGroupBySector(current => {
+      const next = !current
+      localStorage.setItem('yg-group-by-sector', next ? '1' : '0')
+      return next
+    })
+  }
   const toggleCollapse = (sector: string) => {
     const next = new Set(collapsed)
     next.has(sector) ? next.delete(sector) : next.add(sector)
@@ -632,6 +641,14 @@ export default function YieldGrid() {
       : { sector: g.sector, items: g.items.filter(matchesFilters) })
     .filter(g => (active === ALL || active === FAV || g.sector === active) && g.items.length > 0)
 
+  // 不分类时合并当前可见板块，并按当前规则对全部标的统一排序。
+  const ungroupedItems = visible.flatMap(g => g.items)
+  const ungroupedPinned = ungroupedItems.filter(r => pinPos.has(r.code)).sort((a, b) => pinPos.get(a.code)! - pinPos.get(b.code)!)
+  const ungroupedRest = ungroupedItems.filter(r => !pinPos.has(r.code)).sort(cmpBy)
+  const displayGroups = groupBySector
+    ? visible
+    : ungroupedItems.length > 0 ? [{ sector: '', items: [...ungroupedPinned, ...ungroupedRest] }] : []
+
   // 一键折叠/展开当前 tab 下所有可见板块（沿用 collapsed 的按 tab 持久化）
   const visibleSectors = visible.map(g => g.sector)
   const allCollapsed = visibleSectors.length > 0 && visibleSectors.every(s => collapsed.has(s))
@@ -726,11 +743,23 @@ export default function YieldGrid() {
               ))}
               {stockOrder.length > 0 && <button className="chip clear" onClick={clearStockOrder}>清除手排</button>}
             </div>
-            {visible.length >= 2 && (
+            {groupBySector && visible.length >= 2 && (
               <button className="chip foldall" onClick={toggleAllCollapse}>
                 {allCollapsed ? '全部展开' : '全部折叠'}
               </button>
             )}
+            <button
+              type="button"
+              className={`groupmode${groupBySector ? ' on' : ''}`}
+              onClick={toggleGroupBySector}
+              aria-label={groupBySector ? '关闭分类' : '打开分类'}
+              aria-pressed={groupBySector}
+              title={groupBySector ? '关闭分类' : '打开分类'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+                <path d="M5 6h14M5 12h14M5 18h14" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
         )}
         {editOrder && <div className="state edit-tip">编辑模式：板块 ↑↓ 调顺序；标的 ↑↓ 手动置顶（手排后该板块按你排的固定，其余按上方排序）；✕ 删除（默认标的可在「添加标的」里恢复）</div>}
@@ -745,18 +774,17 @@ export default function YieldGrid() {
         {!error && rows && active !== FAV && !hasActiveFilters && active !== ALL && visible.length === 0 && (
           <div className="state">该板块暂无标的</div>
         )}
-        {visible.map(({ sector, items }) => {
-          // 板块内各股票档位取并集，保证表头列对齐（仅电力含水电会出现空档）
-          const sellCols = [...new Set(items.flatMap(r => sellGridFor(r.name, cfg)))].sort((a, b) => a - b)
-          const buyCols = [...new Set(items.flatMap(r => buyGridFor(r.name, cfg)))].sort((a, b) => a - b)
-          const isCollapsed = collapsed.has(sector)
+        {displayGroups.map(({ sector, items }) => {
+          const sellOrdinalCount = Math.max(...items.map(r => sellGridFor(r.name, cfg).length))
+          const buyOrdinalCount = Math.max(...items.map(r => buyGridFor(r.name, cfg).length))
+          const isCollapsed = groupBySector && collapsed.has(sector)
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
           const avgCy = items.reduce((s, r) => s + r.cy, 0) / items.length
           const top = items.reduce((a, b) => (b.cy > a.cy ? b : a), items[0])
           const buyCount = items.filter(r => r.cy >= buyBase(r.name)).length
           return (
-            <section key={sector}>
-              <h2 className="sec-h2" onClick={() => { if (!editOrder) toggleCollapse(sector) }}>
+            <section key={sector || 'ungrouped'}>
+              {groupBySector && <h2 className="sec-h2" onClick={() => { if (!editOrder) toggleCollapse(sector) }}>
                 <span className={`sec-caret${isCollapsed ? ' off' : ''}`} aria-hidden>▾</span>
                 {sector} <em>{items.length}</em>
                 {editOrder && (
@@ -765,7 +793,7 @@ export default function YieldGrid() {
                     <button disabled={order.indexOf(sector) === order.length - 1} onClick={() => moveSector(sector, 1)} aria-label="下移">↓</button>
                   </span>
                 )}
-              </h2>
+              </h2>}
               {isCollapsed && (
                 <div className="sec-brief">
                   均息 {(avgCy * 100).toFixed(2)}% · 最高 {top.name} {(top.cy * 100).toFixed(2)}%
@@ -826,19 +854,25 @@ export default function YieldGrid() {
                 <div className="tablewrap">
                   <table>
                     <thead>
-                      <tr>
-                        <th>股票</th>
-                        <th className="quote-summary-head">
-                          <span className="quote-summary-title">价格与股息</span>
-                          <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i></span>
-                        </th>
-                        <th className="th-boll-position">
-                          <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
-                          <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} compact />
-                        </th>
-                        {sellCols.map((y, i) => <th key={'s' + i} className="th-s">{fmtPct(y)}</th>)}
-                        {buyCols.map((y, i) => <th key={'b' + i} className={`th-b${i === 0 ? ' sep' : ''}`}>{fmtPct(y)}</th>)}
-                      </tr>
+                      <>
+                        <tr>
+                          <th rowSpan={2}>股票</th>
+                          <th rowSpan={2} className="quote-summary-head">
+                            <span className="quote-summary-title">价格与股息</span>
+                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i></span>
+                          </th>
+                          <th rowSpan={2} className="th-boll-position">
+                            <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
+                            <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} compact />
+                          </th>
+                          <th colSpan={sellOrdinalCount} className="ordinal-group sell">卖出网格</th>
+                          <th colSpan={buyOrdinalCount} className="ordinal-group buy sep">买入网格</th>
+                        </tr>
+                        <tr>
+                          {Array.from({ length: sellOrdinalCount }, (_, i) => <th key={'os' + i} className="ordinal-slot sell">卖出{ORDINAL_MARKS[i]}</th>)}
+                          {Array.from({ length: buyOrdinalCount }, (_, i) => <th key={'ob' + i} className={`ordinal-slot buy${i === 0 ? ' sep' : ''}`}>买入{ORDINAL_MARKS[i]}</th>)}
+                        </tr>
+                      </>
                     </thead>
                     <tbody>
                       {items.map(r => (
@@ -864,8 +898,8 @@ export default function YieldGrid() {
                             {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
                             <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                           </td>
-                          {sellCols.map((y, i) => <Cell key={'s' + i} r={r} y={y} kind="sell" cfg={cfg} />)}
-                          {buyCols.map((y, i) => <Cell key={'b' + i} r={r} y={y} kind="buy" sep={i === 0} cfg={cfg} />)}
+                          {Array.from({ length: sellOrdinalCount }, (_, i) => <OrdinalCell key={'os' + i} r={r} y={sellGridFor(r.name, cfg)[i]} kind="sell" cfg={cfg} />)}
+                          {Array.from({ length: buyOrdinalCount }, (_, i) => <OrdinalCell key={'ob' + i} r={r} y={buyGridFor(r.name, cfg)[i]} kind="buy" sep={i === 0} cfg={cfg} />)}
                         </tr>
                       ))}
                     </tbody>
@@ -1141,19 +1175,23 @@ function Star({ on, onClick }: { on: boolean; onClick: () => void }) {
   )
 }
 
-// 表格单元格：该股票无此档位则留空
-function Cell({ r, y, kind, sep, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; sep?: boolean; cfg: GridCfg }) {
-  const grid = kind === 'buy' ? buyGridFor(r.name, cfg) : sellGridFor(r.name, cfg)
-  if (!grid.includes(y)) return <td className={`g blank${sep ? ' sep' : ''}`}>·</td>
+// 桌面表格按第几档对齐，百分比放回每只股票自己的单元格内。
+function OrdinalCell({ r, y, kind, sep, cfg }: { r: Row; y?: number; kind: 'buy' | 'sell'; sep?: boolean; cfg: GridCfg }) {
+  if (y === undefined) return <td className={`g ordinal blank${sep ? ' sep' : ''}`} />
   const t = tier(r, y, kind)
-  // 广核/核电卖出：仅显示价格，不着色、不判已达
+  const kindClass = kind === 'sell' ? ' sell' : ' buy'
   if (kind === 'sell' && SELL_MUTED.has(r.name)) {
-    return <td className={`g sell muted${sep ? ' sep' : ''}`}><b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b></td>
+    return (
+      <td className={`g ordinal muted${kindClass}${sep ? ' sep' : ''}`}>
+        <i>{fmtPct(y)}</i><b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b>
+      </td>
+    )
   }
-  const cls = `g${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
+  const grid = kind === 'buy' ? buyGridFor(r.name, cfg) : sellGridFor(r.name, cfg)
+  const cls = `g ordinal${kindClass}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
   return (
     <td className={cls} style={t.reached ? { background: hitBg(kind, y, grid) } : undefined}>
-      <b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b><span>{t.label}</span>
+      <i>{fmtPct(y)}</i><b>{symOf(r.isHK, r.code)}{t.target.toFixed(2)}</b><span>{t.label}</span>
     </td>
   )
 }
@@ -1229,6 +1267,11 @@ const CSS = `
 .yg-page .sortbar .chip { padding: 4px 11px; font-size: 12.5px; flex-shrink: 0; }
 .yg-page .sortbar .chip.clear { color: #dc2626; border-color: #fecaca; }
 .yg-page .sortbar .chip.foldall { margin-left: auto; color: #374151; flex-shrink: 0; }
+.yg-page .groupmode { flex: 0 0 auto; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; border-radius: 9px; background: transparent; color: #9ca3af; cursor: pointer; }
+.yg-page .groupmode svg { width: 25px; height: 25px; }
+.yg-page .groupmode.on { color: #e03025; }
+.yg-page .groupmode:active { background: #fee2e2; }
 .yg-page .yg-footer { display: flex; align-items: center; margin: 10px 0 28px;
   background: #fff; border-radius: 14px; padding: 14px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .yg-page .ft-left { display: flex; align-items: center; gap: 10px; }
@@ -1299,6 +1342,12 @@ const CSS = `
 .yg-page thead th { color: #6b7280; font-weight: 600; font-size: 12.5px; border-bottom: 1.5px solid #e5e7eb; white-space: nowrap; }
 .yg-page thead th.th-s { color: #16a34a; }
 .yg-page thead th.th-b { color: #7c3aed; }
+.yg-page thead th.ordinal-group { padding: 9px 6px; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.yg-page thead th.ordinal-group.sell { color: #16a34a; background: #f7fcf8; }
+.yg-page thead th.ordinal-group.buy { color: #ea580c; background: #fffaf5; }
+.yg-page thead th.ordinal-slot { min-width: 88px; padding: 8px 5px; font-size: 11.5px; }
+.yg-page thead th.ordinal-slot.sell { color: #16a34a; background: #fbfefb; }
+.yg-page thead th.ordinal-slot.buy { color: #ea580c; background: #fffcf8; }
 .yg-page thead th.quote-summary-head { min-width: 252px; padding: 6px 8px 7px; background: #f8fafc;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
 .yg-page .quote-summary-title { display: block; margin-bottom: 4px; color: #374151; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
@@ -1342,6 +1391,10 @@ const CSS = `
 .yg-page td.g { font-variant-numeric: tabular-nums; line-height: 1.25; }
 .yg-page td.g b { font-weight: 600; color: #1f2328; }
 .yg-page td.g span { display: block; font-size: 10.5px; color: #9ca3af; margin-top: 1px; }
+.yg-page td.g.ordinal { min-width: 88px; padding: 10px 5px; }
+.yg-page td.g.ordinal i { display: block; margin-bottom: 3px; font-size: 10.5px; font-style: normal; font-weight: 600; }
+.yg-page td.g.ordinal.sell i { color: #16a34a; }
+.yg-page td.g.ordinal.buy i { color: #ea580c; }
 .yg-page td.g.blank { color: #d1d5db; }
 .yg-page td.g.muted b { color: #9ca3af; font-weight: 500; }
 .yg-page .tier.muted b { color: #9ca3af; font-weight: 500; }
