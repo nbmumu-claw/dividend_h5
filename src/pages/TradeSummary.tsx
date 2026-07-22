@@ -111,20 +111,24 @@ export default function TradeSummary() {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-3" aria-label="交易范围">
-          <span className="text-xs text-gray-400 shrink-0">范围</span>
-          <div className="flex flex-1 gap-1">
-            {([['all', '全部'], ['buy', '只看买入'], ['sell', '只看卖出']] as const).map(([key, label]) => {
-              const active = tradeFilter === key
-              const activeClass = key === 'buy' ? 'bg-red-600 border-red-600 text-white' : key === 'sell' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-gray-800 border-gray-800 text-white'
-              return <button key={key} aria-pressed={active} onClick={() => setTradeFilter(key)} className={`flex-1 min-h-10 rounded-xl border text-xs font-medium cursor-pointer transition-all active:scale-[0.98] ${active ? `${activeClass} shadow-sm` : 'bg-white border-gray-200 text-gray-600 shadow-sm active:bg-gray-100'}`}>{label}</button>
-            })}
+        <div className="flex items-stretch gap-2 mt-3">
+          <div className="relative flex-1">
+            <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <select
+              aria-label="筛选交易范围"
+              value={tradeFilter}
+              onChange={event => setTradeFilter(event.target.value as TradeFilter)}
+              className="appearance-none w-full min-h-11 pl-9 pr-9 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-200"
+            >
+              <option value="all">全部交易</option>
+              <option value="buy">只看买入</option>
+              <option value="sell">只看卖出</option>
+            </select>
+            <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </div>
-        </div>
-        <div className="flex items-center gap-2 mt-3" aria-label="排序方式">
-          <span className="text-xs text-gray-400 shrink-0">排序（折合人民币）</span>
-          <button aria-label="切换金额排序方向" onClick={() => setSortMode(mode => mode === 'amountDesc' ? 'amountAsc' : 'amountDesc')} className="ml-auto min-h-10 px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 shadow-sm cursor-pointer active:bg-gray-100 active:scale-[0.98] transition-all">
-            金额 {sortMode === 'amountDesc' ? '↓' : '↑'}
+          <button aria-label="切换金额排序方向" onClick={() => setSortMode(mode => mode === 'amountDesc' ? 'amountAsc' : 'amountDesc')} className="min-h-11 min-w-24 px-3 rounded-xl border border-gray-200 bg-white text-xs font-semibold text-gray-700 shadow-sm cursor-pointer active:bg-gray-100 active:scale-[0.98] transition-all">
+            <span className="block">金额 {sortMode === 'amountDesc' ? '↓' : '↑'}</span>
+            <span className="block text-[9px] font-normal text-gray-400 mt-0.5">折合人民币</span>
           </button>
         </div>
       </div>
@@ -186,17 +190,17 @@ export default function TradeSummary() {
                 </div>
               }) : orderedStocks.map(stock => <div key={stock.code} className="px-4 py-3.5">
                 <div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-gray-800 truncate">{stock.name}</div><div className="text-[11px] text-gray-400 mt-0.5">{stock.code} · {stock.trades.length} 笔交易</div></div><div className={`text-right font-tabular text-sm font-bold ${stock.total.buy - stock.total.sell > 0 ? 'text-gray-900' : 'text-emerald-600'}`}><div>{formatAmount(stock.total.buy - stock.total.sell, stock.symbol)}</div>{stock.symbol !== '¥' && <div className="text-[10px] text-gray-500 font-normal mt-0.5">{formatCny(stock.total.buyCny - stock.total.sellCny)}</div>}<div className="text-[11px] text-gray-400 font-normal mt-0.5">净买入</div></div></div>
-                <div className="grid grid-cols-2 gap-3 mt-3 text-xs font-tabular">
-                  <div className="rounded-lg bg-red-50 px-2.5 py-2.5">
+                <div className={`grid gap-3 mt-3 text-xs font-tabular ${stock.total.buyCount > 0 && stock.total.sellCount > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {stock.total.buyCount > 0 && <div className="rounded-lg bg-red-50 px-2.5 py-2.5">
                     <div className="flex justify-between text-red-500"><span>买入 {stock.total.buyCount} 笔</span><span>{stock.total.buyQty.toLocaleString()} 股</span></div>
                     <div className="flex justify-between mt-1.5 text-red-600 font-semibold"><span>均价 {stock.total.buyQty ? formatAmount(stock.total.buy / stock.total.buyQty, stock.symbol) : '—'}</span><span>{formatAmount(stock.total.buy, stock.symbol)}</span></div>
                     {stock.symbol !== '¥' && <div className="mt-1 text-right text-[10px] text-red-400">{formatCny(stock.total.buyCny)}</div>}
-                  </div>
-                  <div className="rounded-lg bg-emerald-50 px-2.5 py-2.5">
+                  </div>}
+                  {stock.total.sellCount > 0 && <div className="rounded-lg bg-emerald-50 px-2.5 py-2.5">
                     <div className="flex justify-between text-emerald-600"><span>卖出 {stock.total.sellCount} 笔</span><span>{stock.total.sellQty.toLocaleString()} 股</span></div>
                     <div className="flex justify-between mt-1.5 text-emerald-700 font-semibold"><span>均价 {stock.total.sellQty ? formatAmount(stock.total.sell / stock.total.sellQty, stock.symbol) : '—'}</span><span>{formatAmount(stock.total.sell, stock.symbol)}</span></div>
                     {stock.symbol !== '¥' && <div className="mt-1 text-right text-[10px] text-emerald-500">{formatCny(stock.total.sellCny)}</div>}
-                  </div>
+                  </div>}
                 </div>
                 <div className="flex justify-between mt-2.5 px-0.5 text-[11px] text-gray-400 font-tabular"><span>净买入股数</span><span className="text-gray-600 font-semibold">{(stock.total.buyQty - stock.total.sellQty).toLocaleString()} 股</span></div>
               </div>)}
