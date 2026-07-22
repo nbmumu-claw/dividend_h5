@@ -777,7 +777,9 @@ export default function YieldGrid() {
         {displayGroups.map(({ sector, items }) => {
           const sellOrdinalCount = Math.max(...items.map(r => sellGridFor(r.name, cfg).length))
           const buyOrdinalCount = Math.max(...items.map(r => buyGridFor(r.name, cfg).length))
-          const tableMinWidth = 120 + 252 + 264 + (sellOrdinalCount + buyOrdinalCount) * 80
+          const tableMinWidth = sellOrdinalCount === 8 && buyOrdinalCount === 8
+            ? 120 + 252 + 264 + (sellOrdinalCount + buyOrdinalCount) * 80
+            : undefined
           const isCollapsed = groupBySector && collapsed.has(sector)
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
           const avgCy = items.reduce((s, r) => s + r.cy, 0) / items.length
@@ -853,7 +855,7 @@ export default function YieldGrid() {
                 </div>
               ) : (
                 <div className="tablewrap">
-                  <table className={editOrder ? 'editing' : undefined} style={{ minWidth: tableMinWidth }}>
+                  <table className={editOrder ? 'editing' : undefined} style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}>
                     <thead>
                       <>
                         <tr>
