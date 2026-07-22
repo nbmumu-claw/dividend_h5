@@ -852,7 +852,7 @@ export default function YieldGrid() {
                 </div>
               ) : (
                 <div className="tablewrap">
-                  <table>
+                  <table className={editOrder ? 'editing' : undefined}>
                     <thead>
                       <>
                         <tr>
@@ -1362,6 +1362,8 @@ const CSS = `
 .yg-page .sep { border-left: 1.5px solid #e5e7eb; }
 .yg-page td.nm { width: 120px; min-width: 120px; text-align: left; font-weight: 600; white-space: nowrap; }
 .yg-page thead th:first-child { width: 120px; min-width: 120px; }
+.yg-page table.editing td.nm { white-space: normal; }
+.yg-page table.editing td.nm .rowops { display: flex; width: max-content; margin: 0 0 6px; }
 .yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
 .yg-page td.nm .fav { margin-right: 5px; }
 .yg-page .fav svg { width: 18px; height: 18px; }
