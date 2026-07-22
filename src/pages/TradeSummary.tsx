@@ -6,7 +6,7 @@ import type { Transaction } from '../utils/holdings'
 
 type Period = 'day' | 'week' | 'month'
 type ViewMode = 'trade' | 'stock'
-type SortMode = 'time' | 'amountDesc' | 'amountAsc'
+type SortMode = 'amountDesc' | 'amountAsc'
 type Trade = Transaction & { name: string; code: string; symbol: string }
 type Totals = { buy: number; sell: number; buyQty: number; sellQty: number; buyCount: number; sellCount: number }
 
@@ -41,7 +41,7 @@ function sumTrades(trades: Trade[]) {
 
 function formatTradeDate(ts: number) {
   const date = new Date(ts)
-  return { date: `${date.getMonth() + 1}/${date.getDate()}`, time: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}` }
+  return `${date.getMonth() + 1}/${date.getDate()}`
 }
 
 export default function TradeSummary() {
@@ -49,9 +49,9 @@ export default function TradeSummary() {
   const watchlist = useStore(s => s.watchlist)
   const accounts = useStore(s => s.accounts)
   const activeAccountId = useStore(s => s.activeAccountId)
-  const [period, setPeriod] = useState<Period>('month')
+  const [period, setPeriod] = useState<Period>('day')
   const [viewMode, setViewMode] = useState<ViewMode>('trade')
-  const [sortMode, setSortMode] = useState<SortMode>('time')
+  const [sortMode, setSortMode] = useState<SortMode>('amountDesc')
   const activeAccountName = accounts.find(a => a.id === activeAccountId)?.name || '我的账户'
 
   const groups = useMemo(() => {
@@ -96,7 +96,7 @@ export default function TradeSummary() {
         <div className="flex items-center gap-2 mt-3" aria-label="排序方式">
           <span className="text-xs text-gray-400 shrink-0">排序</span>
           <div className="flex flex-1 bg-gray-100 rounded-xl p-1">
-            {([['time', '时间'], ['amountDesc', '金额高→低'], ['amountAsc', '金额低→高']] as const).map(([key, label]) => (
+            {([['amountDesc', '金额高→低'], ['amountAsc', '金额低→高']] as const).map(([key, label]) => (
               <button key={key} aria-pressed={sortMode === key} onClick={() => setSortMode(key)} className={`flex-1 min-h-8 rounded-lg text-[11px] transition-colors ${sortMode === key ? 'bg-white text-gray-900 font-semibold shadow-sm' : 'text-gray-500'}`}>{label}</button>
             ))}
           </div>
@@ -118,12 +118,10 @@ export default function TradeSummary() {
             return { ...stock, trades, total: sumTrades(trades) }
           })
           const orderedTrades = [...group.trades].sort((a, b) => {
-            if (sortMode === 'time') return b.ts - a.ts
             const diff = Number(a.qty) * Number(a.price) - Number(b.qty) * Number(b.price)
             return sortMode === 'amountDesc' ? -diff : diff
           })
           const orderedStocks = [...stocks].sort((a, b) => {
-            if (sortMode === 'time') return Math.max(...b.trades.map(t => t.ts)) - Math.max(...a.trades.map(t => t.ts))
             const diff = (a.total.buy + a.total.sell) - (b.total.buy + b.total.sell)
             return sortMode === 'amountDesc' ? -diff : diff
           })
@@ -143,7 +141,7 @@ export default function TradeSummary() {
               {viewMode === 'trade' ? orderedTrades.map((trade, index) => {
                 const date = formatTradeDate(trade.ts)
                 return <div key={`${trade.code}-${trade.ts}-${index}`} className="flex items-center gap-3 px-4 py-3.5 text-xs">
-                  <div className="w-9 shrink-0 text-center font-tabular"><div className="text-sm font-semibold text-gray-700 leading-none">{date.date}</div><div className="text-[10px] text-gray-400 mt-1">{date.time}</div></div>
+                  <div className="w-9 shrink-0 text-center font-tabular text-sm font-semibold text-gray-700">{date}</div>
                   <span className={`w-9 shrink-0 text-center py-1 rounded-md font-medium ${trade.type === 'buy' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{trade.type === 'buy' ? '买入' : '卖出'}</span>
                   <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-gray-800 truncate">{trade.name}</div><div className="text-[11px] text-gray-400 mt-1 font-tabular">{trade.code} · {Number(trade.qty).toLocaleString()} 股 × {formatAmount(Number(trade.price), trade.symbol)}</div></div>
                   <div className={`text-right font-tabular ${trade.type === 'buy' ? 'text-red-600' : 'text-emerald-600'}`}><div className="text-sm font-bold">{trade.type === 'buy' ? '+' : '-'}{formatAmount(Number(trade.qty) * Number(trade.price), trade.symbol)}</div><div className="text-[10px] text-gray-400 mt-1">成交额</div></div>
