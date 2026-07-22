@@ -5,7 +5,9 @@ import { currencySymbol } from '../utils/market'
 import type { Transaction } from '../utils/holdings'
 
 type Period = 'day' | 'week' | 'month'
+type ViewMode = 'trade' | 'stock'
 type Trade = Transaction & { name: string; code: string; symbol: string }
+type Totals = { buy: number; sell: number; buyCount: number; sellCount: number }
 
 function formatAmount(value: number, symbol: string) {
   return `${symbol}${value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
@@ -28,12 +30,21 @@ function periodOf(ts: number, period: Period) {
   return { key: `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`, label: `${monday.getFullYear()}年 ${fmt(monday)}–${fmt(sunday)}` }
 }
 
+function sumTrades(trades: Trade[]) {
+  return trades.reduce<Totals>((total, trade) => {
+    const amount = Number(trade.qty) * Number(trade.price)
+    if (trade.type === 'buy') { total.buy += amount; total.buyCount++ } else { total.sell += amount; total.sellCount++ }
+    return total
+  }, { buy: 0, sell: 0, buyCount: 0, sellCount: 0 })
+}
+
 export default function TradeSummary() {
   const navigate = useNavigate()
   const watchlist = useStore(s => s.watchlist)
   const accounts = useStore(s => s.accounts)
   const activeAccountId = useStore(s => s.activeAccountId)
   const [period, setPeriod] = useState<Period>('month')
+  const [viewMode, setViewMode] = useState<ViewMode>('trade')
   const activeAccountName = accounts.find(a => a.id === activeAccountId)?.name || '我的账户'
 
   const groups = useMemo(() => {
@@ -61,12 +72,17 @@ export default function TradeSummary() {
         <div className="absolute inset-x-0 text-center pointer-events-none"><h1 className="text-base font-bold text-gray-900">买卖记录汇总</h1></div>
       </div>
 
-      <div className="px-4 pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-gray-400">当前账户：{activeAccountName}</p>
-          <div className="flex bg-gray-100 rounded-lg p-1" aria-label="统计周期">
+      <div className="px-4 pb-4">
+        <p className="text-xs text-gray-400 mb-3">当前账户：{activeAccountName}</p>
+        <div className="flex gap-2">
+          <div className="flex flex-1 bg-gray-100 rounded-xl p-1" aria-label="查看方式">
+            {([['trade', '按交易'], ['stock', '按股票']] as const).map(([key, label]) => (
+              <button key={key} aria-pressed={viewMode === key} onClick={() => setViewMode(key)} className={`flex-1 min-h-9 rounded-lg text-xs transition-colors ${viewMode === key ? 'bg-white text-gray-900 font-semibold shadow-sm' : 'text-gray-500'}`}>{label}</button>
+            ))}
+          </div>
+          <div className="flex bg-gray-100 rounded-xl p-1" aria-label="统计周期">
             {([['day', '日'], ['week', '周'], ['month', '月']] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setPeriod(key)} className={`min-w-11 py-1.5 rounded-md text-xs transition-colors ${period === key ? 'bg-white text-gray-900 font-medium shadow-sm' : 'text-gray-500'}`}>{label}</button>
+              <button key={key} aria-pressed={period === key} onClick={() => setPeriod(key)} className={`min-w-10 min-h-9 rounded-lg text-xs transition-colors ${period === key ? 'bg-white text-gray-900 font-semibold shadow-sm' : 'text-gray-500'}`}>{label}</button>
             ))}
           </div>
         </div>
@@ -76,30 +92,36 @@ export default function TradeSummary() {
         {!groups.length ? (
           <div className="card py-12 text-center text-sm text-gray-400">还没有买卖记录，去自选股详情中添加吧</div>
         ) : groups.map(group => {
-          const totals = new Map<string, { buy: number; sell: number; buyCount: number; sellCount: number }>()
+          const currencyTotals = new Map<string, Totals>()
           group.trades.forEach(trade => {
-            const total = totals.get(trade.symbol) || { buy: 0, sell: 0, buyCount: 0, sellCount: 0 }
-            const amount = Number(trade.qty) * Number(trade.price)
-            if (trade.type === 'buy') { total.buy += amount; total.buyCount++ } else { total.sell += amount; total.sellCount++ }
-            totals.set(trade.symbol, total)
+            const current = currencyTotals.get(trade.symbol) || { buy: 0, sell: 0, buyCount: 0, sellCount: 0 }
+            const next = sumTrades([trade])
+            currencyTotals.set(trade.symbol, { buy: current.buy + next.buy, sell: current.sell + next.sell, buyCount: current.buyCount + next.buyCount, sellCount: current.sellCount + next.sellCount })
+          })
+          const stocks = [...new Map(group.trades.map(trade => [trade.code, trade])).values()].map(stock => {
+            const trades = group.trades.filter(trade => trade.code === stock.code)
+            return { ...stock, trades, total: sumTrades(trades) }
           })
           return <section key={group.label} className="card overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
-              <h2 className="text-sm font-semibold text-gray-800">{group.label}</h2>
-              <span className="text-xs text-gray-400">{group.trades.length} 笔交易</span>
+            <div className="flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900">{group.label}</h2>
+              <span className="text-xs text-gray-400">{viewMode === 'trade' ? `${group.trades.length} 笔交易` : `${stocks.length} 只股票`}</span>
             </div>
-            <div className="px-4 py-3 space-y-2.5">
-              {[...totals.entries()].map(([symbol, total]) => <div key={symbol} className="grid grid-cols-3 gap-2 text-right font-tabular">
-                <div><div className="text-[11px] text-gray-400">买入 {total.buyCount} 笔</div><div className="text-sm font-medium text-red-600">{formatAmount(total.buy, symbol)}</div></div>
-                <div><div className="text-[11px] text-gray-400">卖出 {total.sellCount} 笔</div><div className="text-sm font-medium text-emerald-600">{formatAmount(total.sell, symbol)}</div></div>
-                <div><div className="text-[11px] text-gray-400">净买入</div><div className={`text-sm font-semibold ${total.buy - total.sell > 0 ? 'text-gray-900' : 'text-emerald-600'}`}>{formatAmount(total.buy - total.sell, symbol)}</div></div>
+            <div className="px-4 py-3.5 space-y-3 bg-gradient-to-b from-gray-50/70 to-white">
+              {[...currencyTotals.entries()].map(([symbol, total]) => <div key={symbol} className="grid grid-cols-3 gap-2 text-right font-tabular">
+                <div><div className="text-[11px] text-gray-400 mb-0.5">买入 {total.buyCount} 笔</div><div className="text-sm font-semibold text-red-600">{formatAmount(total.buy, symbol)}</div></div>
+                <div><div className="text-[11px] text-gray-400 mb-0.5">卖出 {total.sellCount} 笔</div><div className="text-sm font-semibold text-emerald-600">{formatAmount(total.sell, symbol)}</div></div>
+                <div><div className="text-[11px] text-gray-400 mb-0.5">净买入</div><div className={`text-sm font-bold ${total.buy - total.sell > 0 ? 'text-gray-900' : 'text-emerald-600'}`}>{formatAmount(total.buy - total.sell, symbol)}</div></div>
               </div>)}
             </div>
-            <div className="border-t border-gray-50 divide-y divide-gray-50">
-              {group.trades.map((trade, index) => <div key={`${trade.code}-${trade.ts}-${index}`} className="flex items-center gap-3 px-4 py-2.5 text-xs">
-                <span className={`w-8 text-center py-0.5 rounded ${trade.type === 'buy' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{trade.type === 'buy' ? '买入' : '卖出'}</span>
-                <span className="flex-1 text-gray-700 truncate">{trade.name}</span>
-                <span className="text-gray-400 font-tabular">{Number(trade.qty).toLocaleString()} 股 @ {formatAmount(Number(trade.price), trade.symbol)}</span>
+            <div className="border-t border-gray-100 divide-y divide-gray-50">
+              {viewMode === 'trade' ? group.trades.map((trade, index) => <div key={`${trade.code}-${trade.ts}-${index}`} className="flex items-center gap-3 px-4 py-3 text-xs">
+                <span className={`w-9 shrink-0 text-center py-1 rounded-md font-medium ${trade.type === 'buy' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{trade.type === 'buy' ? '买入' : '卖出'}</span>
+                <div className="flex-1 min-w-0"><div className="text-sm font-medium text-gray-800 truncate">{trade.name}</div><div className="text-[11px] text-gray-400 mt-0.5">{new Date(trade.ts).toLocaleDateString('zh-CN')} · {Number(trade.qty).toLocaleString()} 股 @ {formatAmount(Number(trade.price), trade.symbol)}</div></div>
+                <div className={`font-tabular text-sm font-semibold ${trade.type === 'buy' ? 'text-red-600' : 'text-emerald-600'}`}>{trade.type === 'buy' ? '+' : '-'}{formatAmount(Number(trade.qty) * Number(trade.price), trade.symbol)}</div>
+              </div>) : stocks.map(stock => <div key={stock.code} className="px-4 py-3.5">
+                <div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-gray-800 truncate">{stock.name}</div><div className="text-[11px] text-gray-400 mt-0.5">{stock.code} · {stock.trades.length} 笔交易</div></div><div className={`text-right font-tabular text-sm font-bold ${stock.total.buy - stock.total.sell > 0 ? 'text-gray-900' : 'text-emerald-600'}`}><div>{formatAmount(stock.total.buy - stock.total.sell, stock.symbol)}</div><div className="text-[11px] text-gray-400 font-normal mt-0.5">净买入</div></div></div>
+                <div className="grid grid-cols-2 gap-3 mt-3 text-xs font-tabular"><div className="rounded-lg bg-red-50 px-2.5 py-2"><span className="text-red-500">买入 {stock.total.buyCount} 笔</span><span className="float-right text-red-600 font-semibold">{formatAmount(stock.total.buy, stock.symbol)}</span></div><div className="rounded-lg bg-emerald-50 px-2.5 py-2"><span className="text-emerald-600">卖出 {stock.total.sellCount} 笔</span><span className="float-right text-emerald-700 font-semibold">{formatAmount(stock.total.sell, stock.symbol)}</span></div></div>
               </div>)}
             </div>
           </section>
