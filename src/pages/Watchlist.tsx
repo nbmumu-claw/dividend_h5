@@ -351,13 +351,23 @@ export default function Watchlist() {
       <div className="px-4 pt-12 pb-2">
         <div className="relative flex items-center justify-center mb-2">
           <h1 className="text-xl font-bold text-gray-900">自选</h1>
-          <button
-            onClick={() => setShowAccountSheet(true)}
-            className="absolute right-0 flex items-center gap-0.5 text-sm text-gray-600 bg-gray-100 rounded-full px-3 py-1 max-w-[40%]"
-          >
-            <span className="truncate">{activeAccountName}</span>
-            <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </button>
+          <div className="absolute right-0 flex items-center gap-1.5">
+            <button
+              aria-label="查看买卖记录汇总"
+              onClick={() => navigate('/trade-summary')}
+              className="min-h-11 flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 rounded-full px-2.5 active:bg-red-100"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 19V5M4 19h16M8 15v-3M12 15V8M16 15v-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              汇总
+            </button>
+            <button
+              onClick={() => setShowAccountSheet(true)}
+              className="min-h-11 flex items-center gap-0.5 text-sm text-gray-600 bg-gray-100 rounded-full px-3 py-1 max-w-[30vw]"
+            >
+              <span className="truncate">{activeAccountName}</span>
+              <svg className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          </div>
         </div>
         <div className="flex items-center justify-center gap-1">
           {SORT_OPTIONS.map(opt => (

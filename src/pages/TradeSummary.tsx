@@ -125,19 +125,28 @@ export default function TradeSummary() {
             const diff = a.trades.reduce((sum, trade) => sum + trade.amountCny, 0) - b.trades.reduce((sum, trade) => sum + trade.amountCny, 0)
             return sortMode === 'amountDesc' ? -diff : diff
           })
-          return <section key={group.label} className="card overflow-hidden">
+          return <section key={group.label} className="card overflow-hidden ring-1 ring-gray-200">
             <div className="flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-900">{group.label}</h2>
               <span className="text-xs text-gray-400">{viewMode === 'trade' ? `${group.trades.length} 笔交易` : `${stocks.length} 只股票`}</span>
             </div>
-            <div className="px-4 py-3.5 space-y-3 bg-gradient-to-b from-gray-50/70 to-white">
-              {[...currencyTotals.entries()].map(([symbol, total]) => <div key={symbol} className="grid grid-cols-3 gap-2 text-right font-tabular">
-                <div><div className="text-[11px] text-gray-400 mb-0.5">买入 {total.buyCount} 笔</div><div className="text-sm font-semibold text-red-600">{formatAmount(total.buy, symbol)}</div></div>
-                <div><div className="text-[11px] text-gray-400 mb-0.5">卖出 {total.sellCount} 笔</div><div className="text-sm font-semibold text-emerald-600">{formatAmount(total.sell, symbol)}</div></div>
-                <div><div className="text-[11px] text-gray-400 mb-0.5">净买入</div><div className={`text-sm font-bold ${total.buy - total.sell > 0 ? 'text-gray-900' : 'text-emerald-600'}`}>{formatAmount(total.buy - total.sell, symbol)}</div></div>
+            <div className="px-3 py-3 space-y-3 bg-gray-50 border-b border-gray-200">
+              {[...currencyTotals.entries()].map(([symbol, total]) => <div key={symbol} className="grid grid-cols-3 gap-2 font-tabular text-center">
+                <div className="min-w-0 rounded-xl border border-red-100 bg-red-50/80 px-1.5 py-2.5">
+                  <div className="text-[11px] font-medium text-red-500 mb-1">买入 {total.buyCount} 笔</div>
+                  <div className="text-sm font-bold text-red-600 whitespace-nowrap">{formatAmount(total.buy, symbol)}</div>
+                </div>
+                <div className="min-w-0 rounded-xl border border-emerald-100 bg-emerald-50/80 px-1.5 py-2.5">
+                  <div className="text-[11px] font-medium text-emerald-600 mb-1">卖出 {total.sellCount} 笔</div>
+                  <div className="text-sm font-bold text-emerald-700 whitespace-nowrap">{formatAmount(total.sell, symbol)}</div>
+                </div>
+                <div className="min-w-0 rounded-xl border border-gray-200 bg-white px-1.5 py-2.5 shadow-sm">
+                  <div className="text-[11px] font-medium text-gray-500 mb-1">净买入</div>
+                  <div className={`text-sm font-bold whitespace-nowrap ${total.buy - total.sell > 0 ? 'text-gray-900' : 'text-emerald-700'}`}>{formatAmount(total.buy - total.sell, symbol)}</div>
+                </div>
               </div>)}
             </div>
-            <div className="border-t border-gray-100 divide-y divide-gray-50">
+            <div className="divide-y divide-gray-100">
               {viewMode === 'trade' ? orderedTrades.map((trade, index) => {
                 const date = formatTradeDate(trade.ts)
                 return <div key={`${trade.code}-${trade.ts}-${index}`} className={`flex items-center gap-3 px-4 py-3.5 text-xs border-l-2 ${trade.type === 'buy' ? 'bg-red-50/40 border-red-300' : 'bg-emerald-50/40 border-emerald-300'}`}>
