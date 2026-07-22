@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { currencySymbol } from '../utils/market'
+import { currencySymbol, toCnyPrice } from '../utils/market'
 import type { Transaction } from '../utils/holdings'
 
 type Period = 'day' | 'week' | 'month'
 type ViewMode = 'trade' | 'stock'
 type SortMode = 'amountDesc' | 'amountAsc'
-type Trade = Transaction & { name: string; code: string; symbol: string }
+type Trade = Transaction & { name: string; code: string; symbol: string; amountCny: number }
 type Totals = { buy: number; sell: number; buyQty: number; sellQty: number; buyCount: number; sellCount: number }
 
 function formatAmount(value: number, symbol: string) {
@@ -49,6 +49,8 @@ export default function TradeSummary() {
   const watchlist = useStore(s => s.watchlist)
   const accounts = useStore(s => s.accounts)
   const activeAccountId = useStore(s => s.activeAccountId)
+  const exchangeRate = useStore(s => s.exchangeRate)
+  const usdRate = useStore(s => s.usdRate)
   const [period, setPeriod] = useState<Period>('day')
   const [viewMode, setViewMode] = useState<ViewMode>('trade')
   const [sortMode, setSortMode] = useState<SortMode>('amountDesc')
@@ -57,7 +59,7 @@ export default function TradeSummary() {
   const groups = useMemo(() => {
     const trades: Trade[] = watchlist.flatMap(stock => (stock.transactions || [])
       .filter(tx => tx.type === 'buy' || tx.type === 'sell')
-      .map(tx => ({ ...tx, name: stock.name, code: stock.code, symbol: currencySymbol(stock) })))
+      .map(tx => ({ ...tx, name: stock.name, code: stock.code, symbol: currencySymbol(stock), amountCny: toCnyPrice(Number(tx.qty) * Number(tx.price), stock, exchangeRate, usdRate) })))
     const map = new Map<string, { label: string; trades: Trade[] }>()
     trades.forEach(trade => {
       const bucket = periodOf(trade.ts, period)
@@ -68,7 +70,7 @@ export default function TradeSummary() {
     return [...map.entries()]
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([, group]) => ({ ...group, trades: group.trades.sort((a, b) => b.ts - a.ts) }))
-  }, [watchlist, period])
+  }, [watchlist, period, exchangeRate, usdRate])
 
   return (
     <div className="page-content page-narrow pb-6">
@@ -94,12 +96,10 @@ export default function TradeSummary() {
           </div>
         </div>
         <div className="flex items-center gap-2 mt-3" aria-label="排序方式">
-          <span className="text-xs text-gray-400 shrink-0">排序</span>
-          <div className="flex flex-1 bg-gray-100 rounded-xl p-1">
-            {([['amountDesc', '金额高→低'], ['amountAsc', '金额低→高']] as const).map(([key, label]) => (
-              <button key={key} aria-pressed={sortMode === key} onClick={() => setSortMode(key)} className={`flex-1 min-h-8 rounded-lg text-[11px] transition-colors ${sortMode === key ? 'bg-white text-gray-900 font-semibold shadow-sm' : 'text-gray-500'}`}>{label}</button>
-            ))}
-          </div>
+          <span className="text-xs text-gray-400 shrink-0">排序（折合人民币）</span>
+          <button aria-label="切换金额排序方向" onClick={() => setSortMode(mode => mode === 'amountDesc' ? 'amountAsc' : 'amountDesc')} className="ml-auto min-h-9 px-3 rounded-xl bg-gray-100 text-xs font-semibold text-gray-700 active:bg-gray-200 transition-colors">
+            金额 {sortMode === 'amountDesc' ? '↓' : '↑'}
+          </button>
         </div>
       </div>
 
@@ -118,11 +118,11 @@ export default function TradeSummary() {
             return { ...stock, trades, total: sumTrades(trades) }
           })
           const orderedTrades = [...group.trades].sort((a, b) => {
-            const diff = Number(a.qty) * Number(a.price) - Number(b.qty) * Number(b.price)
+            const diff = a.amountCny - b.amountCny
             return sortMode === 'amountDesc' ? -diff : diff
           })
           const orderedStocks = [...stocks].sort((a, b) => {
-            const diff = (a.total.buy + a.total.sell) - (b.total.buy + b.total.sell)
+            const diff = a.trades.reduce((sum, trade) => sum + trade.amountCny, 0) - b.trades.reduce((sum, trade) => sum + trade.amountCny, 0)
             return sortMode === 'amountDesc' ? -diff : diff
           })
           return <section key={group.label} className="card overflow-hidden">
@@ -140,8 +140,8 @@ export default function TradeSummary() {
             <div className="border-t border-gray-100 divide-y divide-gray-50">
               {viewMode === 'trade' ? orderedTrades.map((trade, index) => {
                 const date = formatTradeDate(trade.ts)
-                return <div key={`${trade.code}-${trade.ts}-${index}`} className="flex items-center gap-3 px-4 py-3.5 text-xs">
-                  <div className="w-9 shrink-0 text-center font-tabular text-sm font-semibold text-gray-700">{date}</div>
+                return <div key={`${trade.code}-${trade.ts}-${index}`} className={`flex items-center gap-3 px-4 py-3.5 text-xs border-l-2 ${trade.type === 'buy' ? 'bg-red-50/40 border-red-300' : 'bg-emerald-50/40 border-emerald-300'}`}>
+                  <div className={`w-9 shrink-0 text-center font-tabular text-sm font-semibold ${trade.type === 'buy' ? 'text-red-700' : 'text-emerald-700'}`}>{date}</div>
                   <span className={`w-9 shrink-0 text-center py-1 rounded-md font-medium ${trade.type === 'buy' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{trade.type === 'buy' ? '买入' : '卖出'}</span>
                   <div className="flex-1 min-w-0"><div className="text-sm font-semibold text-gray-800 truncate">{trade.name}</div><div className="text-[11px] text-gray-400 mt-1 font-tabular">{trade.code} · {Number(trade.qty).toLocaleString()} 股 × {formatAmount(Number(trade.price), trade.symbol)}</div></div>
                   <div className={`text-right font-tabular ${trade.type === 'buy' ? 'text-red-600' : 'text-emerald-600'}`}><div className="text-sm font-bold">{trade.type === 'buy' ? '+' : '-'}{formatAmount(Number(trade.qty) * Number(trade.price), trade.symbol)}</div><div className="text-[10px] text-gray-400 mt-1">成交额</div></div>
