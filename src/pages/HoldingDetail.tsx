@@ -260,6 +260,19 @@ export default function HoldingDetail() {
           </div>
           {stock.isHK && (
             <div className="mt-3">
+              <label className="text-xs text-gray-400 block mb-1">交易结算币种</label>
+              <div className="flex gap-1 mb-3">
+                {([
+                  { value: 'CNY', label: '港股通·人民币' },
+                  { value: 'HKD', label: '港户·港币' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => updateWatchlistStock(stock.code, { cashCurrency: opt.value })}
+                    className={`text-xs px-3 py-1 rounded-full border ${(stock.cashCurrency ?? 'CNY') === opt.value ? 'bg-red-600 text-white border-red-600' : 'border-gray-200 text-gray-500'}`}
+                  >{opt.label}</button>
+                ))}
+              </div>
               <label className="text-xs text-gray-400 block mb-1">分红税率</label>
               <div className="flex gap-1">
                 {TAX_OPTIONS.map(opt => (

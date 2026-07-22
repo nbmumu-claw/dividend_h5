@@ -782,8 +782,9 @@ export default function YieldGrid() {
         {displayGroups.map(({ sector, items }) => {
           const sellOrdinalCount = Math.max(...items.map(r => sellGridFor(r.name, cfg).length))
           const buyOrdinalCount = Math.max(...items.map(r => buyGridFor(r.name, cfg).length))
-          const tableMinWidth = isLandscapePhone || (sellOrdinalCount === 8 && buyOrdinalCount === 8)
-            ? 120 + 252 + 264 + (sellOrdinalCount + buyOrdinalCount) * 80
+          const isDenseGrid = sellOrdinalCount === 8 && buyOrdinalCount === 8
+          const tableMinWidth = isLandscapePhone || isDenseGrid
+            ? 120 + 252 + (isMobile ? 264 : 268) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 80)
             : undefined
           const isCollapsed = groupBySector && collapsed.has(sector)
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
@@ -845,7 +846,7 @@ export default function YieldGrid() {
                         </div>
                         <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} />
                         {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
-                        <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
+                        <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.dive} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                       </div>
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
@@ -860,7 +861,7 @@ export default function YieldGrid() {
                 </div>
               ) : (
                 <div className="tablewrap">
-                  <table className={editOrder ? 'editing' : undefined} style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}>
+                  <table className={`${editOrder ? 'editing ' : ''}${isDenseGrid ? 'dense-grid' : ''}`} style={tableMinWidth ? { minWidth: tableMinWidth } : undefined}>
                     <thead>
                       <>
                         <tr>
@@ -885,13 +886,13 @@ export default function YieldGrid() {
                     <tbody>
                       {items.map(r => (
                         <tr key={r.name}>
-                          <td className="nm">{editOrder && (
+                          <td className="nm" title={r.name}>{editOrder && (
                             <span className="rowops">
                               <button type="button" className="yg-mv" disabled={items[0].code === r.code} onClick={() => moveStock(items, r.code, -1)} aria-label="上移">↑</button>
                               <button type="button" className="yg-mv" disabled={items[items.length - 1].code === r.code} onClick={() => moveStock(items, r.code, 1)} aria-label="下移">↓</button>
                               <button type="button" className="yg-del" onClick={() => removeStock(r.code)} aria-label="删除标的">✕</button>
                             </span>
-                          )}<Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} />{r.name}{(() => { const lb = lastBuyMap.get(r.code); return lb ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} <br />{symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</span></> : null })()}</td>
+                          )}<span className="stock-name-line" data-stock-name={r.name}><Star on={favs.has(r.code)} onClick={() => toggleFav(r.code)} /><span className="stock-name-text">{r.name}</span></span>{(() => { const lb = lastBuyMap.get(r.code); return lb ? <><br /><span className="dv" style={{ fontSize: '11px', fontWeight: 400 }}>{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} <br />{symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</span></> : null })()}</td>
                           <td className="quote-summary-cell" data-testid={`yield-grid-quote-${r.code}`}>
                             <div className="quote-summary">
                               <div className="quote-metric">
@@ -904,7 +905,7 @@ export default function YieldGrid() {
                           <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
                             <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} compact />
                             {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
-                            <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
+                            <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.dive} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                           </td>
                           {Array.from({ length: sellOrdinalCount }, (_, i) => <OrdinalCell key={'os' + i} r={r} y={sellGridFor(r.name, cfg)[i]} kind="sell" cfg={cfg} />)}
                           {Array.from({ length: buyOrdinalCount }, (_, i) => <OrdinalCell key={'ob' + i} r={r} y={buyGridFor(r.name, cfg)[i]} kind="buy" sep={i === 0} cfg={cfg} />)}
@@ -1376,6 +1377,12 @@ const CSS = `
 .yg-page .fav { background: none; border: 0; padding: 0; cursor: pointer; line-height: 0; color: #b6bcc6; vertical-align: middle; }
 .yg-page td.nm .fav { margin-right: 5px; }
 .yg-page .fav svg { width: 18px; height: 18px; }
+.yg-page .stock-name-line { position: relative; display: flex; min-width: 0; align-items: center; }
+.yg-page .stock-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yg-page .stock-name-line:hover { z-index: 2; }
+.yg-page .stock-name-line:hover::after { content: attr(data-stock-name); position: absolute; top: calc(100% + 6px); left: 0;
+  z-index: 10; width: max-content; max-width: 240px; padding: 6px 8px; border-radius: 6px; background: #1f2937; color: #fff;
+  font-size: 12px; font-weight: 500; line-height: 1.35; white-space: normal; box-shadow: 0 4px 12px rgb(15 23 42 / 18%); }
 .yg-page .fav.on { color: #f59e0b; }
 .yg-page .fav.on svg { fill: #f59e0b; }
 .yg-page .chead .fav { margin-left: auto; align-self: center; }
@@ -1397,6 +1404,8 @@ const CSS = `
 .yg-page .quote-metric .value-line i { font-size: 9px; font-style: normal; font-weight: 500; }
 .yg-page td.boll-position-cell { min-width: 264px; padding: 7px 12px 8px; background: #fbfcfd;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
+.yg-page:not(.mobile) thead th.th-boll-position { width: 268px; min-width: 268px; }
+.yg-page:not(.mobile) td.boll-position-cell { min-width: 268px; }
 .yg-page .cy-hi { color: #15803d; font-weight: 700; }
 .yg-page .cy-mid { color: #d97706; font-weight: 600; }
 .yg-page .cy-lo { color: #9ca3af; }
@@ -1404,6 +1413,8 @@ const CSS = `
 .yg-page td.g b { font-weight: 600; color: #1f2328; }
 .yg-page td.g span { display: block; font-size: 10.5px; color: #9ca3af; margin-top: 1px; }
 .yg-page td.g.ordinal { padding: 10px 5px; }
+.yg-page table.dense-grid th.ordinal-slot { padding-left: 2px; padding-right: 2px; }
+.yg-page table.dense-grid td.g.ordinal { padding-left: 2px; padding-right: 2px; }
 .yg-page td.g.ordinal i { display: block; margin-bottom: 3px; font-size: 10.5px; font-style: normal; font-weight: 600; }
 .yg-page td.g.ordinal.sell i { color: #16a34a; }
 .yg-page td.g.ordinal.buy i { color: #ea580c; }

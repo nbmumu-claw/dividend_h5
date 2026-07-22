@@ -14,6 +14,8 @@ export interface Stock {
   isUS?: boolean
   isETF?: boolean
   isFund?: boolean   // 场外开放式基金：现价取净值(NAV)，行情走天天基金接口
+  // 港股结算现金：港股通为人民币，港户为港币；未设置时默认港股通人民币。
+  cashCurrency?: 'CNY' | 'HKD'
   isManual?: boolean
   priceCny?: number
   priceLabel?: string

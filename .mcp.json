@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cloudbase": {
+      "command": "npx",
+      "args": ["@cloudbase/cloudbase-mcp@latest"],
+      "env": {
+        "CLOUDBASE_ENV_ID": "vercel-dividend-d8faqegf03442b6c"
+      }
+    }
+  }
+}

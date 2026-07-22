@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
+import { CASH_CURRENCIES, EMPTY_CASH, type CashCurrency } from '../utils/cash'
 
 const MAX_ACCOUNTS = 3
 
@@ -14,6 +15,9 @@ export default function AccountManager() {
   const addAccount = useStore(s => s.addAccount)
   const renameAccount = useStore(s => s.renameAccount)
   const removeAccount = useStore(s => s.removeAccount)
+  const cashBalance = useStore(s => s.cashBalance)
+  const accountCashBalances = useStore(s => s.accountCashBalances)
+  const changeCashBalance = useStore(s => s.changeCashBalance)
   const { message, showToast } = useToast()
 
   const [showAdd, setShowAdd] = useState(false)
@@ -21,6 +25,10 @@ export default function AccountManager() {
   const [renameId, setRenameId] = useState<string | null>(null)
   const [renameName, setRenameName] = useState('')
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [cashAccountId, setCashAccountId] = useState<string | null>(null)
+  const [cashCurrency, setCashCurrency] = useState<CashCurrency>('CNY')
+  const [cashAction, setCashAction] = useState<'opening' | 'deposit' | 'withdrawal'>('deposit')
+  const [cashInput, setCashInput] = useState('')
 
   const doAdd = () => {
     const id = addAccount(addName)
@@ -34,6 +42,15 @@ export default function AccountManager() {
   const doDelete = () => {
     if (deleteId) removeAccount(deleteId)
     setDeleteId(null); showToast('已删除')
+  }
+  const openCashEditor = (id: string) => {
+    setCashAccountId(id)
+    setCashCurrency('CNY'); setCashAction('deposit'); setCashInput('')
+  }
+  const saveCash = () => {
+    if (cashAccountId) changeCashBalance(cashAccountId, cashCurrency, (cashAction === 'withdrawal' ? -1 : 1) * (Number(cashInput) || 0))
+    setCashAccountId(null)
+    showToast(cashAction === 'withdrawal' ? '资金已转出' : cashAction === 'opening' ? '期初现金已录入' : '资金已转入')
   }
 
   return (
@@ -51,7 +68,7 @@ export default function AccountManager() {
 
       <div className="px-4 pb-3">
         <p className="text-xs text-gray-400 leading-relaxed">
-          每个账户的持仓记录与交易手续费各自独立，可分别管理；板块顺序、汇率、三大类分类等设置全局共享。最多 {MAX_ACCOUNTS} 个账户。
+          每个账户的持仓记录、现金余额与交易手续费各自独立，可分别管理；板块顺序、汇率、三大类分类等设置全局共享。最多 {MAX_ACCOUNTS} 个账户。
         </p>
       </div>
 
@@ -60,18 +77,26 @@ export default function AccountManager() {
           {accounts.map(a => {
             const active = a.id === activeAccountId
             return (
-              <div key={a.id} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 last:border-0">
-                <button className="flex-1 flex items-center gap-2 text-left" onClick={() => { switchAccount(a.id); showToast(`已切换到「${a.name}」`) }}>
-                  <span className={`w-4 h-4 flex-shrink-0 ${active ? 'text-red-600' : 'text-transparent'}`}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  </span>
-                  <span className={`text-sm ${active ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>{a.name}</span>
-                  {active && <span className="tag tag-red">当前</span>}
+              <div key={a.id} className="px-4 py-3.5 border-b border-gray-50 last:border-0">
+                <div className="flex items-center gap-3">
+                  <button className="flex-1 flex items-center gap-2 text-left" onClick={() => { switchAccount(a.id); showToast(`已切换到「${a.name}」`) }}>
+                    <span className={`w-4 h-4 flex-shrink-0 ${active ? 'text-red-600' : 'text-transparent'}`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </span>
+                    <span className={`text-sm ${active ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>{a.name}</span>
+                    {active && <span className="tag tag-red">当前</span>}
+                  </button>
+                  <button className="text-xs text-gray-400 px-2 py-1" onClick={() => { setRenameId(a.id); setRenameName(a.name) }}>改名</button>
+                  {accounts.length > 1 && (
+                    <button className="text-xs text-red-400 px-2 py-1" onClick={() => setDeleteId(a.id)}>删除</button>
+                  )}
+                </div>
+                <button className="mt-3 w-full rounded-lg bg-gray-50 px-3 py-2 text-left text-sm active:opacity-60" onClick={() => openCashEditor(a.id)}>
+                  <div className="mb-1.5 flex justify-between"><span className="text-gray-500">现金余额</span><span className="text-xs text-red-500">期初/转入/转出</span></div>
+                  <div className="flex gap-3 text-xs text-gray-700">
+                    {CASH_CURRENCIES.map(currency => <span key={currency}>{currency === 'CNY' ? '¥' : currency === 'USD' ? 'US$' : 'HK$'}{(active ? cashBalance : (accountCashBalances[a.id] ?? EMPTY_CASH))[currency].toFixed(2)}</span>)}
+                  </div>
                 </button>
-                <button className="text-xs text-gray-400 px-2 py-1" onClick={() => { setRenameId(a.id); setRenameName(a.name) }}>改名</button>
-                {accounts.length > 1 && (
-                  <button className="text-xs text-red-400 px-2 py-1" onClick={() => setDeleteId(a.id)}>删除</button>
-                )}
               </div>
             )
           })}
@@ -109,6 +134,21 @@ export default function AccountManager() {
         <div className="flex gap-3">
           <button className="btn-secondary flex-1" onClick={() => setDeleteId(null)}>取消</button>
           <button className="flex-1 py-3 bg-red-600 text-white rounded-xl font-semibold" onClick={doDelete}>确认删除</button>
+        </div>
+      </Modal>
+
+      <Modal open={cashAccountId != null} onClose={() => setCashAccountId(null)} title="资金管理">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">按原币种登记资金，买卖和税后分红会自动更新对应现金余额。</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(['opening', 'deposit', 'withdrawal'] as const).map(action => <button key={action} onClick={() => setCashAction(action)} className={`py-2 rounded-lg text-sm border ${cashAction === action ? 'border-red-600 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500'}`}>{action === 'opening' ? '期初现金' : action === 'deposit' ? '资金转入' : '资金转出'}</button>)}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {CASH_CURRENCIES.map(currency => <button key={currency} onClick={() => setCashCurrency(currency)} className={`py-2 rounded-lg text-sm border ${cashCurrency === currency ? 'border-red-600 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500'}`}>{currency}</button>)}
+          </div>
+          <input className="input-field" type="number" min="0" step="0.01" inputMode="decimal" placeholder="例如 10000" value={cashInput} onChange={e => setCashInput(e.target.value)} autoFocus />
+          <button className="btn-primary" onClick={saveCash}>确认{cashAction === 'opening' ? '录入期初' : cashAction === 'deposit' ? '转入' : '转出'}</button>
+          <button className="btn-secondary" onClick={() => setCashAccountId(null)}>取消</button>
         </div>
       </Modal>
 

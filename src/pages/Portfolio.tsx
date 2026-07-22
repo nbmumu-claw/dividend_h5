@@ -28,6 +28,7 @@ export default function Portfolio() {
   const accounts = useStore(s => s.accounts)
   const activeAccountId = useStore(s => s.activeAccountId)
   const switchAccount = useStore(s => s.switchAccount)
+  const cashBalance = useStore(s => s.cashBalance)
   const [showAccountSheet, setShowAccountSheet] = useState(false)
   const activeAccountName = accounts.find(a => a.id === activeAccountId)?.name || '我的账户'
   const { message, showToast } = useToast()
@@ -170,6 +171,7 @@ export default function Portfolio() {
       monthlyIncome: totalAnnual / 12,
       totalCost,
       totalMarket,
+      totalAssets: totalMarket + cashBalance.CNY + cashBalance.USD * usdRate + cashBalance.HKD * exchangeRate,
       profitLoss,
       profitLossRatio: totalCost > 0 ? (profitLoss / totalCost) * 100 : 0,
       overallYield,
@@ -193,7 +195,7 @@ export default function Portfolio() {
         .map(([year, total]) => ({ year: Number(year), total }))
         .sort((a, b) => b.year - a.year),
     }
-  }, [holdings, historyStocks, watchlist.length, exchangeRate, usdRate, feeConfig])
+  }, [holdings, historyStocks, watchlist.length, exchangeRate, usdRate, feeConfig, cashBalance])
 
   const valOf = useCallback((s: WatchlistStock) => {
     const shares = Number(s.shares) || 0
@@ -236,9 +238,11 @@ export default function Portfolio() {
         sums[cat] = (sums[cat] || 0) + v
       })
       const order: (Category | '')[] = [...CATEGORIES, '']
-      return order
+      const items: { name: string; value: number; color?: string }[] = order
         .filter(cat => (sums[cat] || 0) > 0)
         .map(cat => ({ name: labelOf(cat), value: parseFloat(sums[cat].toFixed(2)), color: colorOf(cat) }))
+      if (chartType === 'market' && statsScope === 'all' && metrics.totalAssets > metrics.totalMarket) items.push({ name: '现金', value: metrics.totalAssets - metrics.totalMarket, color: '#94A3B8' })
+      return items
     }
 
     if (chartGroup === 'sector') {
@@ -247,16 +251,20 @@ export default function Portfolio() {
         const sector = (s.sector || '').trim() || '其他'
         bySector[sector] = (bySector[sector] || 0) + valOf(s)
       })
-      return Object.entries(bySector)
+      const items: { name: string; value: number; color?: string }[] = Object.entries(bySector)
         .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }))
         .filter(d => d.value > 0)
+      if (chartType === 'market' && statsScope === 'all' && metrics.totalAssets > metrics.totalMarket) items.push({ name: '现金', value: metrics.totalAssets - metrics.totalMarket, color: '#94A3B8' })
+      return items
     }
 
     // 个股
-    return holdingsWithDisplay
+    const items: { name: string; value: number; color?: string }[] = holdingsWithDisplay
       .map(({ stock: s, displayName }) => ({ name: displayName, value: parseFloat(valOf(s).toFixed(2)) }))
       .filter(d => d.value > 0)
-  }, [holdings, holdingsWithDisplay, chartGroup, categoryOverrides, valOf])
+    if (chartType === 'market' && statsScope === 'all' && metrics.totalAssets > metrics.totalMarket) items.push({ name: '现金', value: metrics.totalAssets - metrics.totalMarket, color: '#94A3B8' })
+    return items
+  }, [holdings, holdingsWithDisplay, chartGroup, categoryOverrides, valOf, chartType, statsScope, metrics.totalAssets, metrics.totalMarket])
 
   // 持仓盈亏明细（按盈亏倒序）
   const pnlDetail = useMemo(() => {
@@ -379,7 +387,7 @@ export default function Portfolio() {
           </div>
 
           {/* 辅助数据：两列 */}
-          {(metrics.hasHoldings || metrics.hasHistory) && (
+          {(
             <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-y-3 gap-x-6">
               {metrics.hasHoldings && (
                 <>
@@ -407,6 +415,16 @@ export default function Portfolio() {
                   </button>
                 </>
               )}
+              <button className="flex justify-between items-center text-sm active:opacity-60" onClick={() => navigate('/account-manager')}>
+                <span className="text-gray-500 flex items-center gap-0.5">现金余额
+                  <svg className="w-3.5 h-3.5 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+                <span className="font-medium text-red-600">¥{(metrics.totalAssets - metrics.totalMarket).toFixed(0)}</span>
+              </button>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">总资产</span>
+                <span className="font-medium text-red-600">¥{metrics.totalAssets.toFixed(0)}</span>
+              </div>
               {metrics.hasShSz && (
                 <>
                   <button
@@ -719,6 +737,7 @@ export default function Portfolio() {
           </div>
         ))}
       </Modal>
+
 
       {/* 当年累计分红明细 */}
       <Modal open={divDetail === 'currentYear'} onClose={() => setDivDetail(null)} title="当年累计分红明细">
