@@ -422,6 +422,12 @@ export default function Settings() {
             onClick={() => navigate('/fee-setting')}
           />
           <SettingRow
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M4 19V5M4 19h16M8 15v-3M12 15V8M16 15v-6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            label="买卖记录汇总"
+            value="按日 / 周 / 月"
+            onClick={() => navigate('/trade-summary')}
+          />
+          <SettingRow
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round"/></svg>}
             label="导出备份"
             value="复制到剪贴板"

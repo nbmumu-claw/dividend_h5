@@ -21,6 +21,7 @@ const CategoryManager = lazy(() => import('./pages/CategoryManager'))
 const HoldingDetail = lazy(() => import('./pages/HoldingDetail'))
 const FeeSetting = lazy(() => import('./pages/FeeSetting'))
 const AccountManager = lazy(() => import('./pages/AccountManager'))
+const TradeSummary = lazy(() => import('./pages/TradeSummary'))
 const Support = lazy(() => import('./pages/Support'))
 const Changelog = lazy(() => import('./pages/Changelog'))
 
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="/holding/:code" element={<HoldingDetail />} />
             <Route path="/fee-setting" element={<FeeSetting />} />
             <Route path="/account-manager" element={<AccountManager />} />
+            <Route path="/trade-summary" element={<TradeSummary />} />
             <Route path="/support" element={<Support />} />
             <Route path="/changelog" element={<Changelog />} />
           </Routes>
