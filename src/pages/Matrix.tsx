@@ -271,7 +271,7 @@ export default function Matrix() {
                 <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} />
               </div>
               <BollPeriodOverview values={bollByPeriod} currentPrice={currentPrice} loading={bollLoading} unsupported={isHK} />
-              <WeeklyBollPosition boll={boll} currentPrice={currentPrice} symbol={cs} loading={Boolean(bollLoading[bollPeriod])} period={bollPeriod} unavailableText={isHK ? '港股暂不支持 BOLL' : undefined} />
+              <WeeklyBollPosition boll={boll} currentPrice={currentPrice} symbol={cs} dividend={dividend} loading={Boolean(bollLoading[bollPeriod])} period={bollPeriod} unavailableText={isHK ? '港股暂不支持 BOLL' : undefined} />
             </div>
           )}
         </div>

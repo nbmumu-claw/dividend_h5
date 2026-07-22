@@ -59,6 +59,7 @@ interface Props {
   boll?: BollPositionData | null
   currentPrice: number
   symbol: string
+  dividend?: number
   loading?: boolean
   compact?: boolean
   period?: BollPeriod
@@ -69,6 +70,7 @@ export default function WeeklyBollPosition({
   boll,
   currentPrice,
   symbol,
+  dividend = 0,
   loading = false,
   compact = false,
   period = 'week',
@@ -78,7 +80,8 @@ export default function WeeklyBollPosition({
   const periodLabel = BOLL_PERIOD_LABELS[period]
   const periodDate = boll?.periodDate || boll?.weekDate
   const overflowDirection = result?.zone === '低于下轨' ? 'below' : result?.zone === '高于上轨' ? 'above' : null
-  const rulerHeight = compact ? 'h-[58px]' : 'h-[78px] sm:h-[84px]'
+  const showReferenceYields = !compact && dividend > 0
+  const rulerHeight = compact ? 'h-[58px]' : showReferenceYields ? 'h-[96px] sm:h-[102px]' : 'h-[78px] sm:h-[84px]'
   const trackTop = compact ? 'top-5' : 'top-8 sm:top-9'
   const tickTop = compact ? 'top-[17px] h-3' : 'top-[26px] h-4 sm:top-[30px]'
   const dotTop = compact ? 'top-[15px]' : 'top-[27px] sm:top-[31px]'
@@ -139,18 +142,21 @@ export default function WeeklyBollPosition({
               {boll ? `${symbol}${boll.lower.toFixed(2)}` : '--'}
             </strong>
             下轨
+            {showReferenceYields && boll && <span className="mt-0.5 block text-[9px] text-slate-400">股息率 {(dividend / boll.lower * 100).toFixed(2)}%</span>}
           </div>
           <div className="absolute left-1/2 -translate-x-1/2 text-center">
             <strong className={`block font-bold text-slate-600 ${compact ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'}`}>
               {boll ? `${symbol}${boll.middle.toFixed(2)}` : '--'}
             </strong>
             中轨
+            {showReferenceYields && boll && <span className="mt-0.5 block text-[9px] text-slate-400">股息率 {(dividend / boll.middle * 100).toFixed(2)}%</span>}
           </div>
           <div className="absolute right-0 text-right">
             <strong className={`block font-bold text-slate-600 ${compact ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'}`}>
               {boll ? `${symbol}${boll.upper.toFixed(2)}` : '--'}
             </strong>
             上轨
+            {showReferenceYields && boll && <span className="mt-0.5 block text-[9px] text-slate-400">股息率 {(dividend / boll.upper * 100).toFixed(2)}%</span>}
           </div>
         </div>
       </div>
