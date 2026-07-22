@@ -17,7 +17,7 @@ function formatAmount(value: number, symbol: string) {
 }
 
 function formatAveragePrice(value: number, symbol: string) {
-  return `${symbol}${value.toLocaleString('zh-CN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`
+  return `${symbol}${value.toLocaleString('zh-CN', { maximumFractionDigits: 3 })}`
 }
 
 function formatCny(value: number) {
