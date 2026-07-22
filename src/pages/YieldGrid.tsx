@@ -147,8 +147,8 @@ const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat
 const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
 
 type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number; isHK: boolean }
-// 币种符号：港股 HK$，A 股 ¥
-const symOf = (isHK?: boolean, code?: string) => (isHK ? 'HK$' : code && /^900/.test(String(code)) ? '$' : code && /^200/.test(String(code)) ? 'HK$' : '¥')
+// 币种符号：网格内港股使用 $，A 股 ¥
+const symOf = (isHK?: boolean, code?: string) => (isHK ? '$' : code && /^900/.test(String(code)) ? '$' : code && /^200/.test(String(code)) ? 'HK$' : '¥')
 
 // 网格页自选（独立于主自选页，纳入账号云同步）
 const FAV = '自选'
