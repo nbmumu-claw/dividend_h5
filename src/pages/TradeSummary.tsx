@@ -16,6 +16,10 @@ function formatAmount(value: number, symbol: string) {
   return `${symbol}${value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
 }
 
+function formatAveragePrice(value: number, symbol: string) {
+  return `${symbol}${value.toLocaleString('zh-CN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`
+}
+
 function formatCny(value: number) {
   return `≈${formatAmount(value, '¥')}`
 }
@@ -193,12 +197,12 @@ export default function TradeSummary() {
                 <div className={`grid gap-3 mt-3 text-xs font-tabular ${stock.total.buyCount > 0 && stock.total.sellCount > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {stock.total.buyCount > 0 && <div className="rounded-lg bg-red-50 px-2.5 py-2.5">
                     <div className="flex justify-between text-red-500"><span>买入 {stock.total.buyCount} 笔</span><span>{stock.total.buyQty.toLocaleString()} 股</span></div>
-                    <div className="flex justify-between mt-1.5 text-red-600 font-semibold"><span>均价 {stock.total.buyQty ? formatAmount(stock.total.buy / stock.total.buyQty, stock.symbol) : '—'}</span><span>{formatAmount(stock.total.buy, stock.symbol)}</span></div>
+                    <div className="flex justify-between mt-1.5 text-red-600 font-semibold"><span>均价 {stock.total.buyQty ? formatAveragePrice(stock.total.buy / stock.total.buyQty, stock.symbol) : '—'}</span><span>{formatAmount(stock.total.buy, stock.symbol)}</span></div>
                     {stock.symbol !== '¥' && <div className="mt-1 text-right text-[10px] text-red-400">{formatCny(stock.total.buyCny)}</div>}
                   </div>}
                   {stock.total.sellCount > 0 && <div className="rounded-lg bg-emerald-50 px-2.5 py-2.5">
                     <div className="flex justify-between text-emerald-600"><span>卖出 {stock.total.sellCount} 笔</span><span>{stock.total.sellQty.toLocaleString()} 股</span></div>
-                    <div className="flex justify-between mt-1.5 text-emerald-700 font-semibold"><span>均价 {stock.total.sellQty ? formatAmount(stock.total.sell / stock.total.sellQty, stock.symbol) : '—'}</span><span>{formatAmount(stock.total.sell, stock.symbol)}</span></div>
+                    <div className="flex justify-between mt-1.5 text-emerald-700 font-semibold"><span>均价 {stock.total.sellQty ? formatAveragePrice(stock.total.sell / stock.total.sellQty, stock.symbol) : '—'}</span><span>{formatAmount(stock.total.sell, stock.symbol)}</span></div>
                     {stock.symbol !== '¥' && <div className="mt-1 text-right text-[10px] text-emerald-500">{formatCny(stock.total.sellCny)}</div>}
                   </div>}
                 </div>
