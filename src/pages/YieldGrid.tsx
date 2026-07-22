@@ -209,22 +209,24 @@ function tier(r: Row, y: number, kind: 'buy' | 'sell') {
   return { target, reached, label }
 }
 
-// 监听设备宽度：手机出卡片，PC 出表格，同一网址自适应
-function useIsMobile() {
-  const q = '(max-width: 719px)'
+function useMediaQuery(q: string) {
   const [m, setM] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches)
   useEffect(() => {
     const mq = window.matchMedia(q)
     const h = (e: MediaQueryListEvent) => setM(e.matches)
     mq.addEventListener('change', h)
     return () => mq.removeEventListener('change', h)
-  }, [])
+  }, [q])
   return m
 }
+
+// 竖屏手机使用卡片；横屏手机恢复表格，并允许横向滑动。
+const useIsMobile = () => useMediaQuery('(max-width: 719px)')
 
 export default function YieldGrid() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
+  const isLandscapePhone = useMediaQuery('(orientation: landscape) and (max-height: 600px) and (pointer: coarse)')
   const { message, showToast } = useToast()
 
   // 一次性迁移：旧 localStorage 数据 → Zustand store（纳入账号云同步）
@@ -777,7 +779,7 @@ export default function YieldGrid() {
         {displayGroups.map(({ sector, items }) => {
           const sellOrdinalCount = Math.max(...items.map(r => sellGridFor(r.name, cfg).length))
           const buyOrdinalCount = Math.max(...items.map(r => buyGridFor(r.name, cfg).length))
-          const tableMinWidth = sellOrdinalCount === 8 && buyOrdinalCount === 8
+          const tableMinWidth = isLandscapePhone || (sellOrdinalCount === 8 && buyOrdinalCount === 8)
             ? 120 + 252 + 264 + (sellOrdinalCount + buyOrdinalCount) * 80
             : undefined
           const isCollapsed = groupBySector && collapsed.has(sector)
