@@ -103,6 +103,8 @@ interface AppState {
   accountFeeConfigs: Record<string, FeeConfig>
   cashBalance: CashBalances
   accountCashBalances: Record<string, CashBalances>
+  cashOpeningBalance: CashBalances
+  accountCashOpeningBalances: Record<string, CashBalances>
   cashTrackingEnabled: boolean
   accountCashTracking: Record<string, boolean>
   switchAccount: (id: string) => void
@@ -113,6 +115,7 @@ interface AppState {
   setCashBalance: (currency: CashCurrency, amount: number) => void
   setAccountCashBalance: (id: string, currency: CashCurrency, amount: number) => void
   changeCashBalance: (id: string, currency: CashCurrency, amount: number) => void
+  setOpeningCashBalance: (id: string, currency: CashCurrency, amount: number) => void
 
   // 交易手续费（按账户独立）
   feeConfig: FeeConfig
@@ -227,6 +230,8 @@ export const useStore = create<AppState>()(
       accountFeeConfigs: {},
       cashBalance: { ...EMPTY_CASH },
       accountCashBalances: {},
+      cashOpeningBalance: { ...EMPTY_CASH },
+      accountCashOpeningBalances: {},
       cashTrackingEnabled: false,
       accountCashTracking: {},
       switchAccount: (id) =>
@@ -235,14 +240,16 @@ export const useStore = create<AppState>()(
           const snapshots = { ...s.accountSnapshots, [s.activeAccountId]: s.watchlist }
           const feeConfigs = { ...s.accountFeeConfigs, [s.activeAccountId]: s.feeConfig }
           const cashBalances = { ...s.accountCashBalances, [s.activeAccountId]: s.cashBalance }
+          const openingBalances = { ...s.accountCashOpeningBalances, [s.activeAccountId]: s.cashOpeningBalance }
           const cashTracking = { ...s.accountCashTracking, [s.activeAccountId]: s.cashTrackingEnabled }
           const targetCfg = feeConfigs[id] ?? DEFAULT_FEE_CONFIG
           const targetCash = cashBalances[id] ?? { ...EMPTY_CASH }
+          const targetOpening = openingBalances[id] ?? { ...EMPTY_CASH }
           // 载入目标账户时按「该账户的费率」重算摊薄成本
           const target = recomputeList(snapshots[id] ?? [], targetCfg)
           const targetTracking = cashTracking[id] ?? false
-          delete snapshots[id]; delete feeConfigs[id]; delete cashBalances[id]; delete cashTracking[id]
-          return { accountSnapshots: snapshots, accountFeeConfigs: feeConfigs, accountCashBalances: cashBalances, accountCashTracking: cashTracking, watchlist: target, feeConfig: targetCfg, cashBalance: targetCash, cashTrackingEnabled: targetTracking, activeAccountId: id }
+          delete snapshots[id]; delete feeConfigs[id]; delete cashBalances[id]; delete openingBalances[id]; delete cashTracking[id]
+          return { accountSnapshots: snapshots, accountFeeConfigs: feeConfigs, accountCashBalances: cashBalances, accountCashOpeningBalances: openingBalances, accountCashTracking: cashTracking, watchlist: target, feeConfig: targetCfg, cashBalance: targetCash, cashOpeningBalance: targetOpening, cashTrackingEnabled: targetTracking, activeAccountId: id }
         }),
       addAccount: (name) => {
         const s = get()
@@ -253,9 +260,11 @@ export const useStore = create<AppState>()(
           accountSnapshots: { ...s.accountSnapshots, [s.activeAccountId]: s.watchlist },
           accountFeeConfigs: { ...s.accountFeeConfigs, [s.activeAccountId]: s.feeConfig },
           accountCashBalances: { ...s.accountCashBalances, [s.activeAccountId]: s.cashBalance },
+          accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [s.activeAccountId]: s.cashOpeningBalance },
           accountCashTracking: { ...s.accountCashTracking, [s.activeAccountId]: s.cashTrackingEnabled },
           watchlist: [],
           cashBalance: { ...EMPTY_CASH },
+          cashOpeningBalance: { ...EMPTY_CASH },
           cashTrackingEnabled: false,
           activeAccountId: id,
           feeConfig: { ...s.feeConfig }, // 新账户默认继承当前费率，可再单独修改
@@ -320,6 +329,24 @@ export const useStore = create<AppState>()(
         return id === s.activeAccountId
           ? { cashBalance: apply(s.cashBalance), cashTrackingEnabled: true }
           : { accountCashBalances: { ...s.accountCashBalances, [id]: apply(normalizeCash(s.accountCashBalances[id])) }, accountCashTracking: { ...s.accountCashTracking, [id]: true } }
+      }),
+      setOpeningCashBalance: (id, currency, amount) => set(s => {
+        if (!s.accounts.some(a => a.id === id)) return s
+        const next = Math.max(0, Number(amount) || 0)
+        const update = (cash: CashBalances, opening: CashBalances) => {
+          // 现金功能早期版本只保存总余额。首次修正期初时，将该余额视为旧期初，避免再次相加。
+          const previous = opening[currency] || cash[currency]
+          return {
+            cash: { ...cash, [currency]: cash[currency] + next - previous },
+          opening: { ...opening, [currency]: next },
+          }
+        }
+        if (id === s.activeAccountId) {
+          const nextState = update(s.cashBalance, s.cashOpeningBalance)
+          return { cashBalance: nextState.cash, cashOpeningBalance: nextState.opening, cashTrackingEnabled: true }
+        }
+        const nextState = update(normalizeCash(s.accountCashBalances[id]), normalizeCash(s.accountCashOpeningBalances[id]))
+        return { accountCashBalances: { ...s.accountCashBalances, [id]: nextState.cash }, accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [id]: nextState.opening }, accountCashTracking: { ...s.accountCashTracking, [id]: true } }
       }),
 
       // 交易手续费（按账户独立，仅作用于当前账户）

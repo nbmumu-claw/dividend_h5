@@ -29,4 +29,12 @@ describe('cash tracking', () => {
 
     expect(useStore.getState().cashBalance).toEqual({ CNY: 600, USD: 0, HKD: 0 })
   })
+
+  it('replaces a legacy opening balance instead of adding another opening amount', () => {
+    useStore.setState({ cashBalance: { CNY: 10000, USD: 0, HKD: 0 }, cashTrackingEnabled: true })
+    useStore.getState().setOpeningCashBalance('default', 'CNY', 8000)
+    expect(useStore.getState().cashBalance).toEqual({ CNY: 8000, USD: 0, HKD: 0 })
+    useStore.getState().setOpeningCashBalance('default', 'CNY', 12000)
+    expect(useStore.getState().cashBalance).toEqual({ CNY: 12000, USD: 0, HKD: 0 })
+  })
 })

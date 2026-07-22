@@ -17,7 +17,10 @@ export default function AccountManager() {
   const removeAccount = useStore(s => s.removeAccount)
   const cashBalance = useStore(s => s.cashBalance)
   const accountCashBalances = useStore(s => s.accountCashBalances)
+  const cashOpeningBalance = useStore(s => s.cashOpeningBalance)
+  const accountCashOpeningBalances = useStore(s => s.accountCashOpeningBalances)
   const changeCashBalance = useStore(s => s.changeCashBalance)
+  const setOpeningCashBalance = useStore(s => s.setOpeningCashBalance)
   const { message, showToast } = useToast()
 
   const [showAdd, setShowAdd] = useState(false)
@@ -43,12 +46,17 @@ export default function AccountManager() {
     if (deleteId) removeAccount(deleteId)
     setDeleteId(null); showToast('已删除')
   }
-  const openCashEditor = (id: string) => {
+  const openCashEditor = (id: string, action: 'opening' | 'deposit' | 'withdrawal' = 'deposit') => {
     setCashAccountId(id)
-    setCashCurrency('CNY'); setCashAction('deposit'); setCashInput('')
+    const opening = id === activeAccountId ? cashOpeningBalance : (accountCashOpeningBalances[id] ?? EMPTY_CASH)
+    const balance = id === activeAccountId ? cashBalance : (accountCashBalances[id] ?? EMPTY_CASH)
+    setCashCurrency('CNY'); setCashAction(action); setCashInput(action === 'opening' ? String(opening.CNY || balance.CNY) : '')
   }
   const saveCash = () => {
-    if (cashAccountId) changeCashBalance(cashAccountId, cashCurrency, (cashAction === 'withdrawal' ? -1 : 1) * (Number(cashInput) || 0))
+    if (cashAccountId) {
+      if (cashAction === 'opening') setOpeningCashBalance(cashAccountId, cashCurrency, Number(cashInput))
+      else changeCashBalance(cashAccountId, cashCurrency, (cashAction === 'withdrawal' ? -1 : 1) * (Number(cashInput) || 0))
+    }
     setCashAccountId(null)
     showToast(cashAction === 'withdrawal' ? '资金已转出' : cashAction === 'opening' ? '期初现金已录入' : '资金已转入')
   }
@@ -97,6 +105,7 @@ export default function AccountManager() {
                     {CASH_CURRENCIES.map(currency => <span key={currency}>{currency === 'CNY' ? '¥' : currency === 'USD' ? 'US$' : 'HK$'}{(active ? cashBalance : (accountCashBalances[a.id] ?? EMPTY_CASH))[currency].toFixed(2)}</span>)}
                   </div>
                 </button>
+                <button className="mt-2 text-xs text-gray-400 underline" onClick={() => openCashEditor(a.id, 'opening')}>修改期初资金</button>
               </div>
             )
           })}
