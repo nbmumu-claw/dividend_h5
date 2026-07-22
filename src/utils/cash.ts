@@ -10,6 +10,13 @@ export type CashBalances = Record<CashCurrency, number>
 export const EMPTY_CASH: CashBalances = { CNY: 0, USD: 0, HKD: 0 }
 export const CASH_CURRENCIES: CashCurrency[] = ['CNY', 'USD', 'HKD']
 
+/** 按收益统计范围把现金统一折算成人民币。 */
+export function cashCnyInScope(balance: CashBalances, scope: 'all' | 'us' | 'nonus', hkdRate: number, usdRate: number): number {
+  if (scope === 'us') return balance.USD * usdRate
+  if (scope === 'nonus') return balance.CNY + balance.HKD * hkdRate
+  return balance.CNY + balance.USD * usdRate + balance.HKD * hkdRate
+}
+
 export function normalizeCash(value: unknown): CashBalances {
   if (typeof value === 'number') return { CNY: Math.max(0, value), USD: 0, HKD: 0 }
   const data = value && typeof value === 'object' ? value as Partial<CashBalances> : {}

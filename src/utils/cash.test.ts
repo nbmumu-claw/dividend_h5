@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { WatchlistStock } from '../types'
 import { DEFAULT_FEE_CONFIG } from './fees'
-import { currencyOf, normalizeCash, transactionCashFlow } from './cash'
+import { cashCnyInScope, currencyOf, normalizeCash, transactionCashFlow } from './cash'
 
 const stock = (patch: Partial<WatchlistStock> = {}): WatchlistStock => ({
   code: '600000', name: '测试股', sector: '银行', price: 10,
@@ -9,6 +9,12 @@ const stock = (patch: Partial<WatchlistStock> = {}): WatchlistStock => ({
 })
 
 describe('cash currency', () => {
+  it('filters cash currencies by the earnings statistics scope', () => {
+    const balance = { CNY: 100, USD: 10, HKD: 200 }
+    expect(cashCnyInScope(balance, 'us', 0.9, 7)).toBe(70)
+    expect(cashCnyInScope(balance, 'nonus', 0.9, 7)).toBe(280)
+    expect(cashCnyInScope(balance, 'all', 0.9, 7)).toBe(350)
+  })
   it('defaults Hong Kong stocks to CNY settlement for Stock Connect', () => {
     expect(currencyOf(stock({ code: '00700', isHK: true }))).toBe('CNY')
   })

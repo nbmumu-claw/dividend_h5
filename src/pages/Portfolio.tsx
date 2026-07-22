@@ -12,6 +12,7 @@ import { isIncluded, resolveCategory, labelOf, colorOf, CATEGORIES, type Categor
 import { computeHolding } from '../utils/holdings'
 import { makeFeeCalc } from '../utils/fees'
 import type { WatchlistStock } from '../types'
+import { cashCnyInScope } from '../utils/cash'
 
 const COLORS = ['#E03025','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16']
 const LABEL_TO_CAT: Record<string, string> = { 弱周期: 'weak', 强周期: 'strong', 消费: 'consume', 未分类: '' }
@@ -98,6 +99,10 @@ export default function Portfolio() {
       displayName: nameCounts[s.name] > 1 ? `${s.name}(${s.isHK ? '港' : s.isUS ? '美' : isBShare(s.code) ? 'B' : 'A'})` : s.name,
     }))
   }, [holdings])
+  const cashCny = useMemo(
+    () => cashCnyInScope(cashBalance, statsScope, exchangeRate, usdRate),
+    [cashBalance, statsScope, exchangeRate, usdRate],
+  )
 
   const metrics = useMemo(() => {
     let totalAnnual = 0
@@ -171,7 +176,7 @@ export default function Portfolio() {
       monthlyIncome: totalAnnual / 12,
       totalCost,
       totalMarket,
-      totalAssets: totalMarket + cashBalance.CNY + cashBalance.USD * usdRate + cashBalance.HKD * exchangeRate,
+      totalAssets: totalMarket + cashCny,
       profitLoss,
       profitLossRatio: totalCost > 0 ? (profitLoss / totalCost) * 100 : 0,
       overallYield,
@@ -195,7 +200,7 @@ export default function Portfolio() {
         .map(([year, total]) => ({ year: Number(year), total }))
         .sort((a, b) => b.year - a.year),
     }
-  }, [holdings, historyStocks, watchlist.length, exchangeRate, usdRate, feeConfig, cashBalance])
+  }, [holdings, historyStocks, watchlist.length, exchangeRate, usdRate, feeConfig, cashCny])
 
   const valOf = useCallback((s: WatchlistStock) => {
     const shares = Number(s.shares) || 0
@@ -241,7 +246,7 @@ export default function Portfolio() {
       const items: { name: string; value: number; color?: string }[] = order
         .filter(cat => (sums[cat] || 0) > 0)
         .map(cat => ({ name: labelOf(cat), value: parseFloat(sums[cat].toFixed(2)), color: colorOf(cat) }))
-      if (chartType === 'market' && statsScope === 'all' && metrics.totalAssets > metrics.totalMarket) items.push({ name: '现金', value: metrics.totalAssets - metrics.totalMarket, color: '#94A3B8' })
+      if (chartType === 'market' && cashCny > 0) items.push({ name: '现金', value: cashCny, color: '#94A3B8' })
       return items
     }
 
@@ -254,7 +259,7 @@ export default function Portfolio() {
       const items: { name: string; value: number; color?: string }[] = Object.entries(bySector)
         .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }))
         .filter(d => d.value > 0)
-      if (chartType === 'market' && statsScope === 'all' && metrics.totalAssets > metrics.totalMarket) items.push({ name: '现金', value: metrics.totalAssets - metrics.totalMarket, color: '#94A3B8' })
+      if (chartType === 'market' && cashCny > 0) items.push({ name: '现金', value: cashCny, color: '#94A3B8' })
       return items
     }
 
@@ -262,9 +267,9 @@ export default function Portfolio() {
     const items: { name: string; value: number; color?: string }[] = holdingsWithDisplay
       .map(({ stock: s, displayName }) => ({ name: displayName, value: parseFloat(valOf(s).toFixed(2)) }))
       .filter(d => d.value > 0)
-    if (chartType === 'market' && statsScope === 'all' && metrics.totalAssets > metrics.totalMarket) items.push({ name: '现金', value: metrics.totalAssets - metrics.totalMarket, color: '#94A3B8' })
+    if (chartType === 'market' && cashCny > 0) items.push({ name: '现金', value: cashCny, color: '#94A3B8' })
     return items
-  }, [holdings, holdingsWithDisplay, chartGroup, categoryOverrides, valOf, chartType, statsScope, metrics.totalAssets, metrics.totalMarket])
+  }, [holdings, holdingsWithDisplay, chartGroup, categoryOverrides, valOf, chartType, cashCny])
 
   // 持仓盈亏明细（按盈亏倒序）
   const pnlDetail = useMemo(() => {
