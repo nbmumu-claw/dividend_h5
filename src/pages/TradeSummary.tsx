@@ -193,7 +193,7 @@ export default function TradeSummary() {
                   <div className={`text-right font-tabular ${trade.type === 'buy' ? 'text-red-600' : 'text-emerald-600'}`}><div className="text-sm font-bold">{trade.type === 'buy' ? '+' : '-'}{formatAmount(Number(trade.qty) * Number(trade.price), trade.symbol)}</div>{trade.symbol !== '¥' ? <div className="text-[10px] text-gray-500 mt-1">{trade.type === 'buy' ? '+' : '-'}{formatCny(trade.amountCny)}</div> : <div className="text-[10px] text-gray-400 mt-1">成交额</div>}</div>
                 </div>
               }) : orderedStocks.map(stock => <div key={stock.code} className="px-4 py-3.5">
-                <div className="flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-gray-800 truncate">{stock.name}</div><div className="text-[11px] text-gray-400 mt-0.5">{stock.code} · {stock.trades.length} 笔交易</div></div><div className={`text-right font-tabular text-sm font-bold ${stock.total.buy - stock.total.sell > 0 ? 'text-gray-900' : 'text-emerald-600'}`}><div>{formatAmount(stock.total.buy - stock.total.sell, stock.symbol)}</div>{stock.symbol !== '¥' && <div className="text-[10px] text-gray-500 font-normal mt-0.5">{formatCny(stock.total.buyCny - stock.total.sellCny)}</div>}<div className="text-[11px] text-gray-400 font-normal mt-0.5">净买入</div></div></div>
+                <div className="min-w-0"><div className="text-sm font-semibold text-gray-800 truncate">{stock.name}</div><div className="text-[11px] text-gray-400 mt-0.5">{stock.code} · {stock.trades.length} 笔交易</div></div>
                 <div className={`grid gap-3 mt-3 text-xs font-tabular ${stock.total.buyCount > 0 && stock.total.sellCount > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {stock.total.buyCount > 0 && <div className="rounded-lg bg-red-50 px-2.5 py-2.5">
                     <div className="flex justify-between text-red-500"><span>买入 {stock.total.buyCount} 笔</span><span>{stock.total.buyQty.toLocaleString()} 股</span></div>
@@ -206,7 +206,10 @@ export default function TradeSummary() {
                     {stock.symbol !== '¥' && <div className="mt-1 text-right text-[10px] text-emerald-500">{formatCny(stock.total.sellCny)}</div>}
                   </div>}
                 </div>
-                <div className="flex justify-between mt-2.5 px-0.5 text-[11px] text-gray-400 font-tabular"><span>净买入股数</span><span className="text-gray-600 font-semibold">{(stock.total.buyQty - stock.total.sellQty).toLocaleString()} 股</span></div>
+                {stock.total.buyCount > 0 && stock.total.sellCount > 0 && <div className="flex items-center justify-between gap-3 mt-2.5 rounded-lg bg-gray-50 px-2.5 py-2 text-[11px] font-tabular">
+                  <span className="text-gray-400">净变化</span>
+                  <div className="text-right"><div className="text-gray-600 font-semibold"><span>{(stock.total.buyQty - stock.total.sellQty).toLocaleString()} 股</span><span className="ml-3">{formatAmount(stock.total.buy - stock.total.sell, stock.symbol)}</span></div>{stock.symbol !== '¥' && <div className="text-[10px] text-gray-400 mt-0.5">{formatCny(stock.total.buyCny - stock.total.sellCny)}</div>}</div>
+                </div>}
               </div>)}
             </div>
           </section>
