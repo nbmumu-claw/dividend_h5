@@ -71,6 +71,7 @@ const YIELD_FILTER_OPTIONS: { value: YieldStatusFilter; label: string; descripti
 const BOLL_FILTER_OPTIONS: { value: Exclude<BollPositionFilter, 'all'>; short: string; summary: string; label: string }[] = [
   { value: 'lower-zone', short: '下轨', summary: '下', label: '下轨区' },
   { value: 'lower-half', short: '中下', summary: '中下', label: '中下区' },
+  { value: 'middle-zone', short: '中附近', summary: '中附近', label: '中轨附近' },
   { value: 'upper-half', short: '中上', summary: '中上', label: '中上区' },
   { value: 'upper-zone', short: '上轨', summary: '上', label: '上轨区' },
 ]
@@ -92,8 +93,8 @@ const sellBase = (name: string) => (HYDRO.has(name) ? 0.03 : 0.04)
 const SELL_MUTED = new Set(['中国广核', '中国核电'])
 
 // 网格设置（localStorage）：买入 / 卖出各自步长 + 档数
-type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; upperTolerance: number; yieldTolerance: number }
-const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.0025, upperTolerance: 0.0025, yieldTolerance: 0.0025 }
+type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; middleTolerance: number; upperTolerance: number; yieldTolerance: number }
+const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.0025, middleTolerance: 0.01, upperTolerance: 0.0025, yieldTolerance: 0.0025 }
 const STEP_OPTIONS = [0.0025, 0.005]
 const COUNT_OPTIONS = [2, 4, 6, 8]
 const ORDINAL_MARKS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧']
@@ -108,6 +109,7 @@ function loadCfg(): GridCfg {
       buyCount: okCnt(c.buyCount) ?? okCnt(c.count) ?? DEFAULT_CFG.buyCount,
       sellCount: okCnt(c.sellCount) ?? okCnt(c.count) ?? DEFAULT_CFG.sellCount,
       lowerTolerance: typeof c.lowerTolerance === 'number' ? c.lowerTolerance : DEFAULT_CFG.lowerTolerance,
+      middleTolerance: typeof c.middleTolerance === 'number' ? c.middleTolerance : DEFAULT_CFG.middleTolerance,
       upperTolerance: typeof c.upperTolerance === 'number' ? c.upperTolerance : DEFAULT_CFG.upperTolerance,
       yieldTolerance: typeof c.yieldTolerance === 'number' ? c.yieldTolerance : DEFAULT_CFG.yieldTolerance,
     }
@@ -451,6 +453,7 @@ export default function YieldGrid() {
   }
   const resetFilterThresholds = () => updateCfg({
     lowerTolerance: DEFAULT_CFG.lowerTolerance,
+    middleTolerance: DEFAULT_CFG.middleTolerance,
     upperTolerance: DEFAULT_CFG.upperTolerance,
     yieldTolerance: DEFAULT_CFG.yieldTolerance,
   })
@@ -629,7 +632,7 @@ export default function YieldGrid() {
       cfg.yieldTolerance,
       !SELL_MUTED.has(r.name),
     )) return false
-    const tolerances = { lower: cfg.lowerTolerance, upper: cfg.upperTolerance }
+    const tolerances = { lower: cfg.lowerTolerance, middle: cfg.middleTolerance, upper: cfg.upperTolerance }
     return BOLL_PERIODS.every(period => matchesBollPosition(
       r.price,
       bollByPeriod[period][r.code],
@@ -1041,7 +1044,7 @@ export default function YieldGrid() {
           headerRight={BOLL_PERIODS.some(period => bollFilters[period] !== 'all') ? <button type="button" className="filter-clear" onClick={() => setBollFilters({ ...EMPTY_BOLL_FILTERS })}>清除</button> : undefined}
         >
           <div className="boll-filter-panel">
-            <p>每个周期单选，多个周期之间同时满足。下轨和上轨包含越界区域，中下和中上覆盖轨道内部。</p>
+            <p>每个周期单选，多个周期之间同时满足。中附近按设置的中轨上下偏差判断。</p>
             {BOLL_PERIODS.map(period => (
               <div className="boll-filter-period" key={period}>
                 <div className="boll-filter-period-head">
@@ -1132,11 +1135,12 @@ export default function YieldGrid() {
               <div className="space-y-2">
                 <div>
                   <div className="text-xs font-medium text-gray-600">BOLL 轨道区域范围</div>
-                  <div className="mt-0.5 text-[11px] leading-relaxed text-gray-400">下轨仅向上计算，跌破后不限；上轨仅向下计算，突破后不限。</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-gray-400">下轨仅向上计算，跌破后不限；中轨上下计算；上轨仅向下计算，突破后不限。</div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {([
                     ['下轨上方', 'lowerTolerance'],
+                    ['中轨上下', 'middleTolerance'],
                     ['上轨下方', 'upperTolerance'],
                   ] as const).map(([label, key]) => (
                     <label key={key} className="text-xs text-gray-500">
@@ -1466,7 +1470,7 @@ const CSS = `
 .boll-filter-period-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .boll-filter-period-head strong { color: #374151; font-size: 13px; }
 .boll-filter-period-head span { color: #d97706; font-size: 10px; }
-.boll-filter-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.boll-filter-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
 .boll-filter-grid button { min-width: 0; height: 36px; padding: 0 2px; border: 1px solid #e5e7eb; border-radius: 8px;
   background: #fff; color: #6b7280; font-family: inherit; font-size: 12px; cursor: pointer; }
 .boll-filter-grid button.selected { border-color: #1f2328; background: #1f2328; color: #fff; font-weight: 600; }

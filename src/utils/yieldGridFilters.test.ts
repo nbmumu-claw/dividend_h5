@@ -32,7 +32,7 @@ describe('matchesYieldStatus', () => {
 
 describe('matchesBollPosition', () => {
   const boll = { lower: 90, middle: 100, upper: 110 }
-  const tolerances = { lower: 0.0025, upper: 0.0025 }
+  const tolerances = { lower: 0.0025, middle: 0.01, upper: 0.0025 }
 
   it('partitions the full BOLL range into lower, middle-lower, middle-upper, and upper zones', () => {
     expect(matchesBollPosition(50, boll, 'lower-zone', tolerances)).toBe(true)
@@ -42,6 +42,10 @@ describe('matchesBollPosition', () => {
     expect(matchesBollPosition(99.9, boll, 'lower-half', tolerances)).toBe(true)
     expect(matchesBollPosition(50, boll, 'lower-half', tolerances)).toBe(false)
     expect(matchesBollPosition(100, boll, 'lower-half', tolerances)).toBe(false)
+    expect(matchesBollPosition(99, boll, 'middle-zone', tolerances)).toBe(true)
+    expect(matchesBollPosition(101, boll, 'middle-zone', tolerances)).toBe(true)
+    expect(matchesBollPosition(98.9, boll, 'middle-zone', tolerances)).toBe(false)
+    expect(matchesBollPosition(101.1, boll, 'middle-zone', tolerances)).toBe(false)
     expect(matchesBollPosition(100, boll, 'upper-half', tolerances)).toBe(true)
     expect(matchesBollPosition(109.7, boll, 'upper-half', tolerances)).toBe(true)
     expect(matchesBollPosition(150, boll, 'upper-half', tolerances)).toBe(false)

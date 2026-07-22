@@ -1,11 +1,12 @@
 import type { BollPeriod, PeriodBoll } from './periodBoll'
 
 export type YieldStatusFilter = 'all' | 'buy-zone' | 'neutral' | 'sell-zone'
-export type BollPositionFilter = 'all' | 'lower-zone' | 'lower-half' | 'upper-half' | 'upper-zone'
+export type BollPositionFilter = 'all' | 'lower-zone' | 'lower-half' | 'middle-zone' | 'upper-half' | 'upper-zone'
 export type BollFilters = Record<BollPeriod, BollPositionFilter>
 
 export interface BollTolerances {
   lower: number
+  middle: number
   upper: number
 }
 
@@ -42,6 +43,7 @@ export function matchesBollPosition(
   const upperZoneFloor = boll.upper * (1 - tolerances.upper)
   if (filter === 'lower-zone') return price <= lowerZoneCeiling
   if (filter === 'lower-half') return price > lowerZoneCeiling && price < boll.middle
+  if (filter === 'middle-zone') return Math.abs(price - boll.middle) / boll.middle <= tolerances.middle
   if (filter === 'upper-half') return price >= boll.middle && price < upperZoneFloor
   return price >= upperZoneFloor
 }
