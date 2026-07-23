@@ -78,6 +78,7 @@ const BOLL_FILTER_OPTIONS: { value: Exclude<BollPositionFilter, 'all'>; short: s
 
 // 板块顺序（localStorage）：保留已保存且仍存在的板块，新板块追加到末尾
 const MAX_CUSTOM = 10
+const MAX_YIELD_STARTS = 5
 function loadOrder(): string[] {
   const saved = gp().sectorOrder
   const valid = saved.filter(s => SECTORS.includes(s))
@@ -85,10 +86,13 @@ function loadOrder(): string[] {
 }
 function saveOrder(o: string[]) { saveGp({ sectorOrder: o }) }
 
-// 水电（低息、估值另算）：买入档从 4% 起、卖出档从 3% 起；其余股票买入从 5% 起、卖出从 4% 起
-const HYDRO = new Set(['国投电力', '长江电力'])
-const buyBase = (name: string) => (HYDRO.has(name) ? 0.04 : 0.05)
-const sellBase = (name: string) => (HYDRO.has(name) ? 0.03 : 0.04)
+// 未单独设置的标的沿用原先的默认起始点。
+const DEFAULT_BUY_START = 0.05
+const DEFAULT_SELL_START = 0.04
+const DEFAULT_YIELD_STARTS: YieldStart[] = [
+  { code: '600900', buy: 0.04, sell: 0.03 },
+  { code: '600886', buy: 0.04, sell: 0.03 },
+]
 // 中国广核、中国核电：低息成长属性，卖出档只展示价格，不着色、不判「已达」
 const SELL_MUTED = new Set(['中国广核', '中国核电'])
 
@@ -120,10 +124,10 @@ function saveCfg(c: GridCfg) { saveGp({ cfg: c }) }
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000
 // 动态生成档位：买入从基准向上 buyCount 档（升序）；卖出从基准向下 sellCount 档、过滤 ≤0 后升序
-const buyGridFor = (name: string, cfg: GridCfg) =>
-  Array.from({ length: cfg.buyCount }, (_, i) => round4(buyBase(name) + i * cfg.buyStep))
-const sellGridFor = (name: string, cfg: GridCfg) =>
-  Array.from({ length: cfg.sellCount }, (_, i) => round4(sellBase(name) - i * cfg.sellStep)).filter(y => y > 0).sort((a, b) => a - b)
+const buyGridFor = (r: Row, cfg: GridCfg, starts: Map<string, YieldStart>) =>
+  Array.from({ length: cfg.buyCount }, (_, i) => round4((starts.get(r.code)?.buy ?? DEFAULT_BUY_START) + i * cfg.buyStep))
+const sellGridFor = (r: Row, cfg: GridCfg, starts: Map<string, YieldStart>) =>
+  Array.from({ length: cfg.sellCount }, (_, i) => round4((starts.get(r.code)?.sell ?? DEFAULT_SELL_START) - i * cfg.sellStep)).filter(y => y > 0).sort((a, b) => a - b)
 
 // 已达档位底色：买入越高息越深（橙），卖出越低息越深（绿）。按档位在网格中的位次插值
 function lerpHex(a: string, b: string, t: number) {
@@ -149,6 +153,7 @@ const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat
 const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
 
 type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number; isHK: boolean }
+type YieldStart = { code: string; buy: number; sell: number }
 // 币种符号：网格内港股使用 $，A 股 ¥
 const symOf = (isHK?: boolean, code?: string) => (isHK ? '$' : code && /^900/.test(String(code)) ? '$' : code && /^200/.test(String(code)) ? 'HK$' : '¥')
 
@@ -430,8 +435,12 @@ export default function YieldGrid() {
   // 网格设置
   const storedCfg = useStore(s => s.gridPrefs.cfg)
   const cfg: GridCfg = { ...DEFAULT_CFG, ...storedCfg }
+  const storedYieldStarts = useStore(s => s.gridPrefs.yieldStarts)
+  const yieldStarts = storedYieldStarts ?? DEFAULT_YIELD_STARTS
+  const yieldStartMap = useMemo(() => new Map(yieldStarts.map(item => [item.code, item])), [yieldStarts])
   const [showCfg, setShowCfg] = useState(false)
   const updateCfg = (partial: Partial<GridCfg>) => { saveCfg({ ...cfg, ...partial }) }
+  const updateYieldStarts = (next: YieldStart[]) => saveGp({ yieldStarts: next })
   const [yieldFilter, setYieldFilter] = useState<YieldStatusFilter>('all')
   const [bollFilters, setBollFilters] = useState<BollFilters>({ ...EMPTY_BOLL_FILTERS })
   const [filterPanel, setFilterPanel] = useState<'yield' | 'boll' | null>(null)
@@ -457,6 +466,23 @@ export default function YieldGrid() {
     upperTolerance: DEFAULT_CFG.upperTolerance,
     yieldTolerance: DEFAULT_CFG.yieldTolerance,
   })
+
+  const setYieldStart = (code: string, partial: Partial<YieldStart>) => {
+    updateYieldStarts(yieldStarts.map(item => item.code === code ? { ...item, ...partial } : item))
+  }
+  const [yieldStartCode, setYieldStartCode] = useState('')
+  const configuredYieldStarts = yieldStarts.flatMap(item => {
+    const stock = allStocks.find(candidate => candidate.code === item.code)
+    return stock ? [{ ...item, name: stock.name }] : []
+  })
+  const availableYieldStartStocks = allStocks.filter(stock => !yieldStartMap.has(stock.code))
+  const addYieldStart = () => {
+    if (yieldStarts.length >= MAX_YIELD_STARTS) return
+    const stock = availableYieldStartStocks.find(item => item.code === yieldStartCode)
+    if (!stock) return
+    updateYieldStarts([...yieldStarts, { code: stock.code, buy: DEFAULT_BUY_START, sell: DEFAULT_SELL_START }])
+    setYieldStartCode('')
+  }
 
   const [searching, setSearching] = useState(false)
   useEffect(() => {
@@ -627,8 +653,8 @@ export default function YieldGrid() {
     if (!matchesYieldStatus(
       r.cy,
       yieldFilter,
-      buyBase(r.name),
-      sellBase(r.name),
+      yieldStartMap.get(r.code)?.buy ?? DEFAULT_BUY_START,
+      yieldStartMap.get(r.code)?.sell ?? DEFAULT_SELL_START,
       cfg.yieldTolerance,
       !SELL_MUTED.has(r.name),
     )) return false
@@ -687,7 +713,7 @@ export default function YieldGrid() {
         </div>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
-        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>（≥5%，水电≥4%）｜<b className="g2">绿色卖出网格</b>（≤4%，水电≤3%）。BOLL采用前复权日/周/月K、BOLL(20,2)、样本标准差；月线包含本月未完成月线。日/周/月 BOLL 数据采用缓存更新，盘中显示可能存在短暂延迟。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，不构成投资建议。</div>
+        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>｜<b className="g2">绿色卖出网格</b>。各标的起始股息率可在网格设置中单独调整。BOLL采用前复权日/周/月K、BOLL(20,2)、样本标准差；月线包含本月未完成月线。日/周/月 BOLL 数据采用缓存更新，盘中显示可能存在短暂延迟。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，不构成投资建议。</div>
         <button className="yg-addbar" onClick={() => setShowAdd(true)}>
           <span className="plus">＋</span> 添加标的{custom.length > 0 ? ` ${custom.length}/${MAX_CUSTOM}` : ''}{custom.length >= MAX_CUSTOM ? '（已满，删除后可再加）' : ''}
         </button>
@@ -780,8 +806,8 @@ export default function YieldGrid() {
           <div className="state">该板块暂无标的</div>
         )}
         {displayGroups.map(({ sector, items }) => {
-          const sellOrdinalCount = Math.max(...items.map(r => sellGridFor(r.name, cfg).length))
-          const buyOrdinalCount = Math.max(...items.map(r => buyGridFor(r.name, cfg).length))
+          const sellOrdinalCount = Math.max(...items.map(r => sellGridFor(r, cfg, yieldStartMap).length))
+          const buyOrdinalCount = Math.max(...items.map(r => buyGridFor(r, cfg, yieldStartMap).length))
           const isDenseGrid = sellOrdinalCount === 8 && buyOrdinalCount === 8
           const tableMinWidth = isLandscapePhone || isDenseGrid
             ? 120 + 252 + (isMobile ? 264 : 268) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 80)
@@ -790,7 +816,7 @@ export default function YieldGrid() {
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
           const avgCy = items.reduce((s, r) => s + r.cy, 0) / items.length
           const top = items.reduce((a, b) => (b.cy > a.cy ? b : a), items[0])
-          const buyCount = items.filter(r => r.cy >= buyBase(r.name)).length
+          const buyCount = items.filter(r => r.cy >= (yieldStartMap.get(r.code)?.buy ?? DEFAULT_BUY_START)).length
           return (
             <section key={sector || 'ungrouped'}>
               {groupBySector && <h2 className="sec-h2" onClick={() => { if (!editOrder) toggleCollapse(sector) }}>
@@ -850,11 +876,11 @@ export default function YieldGrid() {
                       </div>
                       <div className="glabel sell">卖出网格</div>
                       <div className="tiers">
-                        {sellGridFor(r.name, cfg).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} />)}
+                        {sellGridFor(r, cfg, yieldStartMap).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} starts={yieldStartMap} />)}
                       </div>
                       <div className="glabel buy">买入网格</div>
                       <div className="tiers">
-                        {buyGridFor(r.name, cfg).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" cfg={cfg} />)}
+                        {buyGridFor(r, cfg, yieldStartMap).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" cfg={cfg} starts={yieldStartMap} />)}
                       </div>
                     </div>
                   ))}
@@ -907,8 +933,8 @@ export default function YieldGrid() {
                             {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
                             <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.dive} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                           </td>
-                          {Array.from({ length: sellOrdinalCount }, (_, i) => <OrdinalCell key={'os' + i} r={r} y={sellGridFor(r.name, cfg)[i]} kind="sell" cfg={cfg} />)}
-                          {Array.from({ length: buyOrdinalCount }, (_, i) => <OrdinalCell key={'ob' + i} r={r} y={buyGridFor(r.name, cfg)[i]} kind="buy" sep={i === 0} cfg={cfg} />)}
+                          {Array.from({ length: sellOrdinalCount }, (_, i) => <OrdinalCell key={'os' + i} r={r} y={sellGridFor(r, cfg, yieldStartMap)[i]} kind="sell" cfg={cfg} starts={yieldStartMap} />)}
+                          {Array.from({ length: buyOrdinalCount }, (_, i) => <OrdinalCell key={'ob' + i} r={r} y={buyGridFor(r, cfg, yieldStartMap)[i]} kind="buy" sep={i === 0} cfg={cfg} starts={yieldStartMap} />)}
                         </tr>
                       ))}
                     </tbody>
@@ -1164,7 +1190,47 @@ export default function YieldGrid() {
               </div>
             </div>
             <div className="text-xs text-gray-400 leading-relaxed">
-              买入从 5%（水电 4%）每档 +{+(cfg.buyStep * 100).toFixed(2)}% 共 {cfg.buyCount} 档；卖出从 4%（水电 3%）每档 −{+(cfg.sellStep * 100).toFixed(2)}% 共 {cfg.sellCount} 档（收益率 ≤0 的档位自动省略）。
+              未单独设置的标的，买入从 5% 起每档 +{+(cfg.buyStep * 100).toFixed(2)}% 共 {cfg.buyCount} 档；卖出从 4% 起每档 −{+(cfg.sellStep * 100).toFixed(2)}% 共 {cfg.sellCount} 档（收益率 ≤0 的档位自动省略）。
+            </div>
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">标的股息率起始点</div>
+                <div className="mt-1 text-xs leading-relaxed text-slate-500">单独设置后，该标的的买入、卖出网格及股息率状态筛选都会按此起始点计算。</div>
+              </div>
+              <div className="space-y-2">
+                {configuredYieldStarts.map(item => (
+                  <div key={item.code} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-slate-700">{item.name}</span>
+                      <button type="button" className="text-xs text-slate-400 underline underline-offset-2" onClick={() => updateYieldStarts(yieldStarts.filter(entry => entry.code !== item.code))}>移除</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-xs text-orange-700">买入起始点（%）
+                        <input className="input-field mt-1 text-sm" type="number" inputMode="decimal" min="0.1" max="30" step="0.1"
+                          value={+(item.buy * 100).toFixed(2)}
+                          onChange={e => setYieldStart(item.code, { buy: Math.max(0.1, Math.min(30, Number(e.target.value) || 0.1)) / 100 })} />
+                      </label>
+                      <label className="text-xs text-green-700">卖出起始点（%）
+                        <input className="input-field mt-1 text-sm" type="number" inputMode="decimal" min="0.1" max="30" step="0.1"
+                          value={+(item.sell * 100).toFixed(2)}
+                          onChange={e => setYieldStart(item.code, { sell: Math.max(0.1, Math.min(30, Number(e.target.value) || 0.1)) / 100 })} />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {yieldStarts.length >= MAX_YIELD_STARTS ? (
+                <div className="text-xs text-slate-400">最多设置 {MAX_YIELD_STARTS} 个标的，移除后可继续新增。</div>
+              ) : availableYieldStartStocks.length > 0 && <div className="space-y-2">
+                <div className="flex gap-2">
+                  <select className="input-field min-w-0 flex-1 text-sm" value={yieldStartCode} onChange={e => setYieldStartCode(e.target.value)}>
+                    <option value="">选择网格标的</option>
+                    {availableYieldStartStocks.map(stock => <option key={stock.code} value={stock.code}>{stock.name}（{stock.code}）</option>)}
+                  </select>
+                  <button type="button" disabled={!yieldStartCode} onClick={addYieldStart}
+                    className="shrink-0 rounded-lg bg-slate-700 px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40">新增</button>
+                </div>
+              </div>}
             </div>
           </div>
         </Modal>
@@ -1186,7 +1252,7 @@ function Star({ on, onClick }: { on: boolean; onClick: () => void }) {
 }
 
 // 桌面表格按第几档对齐，百分比放回每只股票自己的单元格内。
-function OrdinalCell({ r, y, kind, sep, cfg }: { r: Row; y?: number; kind: 'buy' | 'sell'; sep?: boolean; cfg: GridCfg }) {
+function OrdinalCell({ r, y, kind, sep, cfg, starts }: { r: Row; y?: number; kind: 'buy' | 'sell'; sep?: boolean; cfg: GridCfg; starts: Map<string, YieldStart> }) {
   if (y === undefined) return <td className={`g ordinal blank${sep ? ' sep' : ''}`} />
   const t = tier(r, y, kind)
   const kindClass = kind === 'sell' ? ' sell' : ' buy'
@@ -1197,7 +1263,7 @@ function OrdinalCell({ r, y, kind, sep, cfg }: { r: Row; y?: number; kind: 'buy'
       </td>
     )
   }
-  const grid = kind === 'buy' ? buyGridFor(r.name, cfg) : sellGridFor(r.name, cfg)
+  const grid = kind === 'buy' ? buyGridFor(r, cfg, starts) : sellGridFor(r, cfg, starts)
   const cls = `g ordinal${kindClass}${t.reached ? ' hit' : ''}${sep ? ' sep' : ''}`
   return (
     <td className={cls} style={t.reached ? { background: hitBg(kind, y, grid) } : undefined}>
@@ -1207,7 +1273,7 @@ function OrdinalCell({ r, y, kind, sep, cfg }: { r: Row; y?: number; kind: 'buy'
 }
 
 // 卡片档位 chip
-function Chip({ r, y, kind, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; cfg: GridCfg }) {
+function Chip({ r, y, kind, cfg, starts }: { r: Row; y: number; kind: 'buy' | 'sell'; cfg: GridCfg; starts: Map<string, YieldStart> }) {
   const t = tier(r, y, kind)
   // 广核/核电卖出：仅显示价格，不着色、不判已达
   if (kind === 'sell' && SELL_MUTED.has(r.name)) {
@@ -1218,7 +1284,7 @@ function Chip({ r, y, kind, cfg }: { r: Row; y: number; kind: 'buy' | 'sell'; cf
       </div>
     )
   }
-  const grid = kind === 'buy' ? buyGridFor(r.name, cfg) : sellGridFor(r.name, cfg)
+  const grid = kind === 'buy' ? buyGridFor(r, cfg, starts) : sellGridFor(r, cfg, starts)
   const cls = `tier${kind === 'sell' ? ' sell' : ''}${t.reached ? ' hit' : ''}`
   const bg = hitBg(kind, y, grid)
   return (

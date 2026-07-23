@@ -19,6 +19,7 @@ export interface GridPrefs {
   sort: { key: string; dir: 'asc' | 'desc' }
   active: string
   collapsed: Record<string, string[]> // 各 tab（筛选）下已折叠的板块名，互不影响
+  yieldStarts: { code: string; buy: number; sell: number }[]
 }
 const DEFAULT_GRID_PREFS: GridPrefs = {
   custom: [],
@@ -30,6 +31,10 @@ const DEFAULT_GRID_PREFS: GridPrefs = {
   sort: { key: 'cy', dir: 'desc' },
   active: '全部',
   collapsed: {},
+  yieldStarts: [
+    { code: '600900', buy: 0.04, sell: 0.03 },
+    { code: '600886', buy: 0.04, sell: 0.03 },
+  ],
 }
 
 const MAX_ACCOUNTS = 3
