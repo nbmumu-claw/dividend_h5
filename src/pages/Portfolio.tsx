@@ -30,6 +30,7 @@ export default function Portfolio() {
   const activeAccountId = useStore(s => s.activeAccountId)
   const switchAccount = useStore(s => s.switchAccount)
   const cashBalance = useStore(s => s.cashBalance)
+  const cashFundingRecorded = useStore(s => s.cashFundingRecorded)
   const [showAccountSheet, setShowAccountSheet] = useState(false)
   const activeAccountName = accounts.find(a => a.id === activeAccountId)?.name || '我的账户'
   const { message, showToast } = useToast()
@@ -100,8 +101,8 @@ export default function Portfolio() {
     }))
   }, [holdings])
   const cashCny = useMemo(
-    () => cashCnyInScope(cashBalance, statsScope, exchangeRate, usdRate),
-    [cashBalance, statsScope, exchangeRate, usdRate],
+    () => cashFundingRecorded ? cashCnyInScope(cashBalance, statsScope, exchangeRate, usdRate) : 0,
+    [cashBalance, cashFundingRecorded, statsScope, exchangeRate, usdRate],
   )
 
   const metrics = useMemo(() => {

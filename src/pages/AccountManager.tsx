@@ -19,6 +19,8 @@ export default function AccountManager() {
   const accountCashBalances = useStore(s => s.accountCashBalances)
   const cashOpeningBalance = useStore(s => s.cashOpeningBalance)
   const accountCashOpeningBalances = useStore(s => s.accountCashOpeningBalances)
+  const cashFundingRecorded = useStore(s => s.cashFundingRecorded)
+  const accountCashFundingRecorded = useStore(s => s.accountCashFundingRecorded)
   const changeCashBalance = useStore(s => s.changeCashBalance)
   const setOpeningCashBalance = useStore(s => s.setOpeningCashBalance)
   const addOpeningCashBalance = useStore(s => s.addOpeningCashBalance)
@@ -89,6 +91,7 @@ export default function AccountManager() {
         <div className="card">
           {accounts.map(a => {
             const active = a.id === activeAccountId
+            const fundingRecorded = active ? cashFundingRecorded : (accountCashFundingRecorded[a.id] ?? false)
             return (
               <div key={a.id} className="px-4 py-3.5 border-b border-gray-50 last:border-0">
                 <div className="flex items-center gap-3">
@@ -106,9 +109,11 @@ export default function AccountManager() {
                 </div>
                 <button className="mt-3 w-full rounded-lg bg-gray-50 px-3 py-2 text-left text-sm active:opacity-60" onClick={() => openCashEditor(a.id)}>
                   <div className="mb-1.5 flex justify-between"><span className="text-gray-500">现金余额</span><span className="text-xs text-red-500">期初/转入/转出</span></div>
-                  <div className="flex gap-3 text-xs text-gray-700">
-                    {CASH_CURRENCIES.map(currency => <span key={currency}>{currency === 'CNY' ? '¥' : currency === 'USD' ? 'US$' : 'HK$'}{(active ? cashBalance : (accountCashBalances[a.id] ?? EMPTY_CASH))[currency].toFixed(2)}</span>)}
-                  </div>
+                  {fundingRecorded ? (
+                    <div className="flex gap-3 text-xs text-gray-700">
+                      {CASH_CURRENCIES.map(currency => <span key={currency}>{currency === 'CNY' ? '¥' : currency === 'USD' ? 'US$' : 'HK$'}{(active ? cashBalance : (accountCashBalances[a.id] ?? EMPTY_CASH))[currency].toFixed(2)}</span>)}
+                    </div>
+                  ) : <div className="text-xs text-gray-400">未录入资金，现金暂不统计</div>}
                 </button>
                 <button className="mt-2 text-xs text-gray-400 underline" onClick={() => openCashEditor(a.id, 'opening')}>{(active ? cashOpeningBalance : (accountCashOpeningBalances[a.id] ?? EMPTY_CASH)).CNY > 0 ? '修改期初资金' : '补录期初资金'}</button>
               </div>

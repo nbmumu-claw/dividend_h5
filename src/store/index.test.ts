@@ -21,7 +21,7 @@ describe('cash tracking', () => {
     useStore.getState().setTransactions(stock.code, [{ type: 'buy', qty: 100, price: 10, ts: 1 }])
     expect(useStore.getState().cashBalance).toEqual({ CNY: 0, USD: 0, HKD: 0 })
 
-    useStore.setState({ cashTrackingEnabled: true })
+    useStore.setState({ cashTrackingEnabled: true, cashFundingRecorded: true })
     useStore.getState().setTransactions(stock.code, [
       { type: 'buy', qty: 100, price: 10, ts: 1 },
       { type: 'sell', qty: 50, price: 12, ts: 2 },
@@ -50,5 +50,11 @@ describe('cash tracking', () => {
     expect(useStore.getState().cashBalance.CNY).toBe(58000)
     expect(useStore.getState().cashOpeningBalance.CNY).toBe(8000)
     expect(useStore.getState().cashTrackingEnabled).toBe(true)
+  })
+
+  it('discards untracked legacy cash when an opening balance is backfilled', () => {
+    useStore.setState({ cashBalance: { CNY: 50000, USD: -3921, HKD: 0 }, cashFundingRecorded: false })
+    useStore.getState().addOpeningCashBalance('default', 'CNY', 10000)
+    expect(useStore.getState().cashBalance).toEqual({ CNY: 10000, USD: 0, HKD: 0 })
   })
 })
