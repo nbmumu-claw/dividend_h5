@@ -19,9 +19,10 @@ export default function AccountManager() {
   const accountCashBalances = useStore(s => s.accountCashBalances)
   const cashOpeningBalance = useStore(s => s.cashOpeningBalance)
   const accountCashOpeningBalances = useStore(s => s.accountCashOpeningBalances)
-  const cashFundingRecorded = useStore(s => s.cashFundingRecorded)
-  const accountCashFundingRecorded = useStore(s => s.accountCashFundingRecorded)
+  const cashCalibrations = useStore(s => s.cashCalibrations)
+  const accountCashCalibrations = useStore(s => s.accountCashCalibrations)
   const changeCashBalance = useStore(s => s.changeCashBalance)
+  const calibrateCashBalance = useStore(s => s.calibrateCashBalance)
   const setOpeningCashBalance = useStore(s => s.setOpeningCashBalance)
   const addOpeningCashBalance = useStore(s => s.addOpeningCashBalance)
   const { message, showToast } = useToast()
@@ -33,7 +34,7 @@ export default function AccountManager() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [cashAccountId, setCashAccountId] = useState<string | null>(null)
   const [cashCurrency, setCashCurrency] = useState<CashCurrency>('CNY')
-  const [cashAction, setCashAction] = useState<'opening' | 'deposit' | 'withdrawal'>('deposit')
+  const [cashAction, setCashAction] = useState<'opening' | 'deposit' | 'withdrawal' | 'calibration'>('deposit')
   const [cashInput, setCashInput] = useState('')
 
   const doAdd = () => {
@@ -49,23 +50,29 @@ export default function AccountManager() {
     if (deleteId) removeAccount(deleteId)
     setDeleteId(null); showToast('已删除')
   }
-  const openCashEditor = (id: string, action: 'opening' | 'deposit' | 'withdrawal' = 'deposit') => {
+  const openCashEditor = (id: string, action: 'opening' | 'deposit' | 'withdrawal' | 'calibration' = 'deposit') => {
     setCashAccountId(id)
     const opening = id === activeAccountId ? cashOpeningBalance : (accountCashOpeningBalances[id] ?? EMPTY_CASH)
     const balance = id === activeAccountId ? cashBalance : (accountCashBalances[id] ?? EMPTY_CASH)
-    setCashCurrency('CNY'); setCashAction(action); setCashInput(action === 'opening' ? String(opening.CNY || balance.CNY) : '')
+    setCashCurrency('CNY'); setCashAction(action); setCashInput(action === 'opening' || action === 'calibration' ? String(action === 'opening' ? (opening.CNY || balance.CNY) : balance.CNY) : '')
   }
   const saveCash = () => {
+    const amount = Number(cashInput)
+    if (!cashInput.trim() || !Number.isFinite(amount)) {
+      showToast('请输入有效金额')
+      return
+    }
     if (cashAccountId) {
       if (cashAction === 'opening') {
         const opening = cashAccountId === activeAccountId ? cashOpeningBalance : (accountCashOpeningBalances[cashAccountId] ?? EMPTY_CASH)
-        if (opening[cashCurrency] > 0) setOpeningCashBalance(cashAccountId, cashCurrency, Number(cashInput))
-        else addOpeningCashBalance(cashAccountId, cashCurrency, Number(cashInput))
+        if (opening[cashCurrency] > 0) setOpeningCashBalance(cashAccountId, cashCurrency, amount)
+        else addOpeningCashBalance(cashAccountId, cashCurrency, amount)
       }
-      else changeCashBalance(cashAccountId, cashCurrency, (cashAction === 'withdrawal' ? -1 : 1) * (Number(cashInput) || 0))
+      else if (cashAction === 'calibration') calibrateCashBalance(cashAccountId, cashCurrency, amount)
+      else changeCashBalance(cashAccountId, cashCurrency, (cashAction === 'withdrawal' ? -1 : 1) * amount)
     }
     setCashAccountId(null)
-    showToast(cashAction === 'withdrawal' ? '资金已转出' : cashAction === 'opening' ? '期初现金已录入' : '资金已转入')
+    showToast(cashAction === 'withdrawal' ? '资金已转出' : cashAction === 'opening' ? '期初现金已录入' : cashAction === 'calibration' ? '现金已校准' : '资金已转入')
   }
 
   return (
@@ -91,7 +98,8 @@ export default function AccountManager() {
         <div className="card">
           {accounts.map(a => {
             const active = a.id === activeAccountId
-            const fundingRecorded = active ? cashFundingRecorded : (accountCashFundingRecorded[a.id] ?? false)
+            const calibrations = active ? cashCalibrations : (accountCashCalibrations[a.id] ?? [])
+            const latestCalibration = calibrations[calibrations.length - 1]
             return (
               <div key={a.id} className="px-4 py-3.5 border-b border-gray-50 last:border-0">
                 <div className="flex items-center gap-3">
@@ -109,12 +117,11 @@ export default function AccountManager() {
                 </div>
                 <button className="mt-3 w-full rounded-lg bg-gray-50 px-3 py-2 text-left text-sm active:opacity-60" onClick={() => openCashEditor(a.id)}>
                   <div className="mb-1.5 flex justify-between"><span className="text-gray-500">现金余额</span><span className="text-xs text-red-500">期初/转入/转出</span></div>
-                  {fundingRecorded ? (
-                    <div className="flex gap-3 text-xs text-gray-700">
-                      {CASH_CURRENCIES.map(currency => <span key={currency}>{currency === 'CNY' ? '¥' : currency === 'USD' ? 'US$' : 'HK$'}{(active ? cashBalance : (accountCashBalances[a.id] ?? EMPTY_CASH))[currency].toFixed(2)}</span>)}
-                    </div>
-                  ) : <div className="text-xs text-gray-400">未录入资金，现金暂不统计</div>}
+                  <div className="flex gap-3 text-xs text-gray-700">
+                    {CASH_CURRENCIES.map(currency => <span key={currency}>{currency === 'CNY' ? '¥' : currency === 'USD' ? 'US$' : 'HK$'}{(active ? cashBalance : (accountCashBalances[a.id] ?? EMPTY_CASH))[currency].toFixed(2)}</span>)}
+                  </div>
                 </button>
+                {latestCalibration && <p className="mt-1.5 text-xs text-gray-400">最近校准：{latestCalibration.currency} {latestCalibration.difference >= 0 ? '+' : ''}{latestCalibration.difference.toFixed(2)}</p>}
                 <button className="mt-2 text-xs text-gray-400 underline" onClick={() => openCashEditor(a.id, 'opening')}>{(active ? cashOpeningBalance : (accountCashOpeningBalances[a.id] ?? EMPTY_CASH)).CNY > 0 ? '修改期初资金' : '补录期初资金'}</button>
               </div>
             )
@@ -158,15 +165,15 @@ export default function AccountManager() {
 
       <Modal open={cashAccountId != null} onClose={() => setCashAccountId(null)} title="资金管理">
         <div className="space-y-3">
-          <p className="text-sm text-gray-500">按原币种登记资金，买卖和税后分红会自动更新对应现金余额。</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(['opening', 'deposit', 'withdrawal'] as const).map(action => <button key={action} onClick={() => setCashAction(action)} className={`py-2 rounded-lg text-sm border ${cashAction === action ? 'border-red-600 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500'}`}>{action === 'opening' ? '期初现金' : action === 'deposit' ? '资金转入' : '资金转出'}</button>)}
+          <p className="text-sm text-gray-500">{cashAction === 'calibration' ? '输入券商当前实际余额；系统会记录校准差额，不修改历史交易。' : '按原币种登记资金，买卖和税后分红会自动更新对应现金余额。'}</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['opening', 'deposit', 'withdrawal', 'calibration'] as const).map(action => <button key={action} onClick={() => setCashAction(action)} className={`py-2 rounded-lg text-sm border ${cashAction === action ? 'border-red-600 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500'}`}>{action === 'opening' ? '期初现金' : action === 'deposit' ? '资金转入' : action === 'withdrawal' ? '资金转出' : '现金校准'}</button>)}
           </div>
           <div className="grid grid-cols-3 gap-2">
             {CASH_CURRENCIES.map(currency => <button key={currency} onClick={() => setCashCurrency(currency)} className={`py-2 rounded-lg text-sm border ${cashCurrency === currency ? 'border-red-600 bg-red-50 text-red-600' : 'border-gray-200 text-gray-500'}`}>{currency}</button>)}
           </div>
-          <input className="input-field" type="number" min="0" step="0.01" inputMode="decimal" placeholder="例如 10000" value={cashInput} onChange={e => setCashInput(e.target.value)} autoFocus />
-          <button className="btn-primary" onClick={saveCash}>确认{cashAction === 'opening' ? '录入期初' : cashAction === 'deposit' ? '转入' : '转出'}</button>
+          <input className="input-field" type="number" min={cashAction === 'calibration' ? undefined : 0} step="0.01" inputMode="decimal" placeholder={cashAction === 'calibration' ? '输入券商当前实际余额' : '例如 10000'} value={cashInput} onChange={e => setCashInput(e.target.value)} autoFocus />
+          <button className="btn-primary" onClick={saveCash}>确认{cashAction === 'opening' ? '录入期初' : cashAction === 'deposit' ? '转入' : cashAction === 'withdrawal' ? '转出' : '校准'}</button>
           <button className="btn-secondary" onClick={() => setCashAccountId(null)}>取消</button>
         </div>
       </Modal>

@@ -6,7 +6,7 @@ import { applyHolding, ensureTransactions, type Transaction } from '../utils/hol
 import { makeFeeCalc, DEFAULT_FEE_CONFIG, type FeeConfig } from '../utils/fees'
 import { migrateRedFundSector, NEW_RED_SECTOR, NEW_US_SECTOR } from '../utils/sectorMigrate'
 import { migrateStatsScope, type StatsScope } from '../utils/statsScopeMigrate'
-import { EMPTY_CASH, normalizeCash, currencyOf, transactionCashFlow, type CashBalances, type CashCurrency } from '../utils/cash'
+import { EMPTY_CASH, EMPTY_CASH_FUNDING, normalizeCash, normalizeCashCalibrations, normalizeCashFunding, currencyOf, transactionCashFlow, type CashBalances, type CashCalibration, type CashCurrency, type CashFundingCurrencies } from '../utils/cash'
 
 // 网格页偏好（纳入账号体系，跟随云同步）
 export interface GridPrefs {
@@ -41,6 +41,7 @@ const MAX_ACCOUNTS = 3
 const DEFAULT_ACCOUNT_ID = 'default'
 const DEFAULT_ACCOUNT_NAME = '我的账户'
 const genAccountId = () => 'acc_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36)
+const genCashCalibrationId = () => 'cal_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36)
 
 // 按当前费率重算一组持仓的摊薄成本（保证存储成本与 computeHolding 一致，避免卡片/详情不一致）
 const recomputeList = (list: WatchlistStock[], cfg: FeeConfig): WatchlistStock[] =>
@@ -114,14 +115,19 @@ interface AppState {
   accountCashTracking: Record<string, boolean>
   cashFundingRecorded: boolean
   accountCashFundingRecorded: Record<string, boolean>
+  cashFundingCurrencies: CashFundingCurrencies
+  accountCashFundingCurrencies: Record<string, CashFundingCurrencies>
+  cashCalibrations: CashCalibration[]
+  accountCashCalibrations: Record<string, CashCalibration[]>
   switchAccount: (id: string) => void
   addAccount: (name: string) => string | null
   renameAccount: (id: string, name: string) => void
   removeAccount: (id: string) => void
-  gatherAccounts: () => { id: string; name: string; watchlist: WatchlistStock[]; feeConfig: FeeConfig; cashBalance: CashBalances; cashOpeningBalance: CashBalances; cashTrackingEnabled: boolean; cashFundingRecorded: boolean }[]
+  gatherAccounts: () => { id: string; name: string; watchlist: WatchlistStock[]; feeConfig: FeeConfig; cashBalance: CashBalances; cashOpeningBalance: CashBalances; cashTrackingEnabled: boolean; cashFundingRecorded: boolean; cashFundingCurrencies: CashFundingCurrencies; cashCalibrations: CashCalibration[] }[]
   setCashBalance: (currency: CashCurrency, amount: number) => void
   setAccountCashBalance: (id: string, currency: CashCurrency, amount: number) => void
   changeCashBalance: (id: string, currency: CashCurrency, amount: number) => void
+  calibrateCashBalance: (id: string, currency: CashCurrency, actualBalance: number) => void
   setOpeningCashBalance: (id: string, currency: CashCurrency, amount: number) => void
   addOpeningCashBalance: (id: string, currency: CashCurrency, amount: number) => void
 
@@ -227,7 +233,7 @@ export const useStore = create<AppState>()(
           const currency = currencyOf(stock)
           return {
             watchlist: s.watchlist.map(w => w.code === code ? applyHolding({ ...w }, txs, makeFeeCalc(w, s.feeConfig)) : w),
-            ...(s.cashFundingRecorded ? { cashBalance: { ...s.cashBalance, [currency]: s.cashBalance[currency] + delta } } : {}),
+            ...(s.cashFundingCurrencies[currency] ? { cashBalance: { ...s.cashBalance, [currency]: s.cashBalance[currency] + delta } } : {}),
           }
         }),
 
@@ -244,6 +250,10 @@ export const useStore = create<AppState>()(
       accountCashTracking: {},
       cashFundingRecorded: false,
       accountCashFundingRecorded: {},
+      cashFundingCurrencies: { ...EMPTY_CASH_FUNDING },
+      accountCashFundingCurrencies: {},
+      cashCalibrations: [],
+      accountCashCalibrations: {},
       switchAccount: (id) =>
         set(s => {
           if (id === s.activeAccountId || !s.accounts.find(a => a.id === id)) return s
@@ -253,6 +263,8 @@ export const useStore = create<AppState>()(
           const openingBalances = { ...s.accountCashOpeningBalances, [s.activeAccountId]: s.cashOpeningBalance }
           const cashTracking = { ...s.accountCashTracking, [s.activeAccountId]: s.cashTrackingEnabled }
           const cashFunding = { ...s.accountCashFundingRecorded, [s.activeAccountId]: s.cashFundingRecorded }
+          const cashFundingCurrencies = { ...s.accountCashFundingCurrencies, [s.activeAccountId]: s.cashFundingCurrencies }
+          const cashCalibrations = { ...s.accountCashCalibrations, [s.activeAccountId]: s.cashCalibrations }
           const targetCfg = feeConfigs[id] ?? DEFAULT_FEE_CONFIG
           const targetCash = cashBalances[id] ?? { ...EMPTY_CASH }
           const targetOpening = openingBalances[id] ?? { ...EMPTY_CASH }
@@ -260,8 +272,10 @@ export const useStore = create<AppState>()(
           const target = recomputeList(snapshots[id] ?? [], targetCfg)
           const targetTracking = cashTracking[id] ?? false
           const targetFunding = cashFunding[id] ?? false
-          delete snapshots[id]; delete feeConfigs[id]; delete cashBalances[id]; delete openingBalances[id]; delete cashTracking[id]; delete cashFunding[id]
-          return { accountSnapshots: snapshots, accountFeeConfigs: feeConfigs, accountCashBalances: cashBalances, accountCashOpeningBalances: openingBalances, accountCashTracking: cashTracking, accountCashFundingRecorded: cashFunding, watchlist: target, feeConfig: targetCfg, cashBalance: targetCash, cashOpeningBalance: targetOpening, cashTrackingEnabled: targetTracking, cashFundingRecorded: targetFunding, activeAccountId: id }
+          const targetFundingCurrencies = cashFundingCurrencies[id] ?? { ...EMPTY_CASH_FUNDING }
+          const targetCalibrations = cashCalibrations[id] ?? []
+          delete snapshots[id]; delete feeConfigs[id]; delete cashBalances[id]; delete openingBalances[id]; delete cashTracking[id]; delete cashFunding[id]; delete cashFundingCurrencies[id]; delete cashCalibrations[id]
+          return { accountSnapshots: snapshots, accountFeeConfigs: feeConfigs, accountCashBalances: cashBalances, accountCashOpeningBalances: openingBalances, accountCashTracking: cashTracking, accountCashFundingRecorded: cashFunding, accountCashFundingCurrencies: cashFundingCurrencies, accountCashCalibrations: cashCalibrations, watchlist: target, feeConfig: targetCfg, cashBalance: targetCash, cashOpeningBalance: targetOpening, cashTrackingEnabled: targetTracking, cashFundingRecorded: targetFunding, cashFundingCurrencies: targetFundingCurrencies, cashCalibrations: targetCalibrations, activeAccountId: id }
         }),
       addAccount: (name) => {
         const s = get()
@@ -275,11 +289,15 @@ export const useStore = create<AppState>()(
           accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [s.activeAccountId]: s.cashOpeningBalance },
           accountCashTracking: { ...s.accountCashTracking, [s.activeAccountId]: s.cashTrackingEnabled },
           accountCashFundingRecorded: { ...s.accountCashFundingRecorded, [s.activeAccountId]: s.cashFundingRecorded },
+          accountCashFundingCurrencies: { ...s.accountCashFundingCurrencies, [s.activeAccountId]: s.cashFundingCurrencies },
+          accountCashCalibrations: { ...s.accountCashCalibrations, [s.activeAccountId]: s.cashCalibrations },
           watchlist: [],
           cashBalance: { ...EMPTY_CASH },
           cashOpeningBalance: { ...EMPTY_CASH },
           cashTrackingEnabled: false,
           cashFundingRecorded: false,
+          cashFundingCurrencies: { ...EMPTY_CASH_FUNDING },
+          cashCalibrations: [],
           activeAccountId: id,
           feeConfig: { ...s.feeConfig }, // 新账户默认继承当前费率，可再单独修改
         })
@@ -328,6 +346,8 @@ export const useStore = create<AppState>()(
           cashOpeningBalance: a.id === s.activeAccountId ? s.cashOpeningBalance : (s.accountCashOpeningBalances[a.id] ?? { ...EMPTY_CASH }),
           cashTrackingEnabled: a.id === s.activeAccountId ? s.cashTrackingEnabled : (s.accountCashTracking[a.id] ?? false),
           cashFundingRecorded: a.id === s.activeAccountId ? s.cashFundingRecorded : (s.accountCashFundingRecorded[a.id] ?? false),
+          cashFundingCurrencies: a.id === s.activeAccountId ? s.cashFundingCurrencies : (s.accountCashFundingCurrencies[a.id] ?? { ...EMPTY_CASH_FUNDING }),
+          cashCalibrations: a.id === s.activeAccountId ? s.cashCalibrations : (s.accountCashCalibrations[a.id] ?? []),
         }))
       },
       setCashBalance: (currency, amount) => set(s => ({ cashBalance: { ...s.cashBalance, [currency]: Math.max(0, Number(amount) || 0) } })),
@@ -342,13 +362,34 @@ export const useStore = create<AppState>()(
       changeCashBalance: (id, currency, amount) => set(s => {
         if (!s.accounts.some(a => a.id === id)) return s
         const apply = (balance: CashBalances) => ({ ...balance, [currency]: balance[currency] + amount })
+        if (id === s.activeAccountId) return { cashBalance: apply(s.cashBalance), cashTrackingEnabled: true, cashFundingRecorded: true, cashFundingCurrencies: { ...s.cashFundingCurrencies, [currency]: true } }
+        return { accountCashBalances: { ...s.accountCashBalances, [id]: apply(normalizeCash(s.accountCashBalances[id])) }, accountCashTracking: { ...s.accountCashTracking, [id]: true }, accountCashFundingRecorded: { ...s.accountCashFundingRecorded, [id]: true }, accountCashFundingCurrencies: { ...s.accountCashFundingCurrencies, [id]: { ...normalizeCashFunding(s.accountCashFundingCurrencies[id]), [currency]: true } } }
+      }),
+      calibrateCashBalance: (id, currency, actualBalance) => set(s => {
+        if (!s.accounts.some(a => a.id === id) || !Number.isFinite(actualBalance)) return s
+        const createCalibration = (balance: CashBalances): CashCalibration => ({
+          id: genCashCalibrationId(), currency, previousBalance: balance[currency], actualBalance,
+          difference: actualBalance - balance[currency], ts: Date.now(),
+        })
         if (id === s.activeAccountId) {
-          const base = s.cashFundingRecorded ? s.cashBalance : { ...EMPTY_CASH }
-          return { cashBalance: apply(base), cashTrackingEnabled: true, cashFundingRecorded: true }
+          const calibration = createCalibration(s.cashBalance)
+          return {
+            cashBalance: { ...s.cashBalance, [currency]: actualBalance },
+            cashCalibrations: [...s.cashCalibrations, calibration],
+            cashTrackingEnabled: true,
+            cashFundingRecorded: true,
+            cashFundingCurrencies: { ...s.cashFundingCurrencies, [currency]: true },
+          }
         }
-        const enabled = s.accountCashFundingRecorded[id] ?? false
-        const base = enabled ? normalizeCash(s.accountCashBalances[id]) : { ...EMPTY_CASH }
-        return { accountCashBalances: { ...s.accountCashBalances, [id]: apply(base) }, accountCashTracking: { ...s.accountCashTracking, [id]: true }, accountCashFundingRecorded: { ...s.accountCashFundingRecorded, [id]: true } }
+        const balance = normalizeCash(s.accountCashBalances[id])
+        const calibration = createCalibration(balance)
+        return {
+          accountCashBalances: { ...s.accountCashBalances, [id]: { ...balance, [currency]: actualBalance } },
+          accountCashCalibrations: { ...s.accountCashCalibrations, [id]: [...(s.accountCashCalibrations[id] ?? []), calibration] },
+          accountCashTracking: { ...s.accountCashTracking, [id]: true },
+          accountCashFundingRecorded: { ...s.accountCashFundingRecorded, [id]: true },
+          accountCashFundingCurrencies: { ...s.accountCashFundingCurrencies, [id]: { ...normalizeCashFunding(s.accountCashFundingCurrencies[id]), [currency]: true } },
+        }
       }),
       setOpeningCashBalance: (id, currency, amount) => set(s => {
         if (!s.accounts.some(a => a.id === id)) return s
@@ -362,10 +403,10 @@ export const useStore = create<AppState>()(
         }
         if (id === s.activeAccountId) {
           const nextState = update(s.cashBalance, s.cashOpeningBalance)
-          return { cashBalance: nextState.cash, cashOpeningBalance: nextState.opening, cashTrackingEnabled: true }
+          return { cashBalance: nextState.cash, cashOpeningBalance: nextState.opening, cashTrackingEnabled: true, cashFundingCurrencies: { ...s.cashFundingCurrencies, [currency]: true } }
         }
         const nextState = update(normalizeCash(s.accountCashBalances[id]), normalizeCash(s.accountCashOpeningBalances[id]))
-        return { accountCashBalances: { ...s.accountCashBalances, [id]: nextState.cash }, accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [id]: nextState.opening }, accountCashTracking: { ...s.accountCashTracking, [id]: true } }
+        return { accountCashBalances: { ...s.accountCashBalances, [id]: nextState.cash }, accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [id]: nextState.opening }, accountCashTracking: { ...s.accountCashTracking, [id]: true }, accountCashFundingCurrencies: { ...s.accountCashFundingCurrencies, [id]: { ...normalizeCashFunding(s.accountCashFundingCurrencies[id]), [currency]: true } } }
       }),
       addOpeningCashBalance: (id, currency, amount) => set(s => {
         if (!s.accounts.some(a => a.id === id)) return s
@@ -375,12 +416,11 @@ export const useStore = create<AppState>()(
           opening: { ...opening, [currency]: value },
         })
         if (id === s.activeAccountId) {
-          const next = apply(s.cashFundingRecorded ? s.cashBalance : { ...EMPTY_CASH }, s.cashOpeningBalance)
-          return { cashBalance: next.cash, cashOpeningBalance: next.opening, cashTrackingEnabled: true, cashFundingRecorded: true }
+          const next = apply(s.cashBalance, s.cashOpeningBalance)
+          return { cashBalance: next.cash, cashOpeningBalance: next.opening, cashTrackingEnabled: true, cashFundingRecorded: true, cashFundingCurrencies: { ...s.cashFundingCurrencies, [currency]: true } }
         }
-        const base = s.accountCashFundingRecorded[id] ? normalizeCash(s.accountCashBalances[id]) : { ...EMPTY_CASH }
-        const next = apply(base, normalizeCash(s.accountCashOpeningBalances[id]))
-        return { accountCashBalances: { ...s.accountCashBalances, [id]: next.cash }, accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [id]: next.opening }, accountCashTracking: { ...s.accountCashTracking, [id]: true }, accountCashFundingRecorded: { ...s.accountCashFundingRecorded, [id]: true } }
+        const next = apply(normalizeCash(s.accountCashBalances[id]), normalizeCash(s.accountCashOpeningBalances[id]))
+        return { accountCashBalances: { ...s.accountCashBalances, [id]: next.cash }, accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [id]: next.opening }, accountCashTracking: { ...s.accountCashTracking, [id]: true }, accountCashFundingRecorded: { ...s.accountCashFundingRecorded, [id]: true }, accountCashFundingCurrencies: { ...s.accountCashFundingCurrencies, [id]: { ...normalizeCashFunding(s.accountCashFundingCurrencies[id]), [currency]: true } } }
       }),
 
       // 交易手续费（按账户独立，仅作用于当前账户）
@@ -486,7 +526,7 @@ export const useStore = create<AppState>()(
       importBackup: (data) => {
         const d = data as {
           watchlist?: WatchlistStock[]
-          accounts?: { id: string; name: string; watchlist?: WatchlistStock[]; feeConfig?: FeeConfig; cashBalance?: CashBalances | number; cashOpeningBalance?: CashBalances | number; cashTrackingEnabled?: boolean; cashFundingRecorded?: boolean }[]
+          accounts?: { id: string; name: string; watchlist?: WatchlistStock[]; feeConfig?: FeeConfig; cashBalance?: CashBalances | number; cashOpeningBalance?: CashBalances | number; cashTrackingEnabled?: boolean; cashFundingRecorded?: boolean; cashFundingCurrencies?: CashFundingCurrencies; cashCalibrations?: CashCalibration[] }[]
           discoveryManualStocks?: Stock[]
           discoveryStaticEdits?: Record<string, Partial<Stock>>
           discoveryHiddenStocks?: string[]
@@ -512,12 +552,16 @@ export const useStore = create<AppState>()(
         let accountCashOpeningBalances: Record<string, CashBalances>
         let accountCashTracking: Record<string, boolean>
         let accountCashFundingRecorded: Record<string, boolean>
+        let accountCashFundingCurrencies: Record<string, CashFundingCurrencies>
+        let accountCashCalibrations: Record<string, CashCalibration[]>
         let watchlist: WatchlistStock[]
         let activeFeeConfig: FeeConfig | undefined
         let cashBalance: CashBalances = { ...EMPTY_CASH }
         let cashOpeningBalance: CashBalances = { ...EMPTY_CASH }
         let cashTrackingEnabled = false
         let cashFundingRecorded = false
+        let cashFundingCurrencies: CashFundingCurrencies = { ...EMPTY_CASH_FUNDING }
+        let cashCalibrations: CashCalibration[] = []
         const curFee = get().feeConfig
         if (Array.isArray(d.accounts) && d.accounts.length > 0) {
           accounts = d.accounts.map((a, i) => ({
@@ -532,12 +576,18 @@ export const useStore = create<AppState>()(
           cashOpeningBalance = normalizeCash(d.accounts[0].cashOpeningBalance)
           cashTrackingEnabled = Boolean(d.accounts[0].cashTrackingEnabled)
           cashFundingRecorded = Boolean(d.accounts[0].cashFundingRecorded)
+          cashFundingCurrencies = d.accounts[0].cashFundingCurrencies
+            ? normalizeCashFunding(d.accounts[0].cashFundingCurrencies)
+            : { CNY: cashOpeningBalance.CNY > 0, USD: cashOpeningBalance.USD > 0, HKD: cashOpeningBalance.HKD > 0 }
+          cashCalibrations = normalizeCashCalibrations(d.accounts[0].cashCalibrations)
           accountSnapshots = {}
           accountFeeConfigs = {}
           accountCashBalances = {}
           accountCashOpeningBalances = {}
           accountCashTracking = {}
           accountCashFundingRecorded = {}
+          accountCashFundingCurrencies = {}
+          accountCashCalibrations = {}
           d.accounts.slice(1).forEach((a, i) => {
             accountSnapshots[accounts[i + 1].id] = a.watchlist || []
             // 缺失则沿用当前费率，保持与旧版（单一全局费率）一致
@@ -546,6 +596,11 @@ export const useStore = create<AppState>()(
             accountCashOpeningBalances[accounts[i + 1].id] = normalizeCash(a.cashOpeningBalance)
             accountCashTracking[accounts[i + 1].id] = Boolean(a.cashTrackingEnabled)
             accountCashFundingRecorded[accounts[i + 1].id] = Boolean(a.cashFundingRecorded)
+            const opening = accountCashOpeningBalances[accounts[i + 1].id]
+            accountCashFundingCurrencies[accounts[i + 1].id] = a.cashFundingCurrencies
+              ? normalizeCashFunding(a.cashFundingCurrencies)
+              : { CNY: opening.CNY > 0, USD: opening.USD > 0, HKD: opening.HKD > 0 }
+            accountCashCalibrations[accounts[i + 1].id] = normalizeCashCalibrations(a.cashCalibrations)
           })
         } else {
           accounts = [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }]
@@ -556,6 +611,8 @@ export const useStore = create<AppState>()(
           accountCashOpeningBalances = {}
           accountCashTracking = {}
           accountCashFundingRecorded = {}
+          accountCashFundingCurrencies = {}
+          accountCashCalibrations = {}
           watchlist = d.watchlist || []
         }
 
@@ -577,6 +634,10 @@ export const useStore = create<AppState>()(
           accountCashTracking,
           cashFundingRecorded,
           accountCashFundingRecorded,
+          cashFundingCurrencies,
+          accountCashFundingCurrencies,
+          cashCalibrations,
+          accountCashCalibrations,
           manualStocks: d.discoveryManualStocks || d.manualStocks || [],
           staticEdits: d.discoveryStaticEdits || d.staticEdits || {},
           hiddenStocks: d.discoveryHiddenStocks || d.hiddenStocks || [],
@@ -592,7 +653,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 13,
+      version: 15,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[]; accounts?: unknown }
         // v10：历史板块别名统一到 H5 标准名称（含“美股”→“美股指数”）。
@@ -647,6 +708,23 @@ export const useStore = create<AppState>()(
         if (typeof m.cashTrackingEnabled !== 'boolean') m.cashTrackingEnabled = false
         if (!m.accountCashFundingRecorded || typeof m.accountCashFundingRecorded !== 'object') m.accountCashFundingRecorded = {}
         if (typeof m.cashFundingRecorded !== 'boolean') m.cashFundingRecorded = false
+        // v14：现金追踪改为按币种开启。旧数据按已有期初资金恢复，避免未录 USD/HKD 时交易被误计入。
+        if (!m.cashFundingCurrencies || typeof m.cashFundingCurrencies !== 'object') {
+          const opening = normalizeCash(m.cashOpeningBalance)
+          m.cashFundingCurrencies = { CNY: opening.CNY > 0, USD: opening.USD > 0, HKD: opening.HKD > 0 }
+        } else m.cashFundingCurrencies = normalizeCashFunding(m.cashFundingCurrencies)
+        if (!m.accountCashFundingCurrencies || typeof m.accountCashFundingCurrencies !== 'object') {
+          const openings = m.accountCashOpeningBalances as Record<string, unknown>
+          const tracked: Record<string, CashFundingCurrencies> = {}
+          for (const [id, value] of Object.entries(openings)) {
+            const opening = normalizeCash(value)
+            tracked[id] = { CNY: opening.CNY > 0, USD: opening.USD > 0, HKD: opening.HKD > 0 }
+          }
+          m.accountCashFundingCurrencies = tracked
+        }
+        if (!Array.isArray(m.cashCalibrations)) m.cashCalibrations = []
+        else m.cashCalibrations = normalizeCashCalibrations(m.cashCalibrations)
+        if (!m.accountCashCalibrations || typeof m.accountCashCalibrations !== 'object') m.accountCashCalibrations = {}
         // v7：simStrategy.shares 费率键去点号，并还原历史被点号拆坏的数据
         if (m.simStrategy) m.simStrategy = normalizeSimStrategy(m.simStrategy)
         // v9：布尔「美股纳入统计」→ 三态 statsScope（幂等，逻辑见 statsScopeMigrate + 其单测）
