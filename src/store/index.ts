@@ -116,11 +116,12 @@ interface AppState {
   addAccount: (name: string) => string | null
   renameAccount: (id: string, name: string) => void
   removeAccount: (id: string) => void
-  gatherAccounts: () => { id: string; name: string; watchlist: WatchlistStock[]; feeConfig: FeeConfig; cashBalance: CashBalances; cashTrackingEnabled: boolean }[]
+  gatherAccounts: () => { id: string; name: string; watchlist: WatchlistStock[]; feeConfig: FeeConfig; cashBalance: CashBalances; cashOpeningBalance: CashBalances; cashTrackingEnabled: boolean }[]
   setCashBalance: (currency: CashCurrency, amount: number) => void
   setAccountCashBalance: (id: string, currency: CashCurrency, amount: number) => void
   changeCashBalance: (id: string, currency: CashCurrency, amount: number) => void
   setOpeningCashBalance: (id: string, currency: CashCurrency, amount: number) => void
+  addOpeningCashBalance: (id: string, currency: CashCurrency, amount: number) => void
 
   // 交易手续费（按账户独立）
   feeConfig: FeeConfig
@@ -316,6 +317,7 @@ export const useStore = create<AppState>()(
           watchlist: a.id === s.activeAccountId ? s.watchlist : (s.accountSnapshots[a.id] ?? []),
           feeConfig: a.id === s.activeAccountId ? s.feeConfig : (s.accountFeeConfigs[a.id] ?? DEFAULT_FEE_CONFIG),
           cashBalance: a.id === s.activeAccountId ? s.cashBalance : (s.accountCashBalances[a.id] ?? { ...EMPTY_CASH }),
+          cashOpeningBalance: a.id === s.activeAccountId ? s.cashOpeningBalance : (s.accountCashOpeningBalances[a.id] ?? { ...EMPTY_CASH }),
           cashTrackingEnabled: a.id === s.activeAccountId ? s.cashTrackingEnabled : (s.accountCashTracking[a.id] ?? false),
         }))
       },
@@ -339,8 +341,7 @@ export const useStore = create<AppState>()(
         if (!s.accounts.some(a => a.id === id)) return s
         const next = Math.max(0, Number(amount) || 0)
         const update = (cash: CashBalances, opening: CashBalances) => {
-          // 现金功能早期版本只保存总余额。首次修正期初时，将该余额视为旧期初，避免再次相加。
-          const previous = opening[currency] || cash[currency]
+          const previous = opening[currency]
           return {
             cash: { ...cash, [currency]: cash[currency] + next - previous },
           opening: { ...opening, [currency]: next },
@@ -352,6 +353,20 @@ export const useStore = create<AppState>()(
         }
         const nextState = update(normalizeCash(s.accountCashBalances[id]), normalizeCash(s.accountCashOpeningBalances[id]))
         return { accountCashBalances: { ...s.accountCashBalances, [id]: nextState.cash }, accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [id]: nextState.opening }, accountCashTracking: { ...s.accountCashTracking, [id]: true } }
+      }),
+      addOpeningCashBalance: (id, currency, amount) => set(s => {
+        if (!s.accounts.some(a => a.id === id)) return s
+        const value = Math.max(0, Number(amount) || 0)
+        const apply = (cash: CashBalances, opening: CashBalances) => ({
+          cash: { ...cash, [currency]: cash[currency] + value },
+          opening: { ...opening, [currency]: value },
+        })
+        if (id === s.activeAccountId) {
+          const next = apply(s.cashBalance, s.cashOpeningBalance)
+          return { cashBalance: next.cash, cashOpeningBalance: next.opening, cashTrackingEnabled: true }
+        }
+        const next = apply(normalizeCash(s.accountCashBalances[id]), normalizeCash(s.accountCashOpeningBalances[id]))
+        return { accountCashBalances: { ...s.accountCashBalances, [id]: next.cash }, accountCashOpeningBalances: { ...s.accountCashOpeningBalances, [id]: next.opening }, accountCashTracking: { ...s.accountCashTracking, [id]: true } }
       }),
 
       // 交易手续费（按账户独立，仅作用于当前账户）
@@ -457,7 +472,7 @@ export const useStore = create<AppState>()(
       importBackup: (data) => {
         const d = data as {
           watchlist?: WatchlistStock[]
-          accounts?: { id: string; name: string; watchlist?: WatchlistStock[]; feeConfig?: FeeConfig; cashBalance?: CashBalances | number }[]
+          accounts?: { id: string; name: string; watchlist?: WatchlistStock[]; feeConfig?: FeeConfig; cashBalance?: CashBalances | number; cashOpeningBalance?: CashBalances | number; cashTrackingEnabled?: boolean }[]
           discoveryManualStocks?: Stock[]
           discoveryStaticEdits?: Record<string, Partial<Stock>>
           discoveryHiddenStocks?: string[]
@@ -480,9 +495,13 @@ export const useStore = create<AppState>()(
         let accountSnapshots: Record<string, WatchlistStock[]>
         let accountFeeConfigs: Record<string, FeeConfig>
         let accountCashBalances: Record<string, CashBalances>
+        let accountCashOpeningBalances: Record<string, CashBalances>
+        let accountCashTracking: Record<string, boolean>
         let watchlist: WatchlistStock[]
         let activeFeeConfig: FeeConfig | undefined
         let cashBalance: CashBalances = { ...EMPTY_CASH }
+        let cashOpeningBalance: CashBalances = { ...EMPTY_CASH }
+        let cashTrackingEnabled = false
         const curFee = get().feeConfig
         if (Array.isArray(d.accounts) && d.accounts.length > 0) {
           accounts = d.accounts.map((a, i) => ({
@@ -494,14 +513,20 @@ export const useStore = create<AppState>()(
           // 旧备份无按账户费率：活动账户用当前费率兜底，避免切换后成本归零
           activeFeeConfig = d.accounts[0].feeConfig ?? curFee
           cashBalance = normalizeCash(d.accounts[0].cashBalance)
+          cashOpeningBalance = normalizeCash(d.accounts[0].cashOpeningBalance)
+          cashTrackingEnabled = Boolean(d.accounts[0].cashTrackingEnabled) || Object.values(cashBalance).some(v => v !== 0)
           accountSnapshots = {}
           accountFeeConfigs = {}
           accountCashBalances = {}
+          accountCashOpeningBalances = {}
+          accountCashTracking = {}
           d.accounts.slice(1).forEach((a, i) => {
             accountSnapshots[accounts[i + 1].id] = a.watchlist || []
             // 缺失则沿用当前费率，保持与旧版（单一全局费率）一致
             accountFeeConfigs[accounts[i + 1].id] = a.feeConfig ?? curFee
             accountCashBalances[accounts[i + 1].id] = normalizeCash(a.cashBalance)
+            accountCashOpeningBalances[accounts[i + 1].id] = normalizeCash(a.cashOpeningBalance)
+            accountCashTracking[accounts[i + 1].id] = Boolean(a.cashTrackingEnabled) || Object.values(accountCashBalances[accounts[i + 1].id]).some(v => v !== 0)
           })
         } else {
           accounts = [{ id: DEFAULT_ACCOUNT_ID, name: DEFAULT_ACCOUNT_NAME }]
@@ -509,6 +534,8 @@ export const useStore = create<AppState>()(
           accountSnapshots = {}
           accountFeeConfigs = {}
           accountCashBalances = {}
+          accountCashOpeningBalances = {}
+          accountCashTracking = {}
           watchlist = d.watchlist || []
         }
 
@@ -524,6 +551,10 @@ export const useStore = create<AppState>()(
           accountFeeConfigs,
           cashBalance,
           accountCashBalances,
+          cashOpeningBalance,
+          accountCashOpeningBalances,
+          cashTrackingEnabled,
+          accountCashTracking,
           manualStocks: d.discoveryManualStocks || d.manualStocks || [],
           staticEdits: d.discoveryStaticEdits || d.staticEdits || {},
           hiddenStocks: d.discoveryHiddenStocks || d.hiddenStocks || [],
@@ -539,7 +570,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'xuxu-efu-store',
-      version: 11,
+      version: 12,
       migrate: (persisted) => {
         const s = persisted as { customSectors?: string[]; accounts?: unknown }
         // v10：历史板块别名统一到 H5 标准名称（含“美股”→“美股指数”）。
@@ -588,6 +619,10 @@ export const useStore = create<AppState>()(
         // v11：现金按账户独立保存，历史数据默认现金为 0。
         if (!m.accountCashBalances || typeof m.accountCashBalances !== 'object') m.accountCashBalances = {}
         m.cashBalance = normalizeCash(m.cashBalance)
+        if (!m.accountCashOpeningBalances || typeof m.accountCashOpeningBalances !== 'object') m.accountCashOpeningBalances = {}
+        m.cashOpeningBalance = normalizeCash(m.cashOpeningBalance)
+        if (!m.accountCashTracking || typeof m.accountCashTracking !== 'object') m.accountCashTracking = {}
+        if (typeof m.cashTrackingEnabled !== 'boolean') m.cashTrackingEnabled = Object.values(normalizeCash(m.cashBalance)).some(v => v !== 0)
         // v7：simStrategy.shares 费率键去点号，并还原历史被点号拆坏的数据
         if (m.simStrategy) m.simStrategy = normalizeSimStrategy(m.simStrategy)
         // v9：布尔「美股纳入统计」→ 三态 statsScope（幂等，逻辑见 statsScopeMigrate + 其单测）

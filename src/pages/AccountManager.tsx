@@ -21,6 +21,7 @@ export default function AccountManager() {
   const accountCashOpeningBalances = useStore(s => s.accountCashOpeningBalances)
   const changeCashBalance = useStore(s => s.changeCashBalance)
   const setOpeningCashBalance = useStore(s => s.setOpeningCashBalance)
+  const addOpeningCashBalance = useStore(s => s.addOpeningCashBalance)
   const { message, showToast } = useToast()
 
   const [showAdd, setShowAdd] = useState(false)
@@ -54,7 +55,11 @@ export default function AccountManager() {
   }
   const saveCash = () => {
     if (cashAccountId) {
-      if (cashAction === 'opening') setOpeningCashBalance(cashAccountId, cashCurrency, Number(cashInput))
+      if (cashAction === 'opening') {
+        const opening = cashAccountId === activeAccountId ? cashOpeningBalance : (accountCashOpeningBalances[cashAccountId] ?? EMPTY_CASH)
+        if (opening[cashCurrency] > 0) setOpeningCashBalance(cashAccountId, cashCurrency, Number(cashInput))
+        else addOpeningCashBalance(cashAccountId, cashCurrency, Number(cashInput))
+      }
       else changeCashBalance(cashAccountId, cashCurrency, (cashAction === 'withdrawal' ? -1 : 1) * (Number(cashInput) || 0))
     }
     setCashAccountId(null)
@@ -105,7 +110,7 @@ export default function AccountManager() {
                     {CASH_CURRENCIES.map(currency => <span key={currency}>{currency === 'CNY' ? '¥' : currency === 'USD' ? 'US$' : 'HK$'}{(active ? cashBalance : (accountCashBalances[a.id] ?? EMPTY_CASH))[currency].toFixed(2)}</span>)}
                   </div>
                 </button>
-                <button className="mt-2 text-xs text-gray-400 underline" onClick={() => openCashEditor(a.id, 'opening')}>修改期初资金</button>
+                <button className="mt-2 text-xs text-gray-400 underline" onClick={() => openCashEditor(a.id, 'opening')}>{(active ? cashOpeningBalance : (accountCashOpeningBalances[a.id] ?? EMPTY_CASH)).CNY > 0 ? '修改期初资金' : '补录期初资金'}</button>
               </div>
             )
           })}

@@ -30,11 +30,25 @@ describe('cash tracking', () => {
     expect(useStore.getState().cashBalance).toEqual({ CNY: 600, USD: 0, HKD: 0 })
   })
 
-  it('replaces a legacy opening balance instead of adding another opening amount', () => {
+  it('can backfill a missing opening balance without replacing existing sale proceeds', () => {
     useStore.setState({ cashBalance: { CNY: 10000, USD: 0, HKD: 0 }, cashTrackingEnabled: true })
-    useStore.getState().setOpeningCashBalance('default', 'CNY', 8000)
-    expect(useStore.getState().cashBalance).toEqual({ CNY: 8000, USD: 0, HKD: 0 })
+    useStore.getState().addOpeningCashBalance('default', 'CNY', 8000)
+    expect(useStore.getState().cashBalance).toEqual({ CNY: 18000, USD: 0, HKD: 0 })
     useStore.getState().setOpeningCashBalance('default', 'CNY', 12000)
-    expect(useStore.getState().cashBalance).toEqual({ CNY: 12000, USD: 0, HKD: 0 })
+    expect(useStore.getState().cashBalance).toEqual({ CNY: 22000, USD: 0, HKD: 0 })
+  })
+
+  it('restores opening cash and tracking state from an account backup', () => {
+    useStore.getState().importBackup({
+      accounts: [{
+        id: 'default', name: '我的账户', watchlist: [], feeConfig: DEFAULT_FEE_CONFIG,
+        cashBalance: { CNY: 58000, USD: 0, HKD: 0 },
+        cashOpeningBalance: { CNY: 8000, USD: 0, HKD: 0 },
+        cashTrackingEnabled: true,
+      }],
+    })
+    expect(useStore.getState().cashBalance.CNY).toBe(58000)
+    expect(useStore.getState().cashOpeningBalance.CNY).toBe(8000)
+    expect(useStore.getState().cashTrackingEnabled).toBe(true)
   })
 })
