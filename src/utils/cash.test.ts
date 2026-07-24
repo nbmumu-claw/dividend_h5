@@ -52,4 +52,13 @@ describe('transaction cash flow', () => {
 
     expect(result).toBe(-920)
   })
+
+  it('deducts a recorded A-share dividend tax from cash', () => {
+    const result = transactionCashFlow(stock(), [
+      { type: 'buy', qty: 100, price: 10, ts: 1 },
+      { type: 'dividendTax', qty: 100, price: 20, ts: 2 },
+    ], DEFAULT_FEE_CONFIG)
+
+    expect(result).toBe(-1020)
+  })
 })

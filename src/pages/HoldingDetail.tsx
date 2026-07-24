@@ -3,13 +3,16 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store'
 import { fetchStockPrices } from '../utils/api'
 import { afterTax } from '../utils/tax'
-import { currencySymbol, isBShare } from '../utils/market'
+import { currencySymbol, isAShare, isBShare } from '../utils/market'
 import { computeHolding, ensureTransactions, findFirstOversell, sharesAsOf, dividendShares, TX_LABEL, type TxType, type Transaction } from '../utils/holdings'
 import { makeFeeCalc } from '../utils/fees'
+import { estimateDividendTax } from '../utils/dividendTax'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
 import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
+import DividendTaxReminderCard from '../components/DividendTaxReminderCard'
+import { usePendingDividendTax } from '../utils/dividendTaxReminder'
 
 const TAX_OPTIONS: { value: 'h' | 'n' | 'a'; label: string }[] = [
   { value: 'a', label: '港户' },
@@ -42,6 +45,7 @@ export default function HoldingDetail() {
   const [txType, setTxType] = useState<TxType>('buy')
   const [txQty, setTxQty] = useState('')
   const [txPrice, setTxPrice] = useState('')
+  const [taxAmountAuto, setTaxAmountAuto] = useState(false)
   const [txNegative, setTxNegative] = useState(false)
   const [txDate, setTxDate] = useState(todayStr())
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null)
@@ -77,6 +81,18 @@ export default function HoldingDetail() {
     [txs, stock, feeConfig]
   )
   const pendingDiv = usePendingDividends(useMemo(() => (stock ? [stock] : []), [stock]))
+  const pendingDividendTax = usePendingDividendTax(stock ?? ({ code: '', name: '', sector: '', price: 0, dividendPerShare: 0, yieldRate: 0, confirmed: false }))
+
+  const dividendTaxEstimate = useMemo(() => {
+    const base = editingIdx >= 0 ? txs.filter((_, index) => index !== editingIdx) : txs
+    return estimateDividendTax(base, previewTs, Number(txQty) || 0)
+  }, [editingIdx, previewTs, txQty, txs])
+
+  useEffect(() => {
+    if (txType === 'dividendTax' && taxAmountAuto) {
+      setTxPrice(dividendTaxEstimate.tax.toFixed(2))
+    }
+  }, [dividendTaxEstimate.tax, taxAmountAuto, txType])
 
   if (!stock) {
     return (
@@ -88,6 +104,7 @@ export default function HoldingDetail() {
   }
 
   const curSym = currencySymbol(stock)
+  const canEstimateDividendTax = isAShare(stock)
   const price = Number(stock.price) || 0
   const dividend = Number(stock.dividendPerShare) || 0
   const yieldRate = price > 0 && dividend > 0 ? (dividend / price) * 100 : 0
@@ -111,20 +128,50 @@ export default function HoldingDetail() {
 
   const openAdd = () => {
     setEditingIdx(-1); setTxType('buy'); setTxQty(''); setTxPrice(price > 0 ? price.toFixed(2) : '')
-    setTxNegative(false); setTxDate(todayStr()); setShowForm(true)
+    setTaxAmountAuto(false); setTxNegative(false); setTxDate(todayStr()); setShowForm(true)
   }
   const openEdit = (t: Transaction & { idx: number }) => {
     const raw = t.type === 'dividend' ? (t.gross ?? t.price) : t.price
     setEditingIdx(t.idx); setTxType(t.type)
     setTxQty(t.type === 'dividend' ? '' : String(t.qty))
     setTxPrice(String(Math.abs(Number(raw))))
+    setTaxAmountAuto(false)
     setTxNegative(t.type === 'buy' && Number(t.price) < 0)
     setTxDate(t.ts ? fmtDate(t.ts) : todayStr()); setShowForm(true)
   }
 
+  const openDividendTaxReview = (item: NonNullable<typeof pendingDividendTax.item>) => {
+    setEditingIdx(-1)
+    setTxType('dividendTax')
+    setTxDate(item.saleDate)
+    setTxQty(String(item.qty))
+    setTxPrice(item.tax.toFixed(2))
+    setTaxAmountAuto(false)
+    setTxNegative(false)
+    setShowForm(true)
+  }
+
   const changeType = (val: TxType) => {
+    if (val === 'dividendTax' && !canEstimateDividendTax) {
+      showToast('分红税预估仅适用于沪深北普通 A 股')
+      return
+    }
     setTxType(val)
     if (val === 'dividend') setTxPrice(dividend > 0 ? String(Number(dividend.toFixed(3))) : '')
+    if (val === 'dividendTax') {
+      const latestSell = txs
+        .filter(t => t.type === 'sell')
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0]
+      const taxDate = latestSell?.ts ? fmtDate(latestSell.ts) : txDate
+      const sellQty = txs
+        .filter(t => t.type === 'sell' && fmtDate(t.ts) === taxDate)
+        .reduce((sum, t) => sum + (Number(t.qty) || 0), 0)
+      if (latestSell?.ts) setTxDate(taxDate)
+      if (sellQty > 0) setTxQty(String(sellQty))
+      setTaxAmountAuto(true)
+    } else {
+      setTaxAmountAuto(false)
+    }
     if (val !== 'buy') setTxNegative(false)
   }
 
@@ -141,6 +188,13 @@ export default function HoldingDetail() {
       if (qty <= 0) { showToast('该日期当时无持仓，无法记录分红'); return }
       if (!Number.isFinite(p) || p <= 0) { showToast('请填写有效的每股分红'); return }
       storedPrice = afterTax(p, stock)
+    } else if (txType === 'dividendTax') {
+      if (!canEstimateDividendTax) { showToast('分红税记录仅适用于沪深北普通 A 股'); return }
+      qty = Number(txQty.trim())
+      if (!Number.isInteger(qty) || qty <= 0) { showToast('请填写有效的整数数量'); return }
+      if (qty > dividendTaxEstimate.availableQty) { showToast(`该日期当时仅剩 ${dividendTaxEstimate.availableQty} 股可供估算`); return }
+      storedPrice = txPrice.trim() === '' ? dividendTaxEstimate.tax : p
+      if (!Number.isFinite(storedPrice) || storedPrice <= 0) { showToast('暂无可估算税额，请核对分红记录或手动填写金额'); return }
     } else {
       qty = Number(txQty.trim())
       if (!Number.isInteger(qty) || qty <= 0) { showToast('请填写有效的整数数量'); return }
@@ -154,7 +208,7 @@ export default function HoldingDetail() {
     const next = txs.slice()
     if (editingIdx >= 0) next[editingIdx] = tx
     else next.push(tx)
-    if (txType !== 'dividend') {
+    if (txType === 'buy' || txType === 'sell') {
       const issue = findFirstOversell(next)
       if (issue) {
         const ownIndex = editingIdx >= 0 ? editingIdx : txs.length
@@ -301,13 +355,19 @@ export default function HoldingDetail() {
             <Ov label="累计已收分红" value={totalDividend > 0 ? `${curSym}${totalDividend.toFixed(2)}` : '--'} valueClass="text-red-600" />
           </div>
           <div className="text-[11px] text-gray-400 leading-relaxed mt-3">
-            摊薄成本 =（累计买入额 − 累计卖出额 − 累计分红）÷ 当前持仓，卖出与分红均冲减成本；浮动盈亏已含分红收益
+            摊薄成本 =（累计买入额 − 累计卖出额 − 累计分红 + 分红税）÷ 当前持仓，卖出与分红均冲减成本；浮动盈亏已含税后分红收益
           </div>
         </div>
       </div>
 
       {/* 记录管理 */}
       <div className="px-4 pb-28">
+        <DividendTaxReminderCard
+          item={pendingDividendTax.item}
+          onConfirm={(item) => { pendingDividendTax.confirm(item); showToast('已记录分红税') }}
+          onDismiss={(item) => { pendingDividendTax.dismiss(item); showToast('已忽略分红税提醒') }}
+          onReview={openDividendTaxReview}
+        />
         <DividendReminderCard
           items={pendingDiv.items}
           onConfirm={(it) => { pendingDiv.confirm(it); showToast('已录入分红') }}
@@ -326,13 +386,13 @@ export default function HoldingDetail() {
               {visibleTx.map(t => (
                 <div key={t.idx} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0">
                   <button className="flex-1 flex items-center gap-3 text-left" onClick={() => openEdit(t)}>
-                    <span className={`tag flex-shrink-0 ${t.type === 'sell' ? 'tag-sell' : t.type === 'dividend' ? 'tag-yellow' : 'tag-red'}`}>{TX_LABEL[t.type]}</span>
+                    <span className={`tag flex-shrink-0 ${t.type === 'sell' ? 'tag-sell' : t.type === 'dividend' || t.type === 'dividendTax' ? 'tag-yellow' : 'tag-red'}`}>{TX_LABEL[t.type]}</span>
                     <div>
-                      <div className="text-sm text-gray-800">{rowQty(t)} 股 @ {curSym}{Number(t.price).toFixed(3)}</div>
+                      <div className="text-sm text-gray-800">{t.type === 'dividendTax' ? `${rowQty(t)} 股 · 预估税额` : `${rowQty(t)} 股 @ ${curSym}${Number(t.price).toFixed(3)}`}</div>
                       <div className="text-xs text-gray-400">{t.ts ? fmtDate(t.ts) : ''}</div>
                     </div>
                   </button>
-                  <span className="text-sm text-gray-600 tabular-nums">{curSym}{(rowQty(t) * Number(t.price)).toFixed(2)}</span>
+                  <span className="text-sm text-gray-600 tabular-nums">{curSym}{(t.type === 'dividendTax' ? Number(t.price) : rowQty(t) * Number(t.price)).toFixed(2)}</span>
                   <button onClick={() => setDeleteIdx(t.idx)} className="text-gray-300 p-1">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" /></svg>
                   </button>
@@ -359,12 +419,13 @@ export default function HoldingDetail() {
       {/* 记录表单 */}
       <Modal open={showForm} onClose={() => { setShowForm(false); setEditingIdx(-1) }} title={editingIdx >= 0 ? '修改记录' : '变更记录'}>
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-2">
-            {(['buy', 'sell', 'dividend'] as TxType[]).map(t => (
+          <div className="grid grid-cols-4 gap-2">
+            {(['buy', 'sell', 'dividend', 'dividendTax'] as TxType[]).map(t => (
               <button
                 key={t}
                 onClick={() => changeType(t)}
-                className={`py-2.5 rounded-lg text-sm font-semibold ${txType === t ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500'}`}
+                disabled={t === 'dividendTax' && !canEstimateDividendTax}
+                className={`py-2.5 rounded-lg text-sm font-semibold ${txType === t ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500'} disabled:opacity-40`}
               >{TX_LABEL[t]}</button>
             ))}
           </div>
@@ -382,8 +443,8 @@ export default function HoldingDetail() {
           )}
 
           <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-500">{txType === 'dividend' ? '每股分红' : '价格'}</label>
-            <input type="number" min="0" value={txPrice} onChange={e => setTxPrice(e.target.value)} placeholder="0.00" className="input-field text-sm w-44" />
+            <label className="text-sm text-gray-500">{txType === 'dividend' ? '每股分红' : txType === 'dividendTax' ? '税额' : '价格'}</label>
+            <input type="number" min="0" value={txPrice} onChange={e => { setTaxAmountAuto(false); setTxPrice(e.target.value) }} placeholder="0.00" className="input-field text-sm w-44" />
           </div>
 
           {txType === 'buy' && (
@@ -396,9 +457,17 @@ export default function HoldingDetail() {
             <div className="text-xs text-gray-400">分红按 {txDate} 当时持仓 {sharesAsOf(editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs, previewTs)} 股计；{stock.isHK ? '港股按所选税率扣税后' : isBShare(stock.code) ? 'B股按10%扣税后' : 'A股免税'}冲减成本。</div>
           )}
 
+          {txType === 'dividendTax' && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
+              <div className="font-semibold">预估分红税 {curSym}{dividendTaxEstimate.tax.toFixed(2)}</div>
+              <div className="mt-1">同日买入会先抵扣卖出数量。税额已自动填入上方，可手动修改；基于已录入的 {dividendTaxEstimate.dividendCount} 笔分红，先进先出估算：1 个月内分红 {curSym}{dividendTaxEstimate.withinMonth.toFixed(2)} × 20%；1 个月至 1 年分红 {curSym}{dividendTaxEstimate.withinYear.toFixed(2)} × 10%。</div>
+              <div className="mt-1 text-amber-700">仅供审核：请以券商实际扣缴为准；未录入历史分红、跨账户持仓或公司行动可能造成差异。</div>
+            </div>
+          )}
+
           {(() => {
             const fc = makeFeeCalc(stock, feeConfig)
-            if (!fc || txType === 'dividend') return null
+            if (!fc || txType === 'dividend' || txType === 'dividendTax') return null
             const amt = (parseInt(txQty, 10) || 0) * (parseFloat(txPrice) || 0)
             if (amt <= 0 || (txType === 'buy' && txNegative)) return null
             const fee = fc(txType, amt)

@@ -1,7 +1,8 @@
 // 持仓交易 · 摊薄成本计算（移植自小程序 utils/holdings.js）
 //
-// transaction: { type: 'buy'|'sell'|'dividend', qty, price, ts, gross? }
+// transaction: { type: 'buy'|'sell'|'dividend'|'dividendTax', qty, price, ts, gross? }
 //   - dividend（分红）：不改变持仓数量，金额(qty×price)冲减成本基数（除权降成本）
+//   - dividendTax（分红税）：不改变持仓数量，金额(price)计入已实现成本
 //
 // 摊薄成本法：
 //   净持仓     = Σ买入数量 − Σ卖出数量            （分红不影响）
@@ -11,7 +12,7 @@
 import type { WatchlistStock } from '../types'
 import type { FeeCalc } from './fees'
 
-export type TxType = 'buy' | 'sell' | 'dividend'
+export type TxType = 'buy' | 'sell' | 'dividend' | 'dividendTax'
 export interface Transaction {
   type: TxType
   qty: number
@@ -41,7 +42,7 @@ export function findFirstOversell(transactions: Transaction[] | undefined): Over
 
   let shares = 0
   for (const { transaction, index } of ordered) {
-    if (transaction.type === 'dividend') continue
+    if (transaction.type === 'dividend' || transaction.type === 'dividendTax') continue
     const qty = Number(transaction.qty)
     if (!Number.isFinite(qty) || qty <= 0) continue
     if (transaction.type === 'sell') {
@@ -58,7 +59,7 @@ export function findFirstOversell(transactions: Transaction[] | undefined): Over
 export function sharesAsOf(transactions: Transaction[] | undefined, ts: number): number {
   let shares = 0
   ;(transactions || []).forEach(t => {
-    if (t.type === 'dividend') return
+    if (t.type === 'dividend' || t.type === 'dividendTax') return
     if ((t.ts || 0) > ts) return
     const qty = Number(t.qty) || 0
     if (qty <= 0) return
@@ -79,7 +80,7 @@ export function computeHolding(transactions: Transaction[] | undefined, feeCalc?
   let shares = 0 // 净持仓数量（与顺序无关）
   let buySellAmount = 0 // Σ买入额 − Σ卖出额（+手续费）
   txs.forEach(t => {
-    if (t.type === 'dividend') return
+    if (t.type === 'dividend' || t.type === 'dividendTax') return
     const qty = Number(t.qty) || 0
     const price = Number(t.price) || 0
     if (qty <= 0) return
@@ -94,7 +95,8 @@ export function computeHolding(transactions: Transaction[] | undefined, feeCalc?
     if (t.type !== 'dividend') return
     divAmount += dividendShares(txs, t) * (Number(t.price) || 0)
   })
-  const netAmount = buySellAmount - divAmount
+  const dividendTaxAmount = txs.reduce((sum, t) => t.type === 'dividendTax' ? sum + (Number(t.price) || 0) : sum, 0)
+  const netAmount = buySellAmount - divAmount + dividendTaxAmount
 
   if (shares <= 0) {
     return { shares: Math.max(0, shares), costPrice: '', netAmount, cleared: true }
@@ -123,4 +125,4 @@ export function applyHolding(stock: WatchlistStock, transactions: Transaction[],
   return stock
 }
 
-export const TX_LABEL: Record<TxType, string> = { buy: '买入', sell: '卖出', dividend: '分红' }
+export const TX_LABEL: Record<TxType, string> = { buy: '买入', sell: '卖出', dividend: '分红', dividendTax: '分红税' }

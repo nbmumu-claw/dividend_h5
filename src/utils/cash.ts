@@ -81,6 +81,7 @@ export function transactionCashFlow(stock: WatchlistStock, txs: Transaction[], f
     const price = Number(tx.price) || 0
     if (qty <= 0) return sum
     if (tx.type === 'dividend') return sum + afterTax(dividendShares(txs, tx) * price, stock)
+    if (tx.type === 'dividendTax') return sum - price
     const amount = qty * price
     const fee = feeCalc?.(tx.type, amount) || 0
     return sum + (tx.type === 'buy' ? -amount - fee : amount - fee)

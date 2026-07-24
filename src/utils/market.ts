@@ -9,6 +9,11 @@ export function isSzB(code: string): boolean { return /^200/.test(String(code).p
 /** 是否为 B 股 */
 export function isBShare(code: string): boolean { return isShB(code) || isSzB(code) }
 
+/** 沪深北普通股：不含港美股、基金与 B 股。 */
+export function isAShare(stock: StockLike & { isETF?: boolean; isFund?: boolean }): boolean {
+  return /^\d{6}$/.test(String(stock.code)) && !stock.isHK && !stock.isUS && !stock.isETF && !stock.isFund && !isBShare(stock.code)
+}
+
 type StockLike = { code: string; isHK?: boolean; isUS?: boolean }
 
 /** 展示所用的货币符号 */

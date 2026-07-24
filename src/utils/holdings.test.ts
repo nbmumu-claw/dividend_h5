@@ -62,6 +62,20 @@ describe('findFirstOversell', () => {
 })
 
 describe('computeHolding', () => {
+  it('adds recorded dividend tax to the remaining cost basis', () => {
+    const transactions: Transaction[] = [
+      { type: 'buy', qty: 100, price: 10, ts: day('2026-01-01') },
+      { type: 'dividendTax', qty: 100, price: 20, ts: day('2026-02-01') },
+    ]
+
+    expect(computeHolding(transactions)).toMatchObject({
+      shares: 100,
+      costPrice: 10.2,
+      netAmount: 1020,
+      cleared: false,
+    })
+  })
+
   it('keeps the net result after a position is fully cleared', () => {
     const transactions: Transaction[] = [
       { type: 'buy', qty: 500, price: 25, ts: day('2026-01-01') },
