@@ -5,6 +5,13 @@ import { cbAuth } from '../utils/cloudbase'
 type Mode = 'login' | 'register' | 'otp'
 type VerifyOtp = (arg: { token: string }) => Promise<{ data?: unknown; error?: { message?: string } | null }>
 
+function registerErrorMessage(message?: string) {
+  if (/duplicate key|_project_email|already exists/i.test(message || '')) {
+    return '该邮箱已注册，请直接登录或使用验证码登录。'
+  }
+  return message || '注册失败'
+}
+
 // 记住用户名/密码（存本机，仅本设备；密码为明文本地存储，勾选即视为你信任本设备）
 const REMEMBER_KEY = 'auth-remember'
 interface Remembered { email?: string; password?: string; rememberEmail?: boolean; rememberPwd?: boolean }
@@ -83,7 +90,7 @@ export default function AuthModal({ open, onClose, onAuthed }: Props) {
     setLoading(true); setErr('')
     const { data, error } = await cbAuth.signUp({ email, password, nickname: nickname || email.split('@')[0] }) as { data?: { verifyOtp?: VerifyOtp }; error?: { message?: string } }
     setLoading(false)
-    if (error) { setErr(error.message || '注册失败'); return }
+    if (error) { setErr(registerErrorMessage(error.message)); return }
     verifyRef.current = data?.verifyOtp || null
     setStep('code')
   }
