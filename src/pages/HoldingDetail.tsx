@@ -126,9 +126,9 @@ export default function HoldingDetail() {
     .sort((a, b) => {
       const dateOrder = fmtDate(b.ts || 0).localeCompare(fmtDate(a.ts || 0))
       if (dateOrder !== 0) return dateOrder
-      // 分红税属于当日卖出后的补缴记录，展示时固定排在该日其他流水之后。
-      if (a.type === 'dividendTax' && b.type !== 'dividendTax') return 1
-      if (b.type === 'dividendTax' && a.type !== 'dividendTax') return -1
+      // 列表按时间倒序；分红税属于当日卖出后的补缴记录，应显示在卖出记录上方。
+      if (a.type === 'dividendTax' && b.type !== 'dividendTax') return -1
+      if (b.type === 'dividendTax' && a.type !== 'dividendTax') return 1
       return (b.ts || 0) - (a.ts || 0)
     })
   const visibleTx = expanded ? txList : txList.slice(0, 3)
