@@ -233,7 +233,6 @@ const useIsMobile = () => useMediaQuery('(max-width: 719px)')
 export default function YieldGrid() {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
-  const isLandscapePhone = useMediaQuery('(orientation: landscape) and (max-height: 600px) and (pointer: coarse)')
   const { message, showToast } = useToast()
 
   // 一次性迁移：旧 localStorage 数据 → Zustand store（纳入账号云同步）
@@ -809,9 +808,8 @@ export default function YieldGrid() {
           const sellOrdinalCount = Math.max(...items.map(r => sellGridFor(r, cfg, yieldStartMap).length))
           const buyOrdinalCount = Math.max(...items.map(r => buyGridFor(r, cfg, yieldStartMap).length))
           const isDenseGrid = sellOrdinalCount === 8 && buyOrdinalCount === 8
-          const tableMinWidth = isLandscapePhone || isDenseGrid
-            ? 120 + 252 + (isMobile ? 264 : 268) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 80)
-            : undefined
+          // 窄屏或浏览器放大时保持列宽，以横向滚动代替文字重叠。
+          const tableMinWidth = 120 + 252 + (isMobile ? 264 : 268) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 80)
           const isCollapsed = groupBySector && collapsed.has(sector)
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
           const avgCy = items.reduce((s, r) => s + r.cy, 0) / items.length
