@@ -204,7 +204,8 @@ export default function HoldingDetail() {
       if (!Number.isFinite(storedPrice) || storedPrice <= 0) { showToast('暂无可估算税额，请核对分红记录或手动填写金额'); return }
     } else {
       qty = Number(txQty.trim())
-      if (!Number.isInteger(qty) || qty <= 0) { showToast('请填写有效的整数数量'); return }
+      const isValidQty = stock.isFund ? Number.isFinite(qty) : Number.isInteger(qty)
+      if (!isValidQty || qty <= 0) { showToast(stock.isFund ? '请填写有效的份额数量' : '请填写有效的整数数量'); return }
       if (!Number.isFinite(p) || p <= 0) { showToast('请填写有效的价格'); return }
       if (txType === 'buy' && txNegative) storedPrice = -p
     }
@@ -395,7 +396,7 @@ export default function HoldingDetail() {
                   <button className="flex-1 flex items-center gap-3 text-left" onClick={() => openEdit(t)}>
                     <span className={`tag flex-shrink-0 ${t.type === 'sell' ? 'tag-sell' : t.type === 'dividend' || t.type === 'dividendTax' ? 'tag-yellow' : 'tag-red'}`}>{TX_LABEL[t.type]}</span>
                     <div>
-                      <div className="text-sm text-gray-800">{t.type === 'dividendTax' ? `${rowQty(t)} 股 · 预估税额` : `${rowQty(t)} 股 @ ${curSym}${Number(t.price).toFixed(3)}`}</div>
+                      <div className="text-sm text-gray-800">{t.type === 'dividendTax' ? `${rowQty(t)} ${stock.isFund ? '份' : '股'} · 预估税额` : `${rowQty(t)} ${stock.isFund ? '份' : '股'} @ ${curSym}${Number(t.price).toFixed(3)}`}</div>
                       <div className="text-xs text-gray-400">{t.ts ? fmtDate(t.ts) : ''}</div>
                     </div>
                   </button>
@@ -444,13 +445,13 @@ export default function HoldingDetail() {
 
           {txType !== 'dividend' && (
             <div className="flex items-center justify-between">
-              <label className="text-sm text-gray-500">数量（股）</label>
-              <input type="number" min="0" value={txQty} onChange={e => setTxQty(e.target.value)} placeholder="0" className="input-field text-sm w-44" />
+              <label className="text-sm text-gray-500">数量（{stock.isFund ? '份' : '股'}）</label>
+              <input type="number" min="0" step={stock.isFund ? 'any' : '1'} value={txQty} onChange={e => setTxQty(e.target.value)} placeholder="0" className="input-field text-sm w-44" />
             </div>
           )}
 
           <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-500">{txType === 'dividend' ? '每股分红' : txType === 'dividendTax' ? '税额' : '价格'}</label>
+            <label className="text-sm text-gray-500">{txType === 'dividend' ? `每${stock.isFund ? '份' : '股'}分红` : txType === 'dividendTax' ? '税额' : '价格'}</label>
             <input type="number" min="0" value={txPrice} onChange={e => { setTaxAmountAuto(false); setTxPrice(e.target.value) }} placeholder="0.00" className="input-field text-sm w-44" />
           </div>
 
@@ -461,7 +462,7 @@ export default function HoldingDetail() {
             </label>
           )}
           {txType === 'dividend' && (
-            <div className="text-xs text-gray-400">分红按 {txDate} 当时持仓 {sharesAsOf(editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs, previewTs)} 股计；{stock.isHK ? '港股按所选税率扣税后' : isBShare(stock.code) ? 'B股按10%扣税后' : 'A股免税'}冲减成本。</div>
+            <div className="text-xs text-gray-400">分红按 {txDate} 当时持仓 {sharesAsOf(editingIdx >= 0 ? txs.filter((_, i) => i !== editingIdx) : txs, previewTs)} {stock.isFund ? '份' : '股'}计；{stock.isHK ? '港股按所选税率扣税后' : isBShare(stock.code) ? 'B股按10%扣税后' : 'A股免税'}冲减成本。</div>
           )}
 
           {txType === 'dividendTax' && (
