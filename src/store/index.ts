@@ -350,11 +350,11 @@ export const useStore = create<AppState>()(
           cashCalibrations: a.id === s.activeAccountId ? s.cashCalibrations : (s.accountCashCalibrations[a.id] ?? []),
         }))
       },
-      setCashBalance: (currency, amount) => set(s => ({ cashBalance: { ...s.cashBalance, [currency]: Math.max(0, Number(amount) || 0) } })),
+      setCashBalance: (currency, amount) => set(s => ({ cashBalance: { ...s.cashBalance, [currency]: Number.isFinite(Number(amount)) ? Number(amount) : 0 } })),
       setAccountCashBalance: (id, currency, amount) =>
         set(s => {
           if (!s.accounts.some(a => a.id === id)) return s
-          const value = Math.max(0, Number(amount) || 0)
+          const value = Number.isFinite(Number(amount)) ? Number(amount) : 0
           return id === s.activeAccountId
             ? { cashBalance: { ...s.cashBalance, [currency]: value } }
             : { accountCashBalances: { ...s.accountCashBalances, [id]: { ...normalizeCash(s.accountCashBalances[id]), [currency]: value } } }
