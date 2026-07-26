@@ -1,6 +1,7 @@
 import { cbAuth, cbDb, USER_DATA_COLLECTION } from './cloudbase'
 import { pickLatest } from './dedup'
 import { useStore } from '../store'
+import { CASH_CURRENCIES, normalizeCash, normalizeCashFunding } from './cash'
 
 // 当前账号的同步元信息；账号切换时会归档到 USER_META_PREFIX + uid。
 const META_KEY = 'cloud-sync-meta'
@@ -135,8 +136,29 @@ function buildBackup(): Backup {
     simStrategy: s.simStrategy,
   }
 }
+
+type CashAwareAccount = {
+  cashBalance?: unknown
+  cashOpeningBalance?: unknown
+  cashFundingCurrencies?: unknown
+  cashCalibrations?: unknown
+}
+
+function accountHasCashData(account: CashAwareAccount): boolean {
+  const balance = normalizeCash(account.cashBalance)
+  const opening = normalizeCash(account.cashOpeningBalance)
+  const funding = normalizeCashFunding(account.cashFundingCurrencies)
+  return CASH_CURRENCIES.some(currency =>
+    balance[currency] !== 0
+    || opening[currency] !== 0
+    || funding[currency],
+  ) || (Array.isArray(account.cashCalibrations) && account.cashCalibrations.length > 0)
+}
+
 function backupHasData(b?: Backup | null): boolean {
-  return !!b && (countStocks(b) > 0)
+  if (!b) return false
+  const accounts = Array.isArray(b.accounts) ? b.accounts as CashAwareAccount[] : []
+  return countStocks(b) > 0 || accounts.some(accountHasCashData)
 }
 
 export function shouldBlockEmptyOverwrite(local: Backup, cloud: Backup, explicitlyApproved = false): boolean {

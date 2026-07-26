@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 2,
+  "accountFields": [
+    "name",
+    "watchlist",
+    "feeConfig",
+    "cashBalance",
+    "cashOpeningBalance",
+    "cashTrackingEnabled",
+    "cashFundingRecorded",
+    "cashFundingCurrencies",
+    "cashCalibrations"
+  ],
+  "mergedObjectFields": [
+    "feeConfig",
+    "cashBalance",
+    "cashOpeningBalance",
+    "cashFundingCurrencies"
+  ],
+  "stockFields": [
+    "code",
+    "name",
+    "sector",
+    "price",
+    "dividendPerShare",
+    "yieldRate",
+    "confirmed",
+    "targetYield",
+    "targetPrice",
+    "price2026",
+    "change2026",
+    "isHK",
+    "isUS",
+    "isETF",
+    "isFund",
+    "isManual",
+    "cashCurrency",
+    "priceCny",
+    "priceLabel",
+    "pctChg",
+    "shares",
+    "costPrice",
+    "taxType",
+    "marketCap",
+    "transactions",
+    "dividendManual"
+  ],
+  "sectorAliases": {
+    "美股": "美股指数"
+  }
+}

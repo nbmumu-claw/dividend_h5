@@ -162,6 +162,44 @@ describe('跨端版本保护', () => {
     expect(shouldBlockEmptyOverwrite(empty as never, cloud as never)).toBe(true)
   })
 
+  it.each([
+    ['现金余额', { cashBalance: { CNY: 100, USD: 0, HKD: 0 } }],
+    ['旧版单数值现金余额', { cashBalance: 100 }],
+    ['期初资金', { cashOpeningBalance: { CNY: 0, USD: 100, HKD: 0 } }],
+    ['已记录入金币种', { cashFundingCurrencies: { CNY: false, USD: false, HKD: true } }],
+    ['现金校准记录', {
+      cashCalibrations: [{
+        id: 'cal-1',
+        currency: 'CNY',
+        previousBalance: 100,
+        actualBalance: 90,
+        difference: -10,
+        ts: 1,
+      }],
+    }],
+  ])('云端账户只有%s时仍视为非空并阻止空覆盖', (_label, cashFields) => {
+    const empty = { watchlist: [], accounts: [] }
+    const cloud = {
+      watchlist: [],
+      accounts: [{ id: 'cash-only', name: '现金账户', watchlist: [], ...cashFields }],
+    }
+    expect(shouldBlockEmptyOverwrite(empty as never, cloud as never)).toBe(true)
+  })
+
+  it('本地只有现金时不再被误判为空账户', () => {
+    const local = {
+      watchlist: [],
+      accounts: [{
+        id: 'cash-only',
+        name: '现金账户',
+        watchlist: [],
+        cashBalance: { CNY: 100, USD: 0, HKD: 0 },
+      }],
+    }
+    const cloud = { watchlist: [{ code: '600900' }], accounts: [] }
+    expect(shouldBlockEmptyOverwrite(local as never, cloud as never)).toBe(false)
+  })
+
   it('用户明确确认清空后允许一次空覆盖', () => {
     const empty = { watchlist: [], accounts: [] }
     const cloud = { watchlist: [{ code: '600900' }], accounts: [] }
