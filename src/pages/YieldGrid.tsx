@@ -761,6 +761,11 @@ export default function YieldGrid() {
                   <path d="m6 8 4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
+              {!error && rows && (
+                <span className="filter-result-count" aria-live="polite">
+                  共 <strong>{ungroupedItems.length}</strong> 条
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -1380,7 +1385,7 @@ const CSS = `
   overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .yg-page .main-tabs::-webkit-scrollbar { display: none; }
 .yg-page .main-tabs .chip { height: 32px; display: inline-flex; align-items: center; }
-.yg-page .filter-controls { width: min(100%, 440px); display: grid; grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); gap: 8px; }
+.yg-page .filter-controls { width: min(100%, 500px); display: grid; grid-template-columns: minmax(0, 38fr) minmax(0, 62fr) auto; align-items: center; gap: 8px; }
 .yg-page .filter-select { position: relative; min-width: 0; height: 44px; padding: 5px 32px 5px 11px; border: 1px solid #e5e7eb;
   border-radius: 10px; background: #fff; color: #1f2328; font-family: inherit; text-align: left; cursor: pointer; }
 .yg-page .filter-select-label { display: block; margin-bottom: 1px; color: #9ca3af; font-size: 10px; line-height: 1; }
@@ -1390,6 +1395,8 @@ const CSS = `
 .yg-page .filter-select.selected { border-color: #1f2328; box-shadow: 0 0 0 1px rgba(31,35,40,.04); }
 .yg-page .filter-select.selected .filter-select-label { color: #6b7280; }
 .yg-page .filter-select.selected strong { color: #1f2328; }
+.yg-page .filter-result-count { color: #9ca3af; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.yg-page .filter-result-count strong { color: #374151; font-size: 13px; font-weight: 650; }
 .yg-page .chip { flex: 0 0 auto; padding: 5px 14px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #374151; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .chip.active { background: #1f2328; color: #fff; border-color: #1f2328; }
