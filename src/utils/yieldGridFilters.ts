@@ -2,7 +2,8 @@ import type { BollPeriod, PeriodBoll } from './periodBoll'
 
 export type YieldStatusFilter = 'all' | 'buy-zone' | 'neutral' | 'sell-zone'
 export type BollPositionFilter = 'all' | 'lower-zone' | 'lower-half' | 'middle-zone' | 'upper-half' | 'upper-zone'
-export type BollFilters = Record<BollPeriod, BollPositionFilter>
+export type ActiveBollPositionFilter = Exclude<BollPositionFilter, 'all'>
+export type BollFilters = Record<BollPeriod, ActiveBollPositionFilter[]>
 
 export interface BollTolerances {
   lower: number
@@ -10,10 +11,10 @@ export interface BollTolerances {
   upper: number
 }
 
-export const EMPTY_BOLL_FILTERS: BollFilters = { day: 'all', week: 'all', month: 'all' }
+export const EMPTY_BOLL_FILTERS: BollFilters = { day: [], week: [], month: [] }
 
 export function getSingleActiveBollPeriod(filters: BollFilters): BollPeriod | null {
-  const activePeriods = (['day', 'week', 'month'] as const).filter(period => filters[period] !== 'all')
+  const activePeriods = (['day', 'week', 'month'] as const).filter(period => filters[period].length > 0)
   return activePeriods.length === 1 ? activePeriods[0] : null
 }
 
@@ -34,16 +35,18 @@ export function matchesYieldStatus(
 export function matchesBollPosition(
   price: number,
   boll: Pick<PeriodBoll, 'lower' | 'middle' | 'upper'> | undefined,
-  filter: BollPositionFilter,
+  filters: readonly ActiveBollPositionFilter[],
   tolerances: BollTolerances,
 ): boolean {
-  if (filter === 'all') return true
+  if (filters.length === 0) return true
   if (!boll || boll.lower <= 0 || boll.lower >= boll.middle || boll.middle >= boll.upper) return false
   const lowerZoneCeiling = boll.lower * (1 + tolerances.lower)
   const upperZoneFloor = boll.upper * (1 - tolerances.upper)
-  if (filter === 'lower-zone') return price <= lowerZoneCeiling
-  if (filter === 'lower-half') return price > lowerZoneCeiling && price < boll.middle
-  if (filter === 'middle-zone') return Math.abs(price - boll.middle) / boll.middle <= tolerances.middle
-  if (filter === 'upper-half') return price >= boll.middle && price < upperZoneFloor
-  return price >= upperZoneFloor
+  return filters.some(filter => {
+    if (filter === 'lower-zone') return price <= lowerZoneCeiling
+    if (filter === 'lower-half') return price > lowerZoneCeiling && price < boll.middle
+    if (filter === 'middle-zone') return Math.abs(price - boll.middle) / boll.middle <= tolerances.middle
+    if (filter === 'upper-half') return price >= boll.middle && price < upperZoneFloor
+    return price >= upperZoneFloor
+  })
 }

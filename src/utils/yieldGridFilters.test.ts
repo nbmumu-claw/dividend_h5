@@ -3,10 +3,10 @@ import { getSingleActiveBollPeriod, matchesBollPosition, matchesYieldStatus } fr
 
 describe('getSingleActiveBollPeriod', () => {
   it('returns the period only when exactly one BOLL period filter is active', () => {
-    expect(getSingleActiveBollPeriod({ day: 'lower-zone', week: 'all', month: 'all' })).toBe('day')
-    expect(getSingleActiveBollPeriod({ day: 'all', week: 'all', month: 'upper-zone' })).toBe('month')
-    expect(getSingleActiveBollPeriod({ day: 'lower-zone', week: 'lower-half', month: 'all' })).toBeNull()
-    expect(getSingleActiveBollPeriod({ day: 'all', week: 'all', month: 'all' })).toBeNull()
+    expect(getSingleActiveBollPeriod({ day: ['lower-zone', 'lower-half'], week: [], month: [] })).toBe('day')
+    expect(getSingleActiveBollPeriod({ day: [], week: [], month: ['upper-zone'] })).toBe('month')
+    expect(getSingleActiveBollPeriod({ day: ['lower-zone'], week: ['lower-half'], month: [] })).toBeNull()
+    expect(getSingleActiveBollPeriod({ day: [], week: [], month: [] })).toBeNull()
   })
 })
 
@@ -35,26 +35,31 @@ describe('matchesBollPosition', () => {
   const tolerances = { lower: 0.0025, middle: 0.01, upper: 0.0025 }
 
   it('partitions the full BOLL range into lower, middle-lower, middle-upper, and upper zones', () => {
-    expect(matchesBollPosition(50, boll, 'lower-zone', tolerances)).toBe(true)
-    expect(matchesBollPosition(90.2, boll, 'lower-zone', tolerances)).toBe(true)
-    expect(matchesBollPosition(90.3, boll, 'lower-zone', tolerances)).toBe(false)
-    expect(matchesBollPosition(90.3, boll, 'lower-half', tolerances)).toBe(true)
-    expect(matchesBollPosition(99.9, boll, 'lower-half', tolerances)).toBe(true)
-    expect(matchesBollPosition(50, boll, 'lower-half', tolerances)).toBe(false)
-    expect(matchesBollPosition(100, boll, 'lower-half', tolerances)).toBe(false)
-    expect(matchesBollPosition(99, boll, 'middle-zone', tolerances)).toBe(true)
-    expect(matchesBollPosition(101, boll, 'middle-zone', tolerances)).toBe(true)
-    expect(matchesBollPosition(98.9, boll, 'middle-zone', tolerances)).toBe(false)
-    expect(matchesBollPosition(101.1, boll, 'middle-zone', tolerances)).toBe(false)
-    expect(matchesBollPosition(100, boll, 'upper-half', tolerances)).toBe(true)
-    expect(matchesBollPosition(109.7, boll, 'upper-half', tolerances)).toBe(true)
-    expect(matchesBollPosition(150, boll, 'upper-half', tolerances)).toBe(false)
-    expect(matchesBollPosition(109.8, boll, 'upper-zone', tolerances)).toBe(true)
-    expect(matchesBollPosition(150, boll, 'upper-zone', tolerances)).toBe(true)
+    expect(matchesBollPosition(50, boll, ['lower-zone'], tolerances)).toBe(true)
+    expect(matchesBollPosition(90.2, boll, ['lower-zone'], tolerances)).toBe(true)
+    expect(matchesBollPosition(90.3, boll, ['lower-zone'], tolerances)).toBe(false)
+    expect(matchesBollPosition(90.3, boll, ['lower-half'], tolerances)).toBe(true)
+    expect(matchesBollPosition(99.9, boll, ['lower-half'], tolerances)).toBe(true)
+    expect(matchesBollPosition(50, boll, ['lower-half'], tolerances)).toBe(false)
+    expect(matchesBollPosition(100, boll, ['lower-half'], tolerances)).toBe(false)
+    expect(matchesBollPosition(99, boll, ['middle-zone'], tolerances)).toBe(true)
+    expect(matchesBollPosition(101, boll, ['middle-zone'], tolerances)).toBe(true)
+    expect(matchesBollPosition(98.9, boll, ['middle-zone'], tolerances)).toBe(false)
+    expect(matchesBollPosition(101.1, boll, ['middle-zone'], tolerances)).toBe(false)
+    expect(matchesBollPosition(100, boll, ['upper-half'], tolerances)).toBe(true)
+    expect(matchesBollPosition(109.7, boll, ['upper-half'], tolerances)).toBe(true)
+    expect(matchesBollPosition(150, boll, ['upper-half'], tolerances)).toBe(false)
+    expect(matchesBollPosition(109.8, boll, ['upper-zone'], tolerances)).toBe(true)
+    expect(matchesBollPosition(150, boll, ['upper-zone'], tolerances)).toBe(true)
+  })
+
+  it('matches any selected position within the same period', () => {
+    expect(matchesBollPosition(90.3, boll, ['lower-zone', 'lower-half'], tolerances)).toBe(true)
+    expect(matchesBollPosition(105, boll, ['lower-zone', 'lower-half'], tolerances)).toBe(false)
   })
 
   it('requires BOLL data whenever a position filter is active', () => {
-    expect(matchesBollPosition(100, undefined, 'lower-half', tolerances)).toBe(false)
-    expect(matchesBollPosition(100, undefined, 'all', tolerances)).toBe(true)
+    expect(matchesBollPosition(100, undefined, ['lower-half'], tolerances)).toBe(false)
+    expect(matchesBollPosition(100, undefined, [], tolerances)).toBe(true)
   })
 })

@@ -450,12 +450,13 @@ export default function YieldGrid() {
   }, [singleActiveBollPeriod])
   const yieldFilterLabel = YIELD_FILTER_OPTIONS.find(option => option.value === yieldFilter)?.label ?? '不限'
   const bollFilterSummary = BOLL_PERIODS.flatMap(period => {
-    const value = bollFilters[period]
-    if (value === 'all') return []
-    const option = BOLL_FILTER_OPTIONS.find(item => item.value === value)
-    return option ? [`${BOLL_PERIOD_LABELS[period]}${option.summary}`] : []
+    const summaries = bollFilters[period].flatMap(value => {
+      const option = BOLL_FILTER_OPTIONS.find(item => item.value === value)
+      return option ? [option.summary] : []
+    })
+    return summaries.length > 0 ? [`${BOLL_PERIOD_LABELS[period]}${summaries.join('/')}`] : []
   }).join(' · ') || '不限'
-  const hasActiveFilters = yieldFilter !== 'all' || BOLL_PERIODS.some(period => bollFilters[period] !== 'all')
+  const hasActiveFilters = yieldFilter !== 'all' || BOLL_PERIODS.some(period => bollFilters[period].length > 0)
   const clearFilters = () => {
     setYieldFilter('all')
     setBollFilters({ ...EMPTY_BOLL_FILTERS })
@@ -648,7 +649,7 @@ export default function YieldGrid() {
   const mins = now.getHours() * 60 + now.getMinutes()
   const priceLabel = date === todayStr && mins >= 570 && mins < 900 ? '盘中价' : '收盘价'
 
-  // 板块 Tab 决定范围；股息率状态与多周期 BOLL 条件在范围内叠加（周期之间为“且”）。
+  // 板块 Tab 决定范围；同周期 BOLL 位置为“或”，多个周期之间为“且”。
   const matchesFilters = (r: Row) => {
     if (!matchesYieldStatus(
       r.cy,
@@ -751,7 +752,7 @@ export default function YieldGrid() {
               </button>
               <button
                 type="button"
-                className={`filter-select boll${BOLL_PERIODS.some(period => bollFilters[period] !== 'all') ? ' selected' : ''}`}
+                className={`filter-select boll${BOLL_PERIODS.some(period => bollFilters[period].length > 0) ? ' selected' : ''}`}
                 onClick={() => setFilterPanel('boll')}
               >
                 <span className="filter-select-label">BOLL 位置</span>
@@ -1069,10 +1070,10 @@ export default function YieldGrid() {
           open={filterPanel === 'boll'}
           onClose={() => setFilterPanel(null)}
           title="多周期 BOLL 位置"
-          headerRight={BOLL_PERIODS.some(period => bollFilters[period] !== 'all') ? <button type="button" className="filter-clear" onClick={() => setBollFilters({ ...EMPTY_BOLL_FILTERS })}>清除</button> : undefined}
+          headerRight={BOLL_PERIODS.some(period => bollFilters[period].length > 0) ? <button type="button" className="filter-clear" onClick={() => setBollFilters({ ...EMPTY_BOLL_FILTERS })}>清除</button> : undefined}
         >
           <div className="boll-filter-panel">
-            <p>每个周期单选，多个周期之间同时满足。中附近按设置的中轨上下偏差判断。</p>
+            <p>每个周期可多选，同周期满足任一位置即可；多个周期之间同时满足。中附近按设置的中轨上下偏差判断。</p>
             {BOLL_PERIODS.map(period => (
               <div className="boll-filter-period" key={period}>
                 <div className="boll-filter-period-head">
@@ -1082,17 +1083,25 @@ export default function YieldGrid() {
                 <div className="boll-filter-grid" role="group" aria-label={`${BOLL_PERIOD_LABELS[period]}线 BOLL 位置`}>
                   <button
                     type="button"
-                    className={bollFilters[period] === 'all' ? 'selected' : ''}
-                    onClick={() => setBollFilters(current => ({ ...current, [period]: 'all' }))}
+                    className={bollFilters[period].length === 0 ? 'selected' : ''}
+                    onClick={() => setBollFilters(current => ({ ...current, [period]: [] }))}
                   >不限</button>
                   {BOLL_FILTER_OPTIONS.map(option => (
                     <button
                       key={option.value}
                       type="button"
-                      className={bollFilters[period] === option.value ? 'selected' : ''}
+                      className={bollFilters[period].includes(option.value) ? 'selected' : ''}
                       title={option.label}
                       onClick={() => {
-                        setBollFilters(current => ({ ...current, [period]: option.value }))
+                        setBollFilters(current => {
+                          const selected = current[period]
+                          return {
+                            ...current,
+                            [period]: selected.includes(option.value)
+                              ? selected.filter(value => value !== option.value)
+                              : [...selected, option.value],
+                          }
+                        })
                         void loadBollPeriod(period)
                       }}
                     >{option.short}</button>
