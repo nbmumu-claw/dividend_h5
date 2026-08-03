@@ -31,7 +31,8 @@ interface DisplayStock extends YieldGridStock {
 }
 
 const CUSTOM_STORAGE_KEY = 'interim-report-custom-stocks'
-const REPORT_CACHE_KEY_PREFIX = 'interim-report-data:'
+const REPORT_CACHE_KEY = 'interim-report-data'
+const LEGACY_REPORT_CACHE_KEY_PREFIX = 'interim-report-data:'
 const MAX_CUSTOM_STOCKS = 5
 const TABLE_COLUMN_COUNT = 4 + INTERIM_REPORT_YEARS.length
 
@@ -101,6 +102,31 @@ function metricYoy(report: InterimReportRecord | undefined, metric: Metric): num
   return null
 }
 
+function reportsForCodes(data: InterimReportResult, codes: string[]): InterimReportResult {
+  const stocks: InterimReportResult['stocks'] = {}
+  for (const code of codes) {
+    if (data.stocks[code]) stocks[code] = data.stocks[code]
+  }
+  return { generatedAt: data.generatedAt, stocks }
+}
+
+function mergeReports(cached: InterimReportResult | null, latest: InterimReportResult): InterimReportResult {
+  return {
+    generatedAt: latest.generatedAt,
+    stocks: { ...cached?.stocks, ...latest.stocks },
+  }
+}
+
+function loadLegacyReportCache(): InterimReportResult | null {
+  const prefix = `dh_cache_${LEGACY_REPORT_CACHE_KEY_PREFIX}`
+  return Object.keys(localStorage)
+    .filter(key => key.startsWith(prefix))
+    .reduce<InterimReportResult | null>((merged, key) => {
+      const cached = cacheGet<InterimReportResult>(key.slice('dh_cache_'.length))
+      return cached ? mergeReports(merged, cached) : merged
+    }, null)
+}
+
 function MetricReading({ report, metric, period }: {
   report: InterimReportRecord | undefined
   metric: Metric
@@ -132,6 +158,7 @@ export default function InterimReport() {
   const [customStocks, setCustomStocks] = useState<CustomStock[]>(loadCustomStocks)
   const [result, setResult] = useState<InterimReportResult | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
   const forceRefreshRef = useRef(false)
@@ -157,21 +184,27 @@ export default function InterimReport() {
   useEffect(() => {
     let cancelled = false
     setError('')
-    const cacheKey = `${REPORT_CACHE_KEY_PREFIX}${codesKey}`
-    const cached = cacheGet<InterimReportResult>(cacheKey)
+    const codes = codesKey.split(',')
+    const cached = cacheGet<InterimReportResult>(REPORT_CACHE_KEY) ?? loadLegacyReportCache()
+    if (cached) cacheSetPermanent(REPORT_CACHE_KEY, cached)
     const forceRefresh = forceRefreshRef.current
     forceRefreshRef.current = false
+    const missingCodes = forceRefresh
+      ? codes
+      : codes.filter(code => !cached?.stocks[code])
     if (cached && !forceRefresh) {
-      setResult(cached)
+      setResult(reportsForCodes(cached, codes))
       setLoading(false)
-      return () => { cancelled = true }
+      if (!missingCodes.length) return () => { cancelled = true }
     }
 
-    setLoading(true)
-    fetchInterimReportData(codesKey.split(','))
+    setLoading(!result && !cached)
+    setRefreshing(Boolean(result || cached))
+    fetchInterimReportData(missingCodes)
       .then(data => {
-        cacheSetPermanent(cacheKey, data)
-        if (!cancelled) setResult(data)
+        const merged = mergeReports(cached, data)
+        cacheSetPermanent(REPORT_CACHE_KEY, merged)
+        if (!cancelled) setResult(reportsForCodes(merged, codes))
       })
       .catch(reason => {
         if (cancelled) return
@@ -180,6 +213,7 @@ export default function InterimReport() {
       .finally(() => {
         if (cancelled) return
         setLoading(false)
+        setRefreshing(false)
       })
     return () => { cancelled = true }
   }, [codesKey, refreshKey])
@@ -361,8 +395,8 @@ export default function InterimReport() {
             <button className="interim-refresh" onClick={() => {
               forceRefreshRef.current = true
               setRefreshKey(value => value + 1)
-            }} disabled={loading} title="强制重新拉取财报数据">
-              <svg className={loading ? 'spinning' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            }} disabled={loading || refreshing} title="强制重新拉取财报数据">
+              <svg className={loading || refreshing ? 'spinning' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               强制刷新
