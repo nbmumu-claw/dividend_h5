@@ -32,6 +32,7 @@ const STOCKS = YIELD_GRID_STOCKS
 const SECTOR_ORDER = ['电力', '水电', '银行', '保险', '能源', '有色', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他']
 // 「其他」始终可用，作为预判不到板块时的兜底归属
 const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.sector === s))
+const NONFERROUS_CODES = new Set(['000408', '601899', '000933', '000807'])
 const ALL = '全部'
 const LEGACY_SIGNAL_TABS = new Set(['买点下轨', '卖点上轨', '近下轨', '近上轨'])
 const BOLL_PERIODS: BollPeriod[] = ['day', 'week', 'month']
@@ -262,8 +263,10 @@ export default function YieldGrid() {
     saveFavs(next)
   }
   const orderRaw = useStore(s => s.gridPrefs.sectorOrder)
-  const DEF_ORDER = ['电力', '水电', '银行', '保险', '能源', '通讯', '白色家电', '中药', '运输', '白酒', '消费', '其他']
-  const order = useMemo(() => orderRaw.length ? orderRaw : DEF_ORDER, [orderRaw])
+  const order = useMemo(() => {
+    const valid = orderRaw.filter(sector => SECTORS.includes(sector))
+    return [...valid, ...SECTORS.filter(sector => !valid.includes(sector))]
+  }, [orderRaw])
   const [editOrder, setEditOrder] = useState(false)
   const moveSector = (sector: string, dir: -1 | 1) => {
     const i = order.indexOf(sector); const j = i + dir
@@ -276,6 +279,14 @@ export default function YieldGrid() {
   // 自定义添加的标的，与静态列表合并（去重）；隐藏的默认标的过滤掉
   const custom = useStore(s => s.gridPrefs.custom)
   const setCustom = (list: Custom[]) => saveCustom(list)
+  useEffect(() => {
+    const migrated = custom.map(stock => (
+      stock.sector === '其他' && NONFERROUS_CODES.has(stock.code)
+        ? { ...stock, sector: '有色' }
+        : stock
+    ))
+    if (migrated.some((stock, index) => stock !== custom[index])) setCustom(migrated)
+  }, [custom])
   const hiddenArr = useStore(s => s.gridPrefs.hidden)
   const hidden = useMemo(() => new Set(hiddenArr), [hiddenArr])
   const setHidden = (s: Set<string>) => saveHidden(s)

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
 import { YIELD_GRID_STOCKS, type YieldGridStock } from '../data/yieldGridStocks'
+import { cacheGet, cacheSetPermanent } from '../utils/cache'
 import {
   disclosureDate,
   fetchInterimReportData,
@@ -30,6 +31,7 @@ interface DisplayStock extends YieldGridStock {
 }
 
 const CUSTOM_STORAGE_KEY = 'interim-report-custom-stocks'
+const REPORT_CACHE_KEY_PREFIX = 'interim-report-data:'
 const MAX_CUSTOM_STOCKS = 5
 const TABLE_COLUMN_COUNT = 4 + INTERIM_REPORT_YEARS.length
 
@@ -132,6 +134,7 @@ export default function InterimReport() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const forceRefreshRef = useRef(false)
   const [query, setQuery] = useState('')
   const [sector, setSector] = useState('全部')
   const [status, setStatus] = useState<StatusFilter>('all')
@@ -153,15 +156,31 @@ export default function InterimReport() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     setError('')
+    const cacheKey = `${REPORT_CACHE_KEY_PREFIX}${codesKey}`
+    const cached = cacheGet<InterimReportResult>(cacheKey)
+    const forceRefresh = forceRefreshRef.current
+    forceRefreshRef.current = false
+    if (cached && !forceRefresh) {
+      setResult(cached)
+      setLoading(false)
+      return () => { cancelled = true }
+    }
+
+    setLoading(true)
     fetchInterimReportData(codesKey.split(','))
-      .then(data => { if (!cancelled) setResult(data) })
+      .then(data => {
+        cacheSetPermanent(cacheKey, data)
+        if (!cancelled) setResult(data)
+      })
       .catch(reason => {
         if (cancelled) return
         setError(reason instanceof Error ? reason.message : '中报数据加载失败')
       })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .finally(() => {
+        if (cancelled) return
+        setLoading(false)
+      })
     return () => { cancelled = true }
   }, [codesKey, refreshKey])
 
@@ -339,11 +358,14 @@ export default function InterimReport() {
             >
               <i />显示一季报
             </button>
-            <button className="interim-refresh" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>
+            <button className="interim-refresh" onClick={() => {
+              forceRefreshRef.current = true
+              setRefreshKey(value => value + 1)
+            }} disabled={loading} title="强制重新拉取财报数据">
               <svg className={loading ? 'spinning' : ''} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              刷新
+              强制刷新
             </button>
           </div>
         </div>
