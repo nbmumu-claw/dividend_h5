@@ -265,7 +265,11 @@ export default function YieldGrid() {
   const orderRaw = useStore(s => s.gridPrefs.sectorOrder)
   const order = useMemo(() => {
     const valid = orderRaw.filter(sector => SECTORS.includes(sector))
-    return [...valid, ...SECTORS.filter(sector => !valid.includes(sector))]
+    const missing = SECTORS.filter(sector => !valid.includes(sector))
+    const otherIndex = valid.indexOf('其他')
+    return otherIndex === -1
+      ? [...valid, ...missing]
+      : [...valid.slice(0, otherIndex), ...missing, ...valid.slice(otherIndex)]
   }, [orderRaw])
   const [editOrder, setEditOrder] = useState(false)
   const moveSector = (sector: string, dir: -1 | 1) => {
