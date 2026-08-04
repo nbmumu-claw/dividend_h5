@@ -1408,18 +1408,18 @@ const CSS = `
 .yg-page .chip { flex: 0 0 auto; padding: 5px 14px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #374151; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .chip.active { background: #1f2328; color: #fff; border-color: #1f2328; }
-.yg-page .main-tabs .chip.sector-trend-slight-up { background: #fff7f6; color: #9f3a32; border-color: #f8d7d4; }
-.yg-page .main-tabs .chip.sector-trend-up { background: #fef2f2; color: #b42318; border-color: #fecaca; }
-.yg-page .main-tabs .chip.sector-trend-strong-up { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
-.yg-page .main-tabs .chip.sector-trend-slight-down { background: #f5fbf7; color: #397a52; border-color: #d9f0df; }
-.yg-page .main-tabs .chip.sector-trend-down { background: #f0fdf4; color: #067647; border-color: #bbf7d0; }
-.yg-page .main-tabs .chip.sector-trend-strong-down { background: #dcfce7; color: #065f46; border-color: #86efac; }
-.yg-page .main-tabs .chip.sector-trend-slight-up.active { background: #c94a40; color: #fff; border-color: #c94a40; }
-.yg-page .main-tabs .chip.sector-trend-up.active { background: #b42318; color: #fff; border-color: #b42318; }
-.yg-page .main-tabs .chip.sector-trend-strong-up.active { background: #991b1b; color: #fff; border-color: #991b1b; }
-.yg-page .main-tabs .chip.sector-trend-slight-down.active { background: #278253; color: #fff; border-color: #278253; }
-.yg-page .main-tabs .chip.sector-trend-down.active { background: #067647; color: #fff; border-color: #067647; }
-.yg-page .main-tabs .chip.sector-trend-strong-down.active { background: #065f46; color: #fff; border-color: #065f46; }
+.yg-page .main-tabs .chip.sector-trend-slight-up { background: #fff7f6; color: #a43a30; border-color: #f4b8b2; }
+.yg-page .main-tabs .chip.sector-trend-up { background: #ffd9d5; color: #a5241b; border-color: #ef8177; }
+.yg-page .main-tabs .chip.sector-trend-strong-up { background: #c9342c; color: #fff; border-color: #c9342c; }
+.yg-page .main-tabs .chip.sector-trend-slight-down { background: #f7fcf8; color: #287a45; border-color: #bbe6c8; }
+.yg-page .main-tabs .chip.sector-trend-down { background: #cff3da; color: #116b32; border-color: #69c785; }
+.yg-page .main-tabs .chip.sector-trend-strong-down { background: #16803c; color: #fff; border-color: #16803c; }
+.yg-page .main-tabs .chip.sector-trend-slight-up.active { background: #a43a30; color: #fff; border-color: #a43a30; }
+.yg-page .main-tabs .chip.sector-trend-up.active { background: #8f2119; color: #fff; border-color: #8f2119; }
+.yg-page .main-tabs .chip.sector-trend-strong-up.active { background: #6f1712; color: #fff; border-color: #6f1712; }
+.yg-page .main-tabs .chip.sector-trend-slight-down.active { background: #287a45; color: #fff; border-color: #287a45; }
+.yg-page .main-tabs .chip.sector-trend-down.active { background: #0b5c2a; color: #fff; border-color: #0b5c2a; }
+.yg-page .main-tabs .chip.sector-trend-strong-down.active { background: #064e2a; color: #fff; border-color: #064e2a; }
 .yg-page .filter-empty button { margin-left: 5px; border: 0; background: none; color: #dc2626; font-family: inherit; font-size: inherit; cursor: pointer; }
 .yg-page section { background: #fff; border-radius: 14px; padding: 14px 16px 18px;
   margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
