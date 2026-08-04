@@ -15,6 +15,7 @@ import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSw
 import BollPeriodOverview from '../components/BollPeriodOverview'
 import { closeFinalizationDelayMs, hasSettledCloseQuote, isCloseSettled, shouldUsePriceCache } from '../utils/priceCachePolicy'
 import { YIELD_GRID_STOCKS } from '../data/yieldGridStocks'
+import { getSectorTrend } from '../utils/sectorTrend'
 import {
   EMPTY_BOLL_FILTERS,
   getSingleActiveBollPeriod,
@@ -630,6 +631,10 @@ export default function YieldGrid() {
     g.items = [...pinned, ...rest]
   }
   sectors.sort((a, b) => order.indexOf(a.sector) - order.indexOf(b.sector))
+  const sectorTrendByName = new Map(sectors.map(group => [
+    group.sector,
+    getSectorTrend(group.items.map(item => item.pctChg)),
+  ]))
 
   // 盘中（行情日期=今天 且 处于 A 股交易时段 9:30–15:00）显示「盘中价」，否则「收盘价」
   const now = new Date()
@@ -712,9 +717,24 @@ export default function YieldGrid() {
               <div className="main-tabs">
                 <button className={`chip${active === ALL ? ' active' : ''}`} onClick={() => switchActive(ALL)}>{ALL}</button>
                 <button className={`chip${active === FAV ? ' active' : ''}`} onClick={() => switchActive(FAV)}>★ {FAV}{favs.size ? ` ${favs.size}` : ''}</button>
-                {order.map(s => (
-                  <button key={s} className={`chip${active === s ? ' active' : ''}`} onClick={() => switchActive(s)}>{s}</button>
-                ))}
+                {order.map(s => {
+                  const trend = sectorTrendByName.get(s)
+                  const trendClass = trend && trend.level !== 'neutral' ? ` sector-trend-${trend.level}` : ''
+                  const trendLabel = trend?.median == null
+                    ? `${s}：有效行情少于 3 只`
+                    : `${s}：中位涨跌 ${chgText(trend.median)} · ${trend.sampleSize} 只`
+                  return (
+                    <button
+                      key={s}
+                      className={`chip${trendClass}${active === s ? ' active' : ''}`}
+                      onClick={() => switchActive(s)}
+                      title={trendLabel}
+                      aria-label={trendLabel}
+                    >
+                      {s}
+                    </button>
+                  )
+                })}
               </div>
               {!error && rows && (
                 <button
@@ -1388,6 +1408,18 @@ const CSS = `
 .yg-page .chip { flex: 0 0 auto; padding: 5px 14px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #374151; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .chip.active { background: #1f2328; color: #fff; border-color: #1f2328; }
+.yg-page .main-tabs .chip.sector-trend-slight-up { background: #fff7f6; color: #9f3a32; border-color: #f8d7d4; }
+.yg-page .main-tabs .chip.sector-trend-up { background: #fef2f2; color: #b42318; border-color: #fecaca; }
+.yg-page .main-tabs .chip.sector-trend-strong-up { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.yg-page .main-tabs .chip.sector-trend-slight-down { background: #f5fbf7; color: #397a52; border-color: #d9f0df; }
+.yg-page .main-tabs .chip.sector-trend-down { background: #f0fdf4; color: #067647; border-color: #bbf7d0; }
+.yg-page .main-tabs .chip.sector-trend-strong-down { background: #dcfce7; color: #065f46; border-color: #86efac; }
+.yg-page .main-tabs .chip.sector-trend-slight-up.active { background: #c94a40; color: #fff; border-color: #c94a40; }
+.yg-page .main-tabs .chip.sector-trend-up.active { background: #b42318; color: #fff; border-color: #b42318; }
+.yg-page .main-tabs .chip.sector-trend-strong-up.active { background: #991b1b; color: #fff; border-color: #991b1b; }
+.yg-page .main-tabs .chip.sector-trend-slight-down.active { background: #278253; color: #fff; border-color: #278253; }
+.yg-page .main-tabs .chip.sector-trend-down.active { background: #067647; color: #fff; border-color: #067647; }
+.yg-page .main-tabs .chip.sector-trend-strong-down.active { background: #065f46; color: #fff; border-color: #065f46; }
 .yg-page .filter-empty button { margin-left: 5px; border: 0; background: none; color: #dc2626; font-family: inherit; font-size: inherit; cursor: pointer; }
 .yg-page section { background: #fff; border-radius: 14px; padding: 14px 16px 18px;
   margin-bottom: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
