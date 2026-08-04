@@ -721,7 +721,7 @@ export default function YieldGrid() {
                   const trend = sectorTrendByName.get(s)
                   const trendClass = trend && trend.level !== 'neutral' ? ` sector-trend-${trend.level}` : ''
                   const trendLabel = trend?.median == null
-                    ? `${s}：有效行情少于 3 只`
+                    ? `${s}：暂无有效行情`
                     : `${s}：中位涨跌 ${chgText(trend.median)} · ${trend.sampleSize} 只`
                   return (
                     <button

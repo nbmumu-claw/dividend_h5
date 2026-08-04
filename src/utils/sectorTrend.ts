@@ -13,9 +13,9 @@ export interface SectorTrend {
   sampleSize: number
 }
 
-export function getSectorTrend(changes: number[], minSamples = 3): SectorTrend {
+export function getSectorTrend(changes: number[]): SectorTrend {
   const valid = changes.filter(Number.isFinite).sort((a, b) => a - b)
-  if (valid.length < minSamples) return { level: 'neutral', median: null, sampleSize: valid.length }
+  if (valid.length === 0) return { level: 'neutral', median: null, sampleSize: 0 }
 
   const middle = Math.floor(valid.length / 2)
   const median = valid.length % 2 === 0

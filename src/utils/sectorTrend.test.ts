@@ -19,7 +19,12 @@ describe('getSectorTrend', () => {
     expect(getSectorTrend([median, median, median]).level).toBe(level)
   })
 
-  it('stays neutral when fewer than three quotes are valid', () => {
-    expect(getSectorTrend([2.8, 3.1])).toEqual({ level: 'neutral', median: null, sampleSize: 2 })
+  it('classifies sectors with only one or two valid quotes', () => {
+    expect(getSectorTrend([2.8])).toEqual({ level: 'strong-up', median: 2.8, sampleSize: 1 })
+    expect(getSectorTrend([-2, -1])).toEqual({ level: 'down', median: -1.5, sampleSize: 2 })
+  })
+
+  it('stays neutral only when there are no valid quotes', () => {
+    expect(getSectorTrend([])).toEqual({ level: 'neutral', median: null, sampleSize: 0 })
   })
 })
