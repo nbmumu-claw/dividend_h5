@@ -9,7 +9,6 @@ import { Toast, useToast } from '../components/Toast'
 import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
 import { useStore, type GridPrefs } from '../store'
 import { cbAuth } from '../utils/cloudbase'
-import { CLOUD_SYNC_UI_ALLOWED_UIDS } from '../utils/authVisibility'
 import { fetchPeriodBoll, type BollPeriod, type PeriodBoll } from '../utils/periodBoll'
 import WeeklyBollPosition from '../components/WeeklyBollPosition'
 import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSwitch'
@@ -384,8 +383,7 @@ export default function YieldGrid() {
   const clearStockOrder = () => { saveStockOrder([]) }
 
   // 登录状态
-  const [authUser, setAuthUser] = useState<{ uid?: string; email?: string; user_metadata?: { nickName?: string } } | null>(null)
-  const canShowCloudSyncUi = !!authUser?.uid && CLOUD_SYNC_UI_ALLOWED_UIDS.has(authUser.uid)
+  const [authUser, setAuthUser] = useState<{ email?: string; user_metadata?: { nickName?: string } } | null>(null)
   useEffect(() => { cbAuth.getSession().then(({ data }) => setAuthUser(data?.session?.user ?? null)).catch(() => {}) }, [])
 
   // 登录用户的最近买入记录查找表（code → latest buy tx）
@@ -732,9 +730,11 @@ export default function YieldGrid() {
             </svg>
             <span>返回</span>
           </button>
-          {canShowCloudSyncUi && authUser ? (
+          {authUser ? (
             <span className="yg-auth on">{authUser.user_metadata?.nickName || authUser.email?.split('@')[0] || '已登录'}</span>
-          ) : null}
+          ) : (
+            <button className="yg-auth" onClick={() => navigate('/settings')}>登录同步</button>
+          )}
           <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
         </div>
         <h1>股息率网格买卖价位表</h1>
