@@ -13,6 +13,7 @@ import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
 import DividendTaxReminderCard from '../components/DividendTaxReminderCard'
 import { usePendingDividendTax } from '../utils/dividendTaxReminder'
+import { fetchDividendHistory } from '../utils/dividendHistory'
 
 const TAX_OPTIONS: { value: 'h' | 'n' | 'a'; label: string }[] = [
   { value: 'a', label: '港户' },
@@ -49,6 +50,7 @@ export default function HoldingDetail() {
   const [txNegative, setTxNegative] = useState(false)
   const [txDate, setTxDate] = useState(todayStr())
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null)
+  const [consecutiveDividendYears, setConsecutiveDividendYears] = useState<number | null>(null)
   // 每股红利输入缓冲：编辑中保留原始输入，失焦后按 4 位小数展示
   const [divText, setDivText] = useState<string | null>(null)
 
@@ -66,6 +68,24 @@ export default function HoldingDetail() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code])
+
+  useEffect(() => {
+    if (!stock || stock.isFund) {
+      setConsecutiveDividendYears(null)
+      return
+    }
+
+    let cancelled = false
+    fetchDividendHistory(stock.code, stock.isHK, stock.isUS)
+      .then(history => {
+        if (!cancelled) setConsecutiveDividendYears(history?.consecutiveYears ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setConsecutiveDividendYears(null)
+      })
+
+    return () => { cancelled = true }
+  }, [stock?.code, stock?.isFund, stock?.isHK, stock?.isUS])
 
   const txs = useMemo(() => stock?.transactions ?? [], [stock])
   // 交易 ts：日期取所选日，时刻取「录入当下」(新增) 或「原记录时刻」(编辑)，精确到毫秒。
@@ -108,6 +128,18 @@ export default function HoldingDetail() {
   const price = Number(stock.price) || 0
   const dividend = Number(stock.dividendPerShare) || 0
   const yieldRate = price > 0 && dividend > 0 ? (dividend / price) * 100 : 0
+  const openDividendHistory = () => {
+    const params = new URLSearchParams({
+      code: stock.code,
+      name: stock.name,
+      dividend: String(dividend),
+      price: String(price),
+      isHK: String(!!stock.isHK),
+      isUS: String(!!stock.isUS),
+      section: 'history',
+    })
+    navigate(`/matrix?${params}`)
+  }
 
   const { shares, costPrice, netAmount, cleared } = holding
   const hasCost = typeof costPrice === 'number'
@@ -264,7 +296,7 @@ export default function HoldingDetail() {
 
       {/* 价格行 */}
       <div className="px-4 mb-3">
-        <div className="card p-4 grid grid-cols-3 text-center divide-x divide-gray-100">
+        <div className="card p-4 grid grid-cols-4 text-center divide-x divide-gray-100">
           <div>
             <div className="text-xs text-gray-400 mb-1">现价</div>
             <div className="font-bold text-gray-900">{curSym}{price.toFixed(2)}</div>
@@ -276,6 +308,12 @@ export default function HoldingDetail() {
           <div>
             <div className="text-xs text-gray-400 mb-1">股息率</div>
             <div className="font-bold text-red-600">{yieldRate.toFixed(2)}%</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-400 mb-1">连续分红</div>
+            <button type="button" onClick={openDividendHistory} disabled={consecutiveDividendYears === null} className="inline-flex items-center gap-0.5 font-bold text-red-600 underline decoration-red-200 underline-offset-4 disabled:text-gray-900 disabled:no-underline disabled:cursor-default">
+              {consecutiveDividendYears === null ? '--' : <>{consecutiveDividendYears}年 <span className="text-xs">›</span></>}
+            </button>
           </div>
         </div>
       </div>

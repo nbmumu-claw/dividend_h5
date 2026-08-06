@@ -21,7 +21,7 @@ export interface DividendYearRecord {
 }
 
 export interface DividendHistory {
-  records: DividendYearRecord[] // 按年份倒序，最多10条
+  records: DividendYearRecord[] // 按年份倒序
   consecutiveYears: number      // 从最近年份往前连续派息年数
 }
 
@@ -63,7 +63,7 @@ async function fetchAShareDividendHistory(code: string): Promise<DividendHistory
     columns: 'ALL',
     filter,
     pageNumber: '1',
-    pageSize: '50',
+    pageSize: '200',
     sortColumns: 'REPORT_DATE',
     sortTypes: '-1',
   })
@@ -100,8 +100,11 @@ function buildHistory(byYear: Record<number, number>): DividendHistory {
   const records = Object.entries(byYear)
     .map(([y, v]) => ({ year: parseInt(y), perShare: parseFloat(v.toFixed(4)) }))
     .sort((a, b) => b.year - a.year)
-    .slice(0, 10)
 
+  return { records, consecutiveYears: getConsecutiveYears(records) }
+}
+
+function getConsecutiveYears(records: DividendYearRecord[]): number {
   let consecutiveYears = 0
   for (let i = 0; i < records.length; i++) {
     if (i === 0 || records[i].year === records[i - 1].year - 1) {
@@ -110,8 +113,7 @@ function buildHistory(byYear: Record<number, number>): DividendHistory {
       break
     }
   }
-
-  return { records, consecutiveYears }
+  return consecutiveYears
 }
 
 async function fetchUSDividendHistory(code: string): Promise<DividendHistory | null> {
@@ -131,7 +133,8 @@ async function fetchUSDividendHistory(code: string): Promise<DividendHistory | n
 }
 
 export async function fetchDividendHistory(code: string, isHK = false, isUS = false): Promise<DividendHistory | null> {
-  const key = `dividendHistory:${code}`
+  // v2：历史记录不再截断为 10 年，旧缓存需失效后重新拉取完整序列。
+  const key = `dividendHistory:v2:${code}`
   const cached = cacheGet<DividendHistory>(key)
   if (cached) return cached
 
@@ -154,6 +157,7 @@ export async function fetchDividendHistory(code: string, isHK = false, isUS = fa
           history.records.sort((a, b) => b.year - a.year)
         }
       }
+      history.consecutiveYears = getConsecutiveYears(history.records)
     }
 
     if (history && history.records.length > 0) {

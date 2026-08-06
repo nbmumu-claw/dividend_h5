@@ -25,7 +25,6 @@ function fundEventsToHistory(events: { recordDate: string; perShare: number }[])
   const records = Object.entries(byYear)
     .map(([y, v]) => ({ year: parseInt(y), perShare: v }))
     .sort((a, b) => b.year - a.year)
-    .slice(0, 10)
   let consecutiveYears = 0
   for (let i = 0; i < records.length; i++) {
     if (i === 0 || records[i].year === records[i - 1].year - 1) consecutiveYears++
@@ -61,6 +60,7 @@ export default function Matrix() {
   const currentPrice = parseFloat(params.get('price') || '0')
   const isHK = params.get('isHK') === 'true'
   const isUS = params.get('isUS') === 'true'
+  const section = params.get('section')
   const cs = isHK ? 'HK$' : isUS ? '$' : isBShare(code) ? (/^200/.test(code) ? 'HK$' : '$') : '¥'
 
   const rows = useMemo(() => {
@@ -162,6 +162,13 @@ export default function Matrix() {
   const setSimStrategy = useStore(s => s.setSimStrategy)
   const [simOpen, setSimOpen] = useState(true)  // 默认展开
   const [histOpen, setHistOpen] = useState(true) // 默认展开
+  const historyRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (section !== 'history') return
+    const timer = window.setTimeout(() => historyRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+    return () => window.clearTimeout(timer)
+  }, [section, code])
 
   const sim = useMemo(() => {
     const shares = Number(held?.shares) || 0
@@ -476,12 +483,12 @@ export default function Matrix() {
 
         {/* 历史分红（默认展开） */}
         {(
-          <div className="card mt-4">
+          <div ref={historyRef} className="card mt-4">
             <button onClick={() => setHistOpen(o => !o)} className="w-full flex items-center justify-between p-4 text-left">
               <div>
                 <div className="text-sm font-semibold text-gray-800">历史分红</div>
                 <div className="text-xs text-gray-400 mt-0.5">
-                  {isHK ? '近10年历史派息记录（HKD，税前）' : isUS ? '近10年历史派息记录（USD，税前）' : isBShare(code) ? '近10年历史派息记录（税前）' : '近10年已实施 / 已通过分配记录，每股派息为税前金额'}
+                  {isHK ? '历史派息记录（HKD，税前）' : isUS ? '历史派息记录（USD，税前）' : isBShare(code) ? '历史派息记录（税前）' : '已实施 / 已通过分配记录，每股派息为税前金额'}
                 </div>
               </div>
               <Chevron open={histOpen} />

@@ -9,6 +9,7 @@ import { Toast, useToast } from '../components/Toast'
 import { getLikes, addLike, hasLiked } from '../utils/gridLikes'
 import { useStore, type GridPrefs } from '../store'
 import { cbAuth } from '../utils/cloudbase'
+import { CLOUD_SYNC_UI_ALLOWED_UIDS } from '../utils/authVisibility'
 import { fetchPeriodBoll, type BollPeriod, type PeriodBoll } from '../utils/periodBoll'
 import WeeklyBollPosition from '../components/WeeklyBollPosition'
 import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSwitch'
@@ -149,11 +150,11 @@ function loadActive(): string { return gp().active || ALL }
 function saveActive(v: string) { saveGp({ active: v }) }
 
 // 标的排序
-type SortKey = 'cy' | 'chg' | 'price'
+type SortKey = 'cy' | 'chg' | 'consecutiveYears' | 'price'
 type SortState = { key: SortKey; dir: 'asc' | 'desc' }
 const DEFAULT_SORT: SortState = { key: 'cy', dir: 'desc' }
 const SORT_OPTS: { key: SortKey; label: string }[] = [
-  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'price', label: '现价' },
+  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'consecutiveYears', label: '连续分红年数' }, { key: 'price', label: '现价' },
 ]
 const SORT_KEYS = new Set<string>(SORT_OPTS.map(o => o.key))
 function loadSort(): SortState { const s = gp().sort; return s?.key ? (s as SortState) : DEFAULT_SORT }
@@ -245,6 +246,7 @@ export default function YieldGrid() {
   }, [])
 
   const [rows, setRows] = useState<Row[] | null>(null)
+  const [consecutiveDividendYears, setConsecutiveDividendYears] = useState<Record<string, number | null>>({})
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
@@ -382,7 +384,8 @@ export default function YieldGrid() {
   const clearStockOrder = () => { saveStockOrder([]) }
 
   // 登录状态
-  const [authUser, setAuthUser] = useState<{ email?: string; user_metadata?: { nickName?: string } } | null>(null)
+  const [authUser, setAuthUser] = useState<{ uid?: string; email?: string; user_metadata?: { nickName?: string } } | null>(null)
+  const canShowCloudSyncUi = !!authUser?.uid && CLOUD_SYNC_UI_ALLOWED_UIDS.has(authUser.uid)
   useEffect(() => { cbAuth.getSession().then(({ data }) => setAuthUser(data?.session?.user ?? null)).catch(() => {}) }, [])
 
   // 登录用户的最近买入记录查找表（code → latest buy tx）
@@ -610,6 +613,29 @@ export default function YieldGrid() {
     return cleanup
   }, [custom, hidden, priceRefreshKey])
 
+  // 历史分红按 4 只一批加载；fetchDividendHistory 自带本地缓存，命中时不发网络请求。
+  useEffect(() => {
+    if (!rows?.length) return
+    let cancelled = false
+
+    const load = async () => {
+      for (let i = 0; i < rows.length; i += 4) {
+        const batch = await Promise.all(rows.slice(i, i + 4).map(async row => ({
+          code: row.code,
+          years: (await fetchDividendHistory(row.code, row.isHK))?.consecutiveYears ?? null,
+        })))
+        if (cancelled) return
+        setConsecutiveDividendYears(previous => ({
+          ...previous,
+          ...Object.fromEntries(batch.map(item => [item.code, item.years])),
+        }))
+      }
+    }
+    load().catch(() => {})
+
+    return () => { cancelled = true }
+  }, [rows])
+
   // 按板块分组（保持配置中板块出现顺序）
   const sectors: { sector: string; items: Row[] }[] = []
   for (const r of rows || []) {
@@ -621,6 +647,14 @@ export default function YieldGrid() {
   const pinPos = new Map(stockOrder.map((c, i) => [c, i]))
   const cmpBy = (a: Row, b: Row) => {
     const m = sort.dir === 'desc' ? -1 : 1
+    if (sort.key === 'consecutiveYears') {
+      const va = consecutiveDividendYears[a.code]
+      const vb = consecutiveDividendYears[b.code]
+      if (va == null && vb == null) return 0
+      if (va == null) return 1
+      if (vb == null) return -1
+      return (va - vb) * m
+    }
     const va = sort.key === 'cy' ? a.cy : sort.key === 'chg' ? a.pctChg : a.price
     const vb = sort.key === 'cy' ? b.cy : sort.key === 'chg' ? b.pctChg : b.price
     return (va - vb) * m
@@ -698,11 +732,9 @@ export default function YieldGrid() {
             </svg>
             <span>返回</span>
           </button>
-          {authUser ? (
+          {canShowCloudSyncUi && authUser ? (
             <span className="yg-auth on">{authUser.user_metadata?.nickName || authUser.email?.split('@')[0] || '已登录'}</span>
-          ) : (
-            <button className="yg-auth" onClick={() => navigate('/settings')}>登录同步</button>
-          )}
+          ) : null}
           <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
         </div>
         <h1>股息率网格买卖价位表</h1>
@@ -825,7 +857,7 @@ export default function YieldGrid() {
           const isDenseGrid = sellOrdinalCount === 8 && buyOrdinalCount === 8
           // 窄屏或浏览器放大时保持列宽，以横向滚动代替文字重叠。
           const tableMinWidth = isNarrowDesktop || isDenseGrid
-            ? 120 + 252 + (isMobile ? 264 : 268) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 56)
+            ? 120 + 328 + (isMobile ? 264 : 268) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 56)
             : undefined
           const isCollapsed = groupBySector && collapsed.has(sector)
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
@@ -878,6 +910,10 @@ export default function YieldGrid() {
                           <small>现股息率</small>
                           <span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span>
                         </div>
+                        <div className="quote-metric">
+                          <small>连续分红</small>
+                          <span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span>
+                        </div>
                       </div>
                       {(() => { const lb = lastBuyMap.get(r.code); return lb ? <div className="cmeta">{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</div> : null })()}
                       <div className="boll-strip" data-testid={`yield-grid-boll-${r.code}`}>
@@ -909,7 +945,7 @@ export default function YieldGrid() {
                           <th rowSpan={2}>股票</th>
                           <th rowSpan={2} className="quote-summary-head">
                             <span className="quote-summary-title">价格与股息</span>
-                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i></span>
+                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i><i>连续分红</i></span>
                           </th>
                           <th rowSpan={2} className="th-boll-position">
                             <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
@@ -941,6 +977,7 @@ export default function YieldGrid() {
                               </div>
                               <div className="quote-metric"><span className="value-line"><b>{+r.dive.toFixed(4)}</b></span></div>
                               <div className="quote-metric"><span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span></div>
+                              <div className="quote-metric"><span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span></div>
                             </div>
                           </td>
                           <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
@@ -1461,10 +1498,10 @@ const CSS = `
 .yg-page thead th.ordinal-slot { padding: 8px 5px; font-size: 11.5px; }
 .yg-page thead th.ordinal-slot.sell { color: #16a34a; background: #fbfefb; }
 .yg-page thead th.ordinal-slot.buy { color: #ea580c; background: #fffcf8; }
-.yg-page thead th.quote-summary-head { width: 252px; min-width: 252px; padding: 6px 8px 7px; background: #f8fafc;
+.yg-page thead th.quote-summary-head { width: 328px; min-width: 328px; padding: 6px 8px 7px; background: #f8fafc;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
 .yg-page .quote-summary-title { display: block; margin-bottom: 4px; color: #374151; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
-.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.15fr .85fr 1fr; align-items: center; }
+.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.15fr .85fr 1fr .9fr; align-items: center; }
 .yg-page .quote-summary-labels i { font-style: normal; font-size: 10px; font-weight: 500; color: #94a3b8; }
 .yg-page thead th.th-boll-position { position: relative; width: 264px; min-width: 264px; padding-top: 14px; padding-bottom: 10px;
   background: #f8fafc; color: #64748b; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
@@ -1493,9 +1530,9 @@ const CSS = `
 .yg-page .chg-dn { color: #16a34a; }
 .yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
-.yg-page td.quote-summary-cell { min-width: 252px; padding: 8px; background: #fbfcfd;
+.yg-page td.quote-summary-cell { min-width: 328px; padding: 8px; background: #fbfcfd;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
-.yg-page .quote-summary { display: grid; grid-template-columns: 1.15fr .85fr 1fr; align-items: stretch; overflow: hidden;
+.yg-page .quote-summary { display: grid; grid-template-columns: 1.15fr .85fr 1fr .9fr; align-items: stretch; overflow: hidden;
   border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
 .yg-page .quote-metric { display: flex; min-width: 0; min-height: 48px; flex-direction: column; align-items: center;
   justify-content: center; padding: 5px 4px; }
