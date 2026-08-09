@@ -391,7 +391,6 @@ export default function Matrix() {
                     <div key={record.year} className="rounded-lg bg-gray-50 px-2 py-2 text-center">
                       <div className="text-xs text-gray-400">{record.year}</div>
                       <div className="mt-0.5 text-sm font-semibold text-gray-800">{record.payoutRatio.toFixed(2)}%</div>
-                      <div className="mt-0.5 text-[10px] text-gray-400">{record.pendingImplementation ? '已通过待实施（EPS 推算）' : record.calculationBasis === 'official' ? '年报金额' : '事件估算'}</div>
                     </div>
                   ))}
                 </div>
