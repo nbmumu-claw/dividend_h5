@@ -129,9 +129,29 @@ const payoutForYear = (records: DividendPayoutRecord[] | undefined, year: number
   return payout == null ? '--' : `${payout.toFixed(2)}%`
 }
 
-const payoutTooltip = (records: DividendPayoutRecord[] | undefined) => {
-  if (!records?.length) return undefined
-  return [2025, 2024, 2023].map(year => `${year}年：${payoutForYear(records, year)}`).join('\n')
+function PayoutValue({ records }: { records: DividendPayoutRecord[] | undefined }) {
+  const [open, setOpen] = useState(false)
+  if (!records?.length) return <b>--</b>
+
+  return (
+    <span className="payout-popover" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button
+        type="button"
+        className="payout-trigger"
+        onClick={() => setOpen(value => !value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        aria-expanded={open}
+      >
+        <b>{payoutForYear(records, 2025)}</b>
+      </button>
+      {open && (
+        <span role="tooltip" className="payout-tooltip">
+          {[2025, 2024, 2023].map(year => <span key={year}><i>{year}年</i>{payoutForYear(records, year)}</span>)}
+        </span>
+      )}
+    </span>
+  )
 }
 
 // 涨跌幅：A 股惯例涨红跌绿
@@ -938,7 +958,7 @@ export default function YieldGrid() {
                         </div>
                         <div className="quote-metric">
                           <small>25年支付率</small>
-                          <span className="value-line" title={payoutTooltip(dividendPayouts[r.code])}><b>{payoutForYear(dividendPayouts[r.code], 2025)}</b></span>
+                          <span className="value-line"><PayoutValue records={dividendPayouts[r.code]} /></span>
                         </div>
                       </div>
                       {(() => { const lb = lastBuyMap.get(r.code); return lb ? <div className="cmeta">{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</div> : null })()}
@@ -1012,7 +1032,7 @@ export default function YieldGrid() {
                           <td className="dividend-quality-cell">
                             <div className="dividend-quality">
                               <div className="quote-metric"><span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span></div>
-                              <div className="quote-metric"><span className="value-line" title={payoutTooltip(dividendPayouts[r.code])}><b>{payoutForYear(dividendPayouts[r.code], 2025)}</b></span></div>
+                              <div className="quote-metric"><span className="value-line"><PayoutValue records={dividendPayouts[r.code]} /></span></div>
                             </div>
                           </td>
                           <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
@@ -1571,11 +1591,11 @@ const CSS = `
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
 .yg-page td.quote-summary-cell { min-width: 200px; padding: 8px; background: #fbfcfd;
   border-left: 1px solid #e2e8f0; vertical-align: middle; }
-.yg-page .quote-summary { display: grid; grid-template-columns: 1.3fr .8fr .9fr; align-items: stretch; overflow: hidden;
+.yg-page .quote-summary { display: grid; grid-template-columns: 1.3fr .8fr .9fr; align-items: stretch; overflow: visible;
   border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
 .yg-page td.dividend-quality-cell { min-width: 128px; padding: 8px; background: #fbfcfd;
   border-right: 1px solid #e2e8f0; vertical-align: middle; }
-.yg-page .dividend-quality { display: grid; grid-template-columns: .85fr 1.15fr; align-items: stretch; overflow: hidden;
+.yg-page .dividend-quality { display: grid; grid-template-columns: .85fr 1.15fr; align-items: stretch; overflow: visible;
   border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
 .yg-page .quote-metric { display: flex; min-width: 0; min-height: 48px; flex-direction: column; align-items: center;
   justify-content: center; padding: 5px 4px; }
@@ -1586,6 +1606,16 @@ const CSS = `
 .yg-page .quote-metric:first-child .value-line { flex-direction: column; align-items: center; gap: 1px; line-height: 1.1; }
 .yg-page .quote-metric .value-line b { font-size: 12.5px; font-weight: 700; }
 .yg-page .quote-metric .value-line i { font-size: 9px; font-style: normal; font-weight: 500; }
+.yg-page .payout-popover { position: relative; display: inline-flex; }
+.yg-page .payout-trigger { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; line-height: inherit; cursor: pointer; }
+.yg-page .payout-trigger:focus-visible { outline: 1px solid #94a3b8; outline-offset: 3px; border-radius: 3px; }
+.yg-page .payout-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 20; width: 112px; padding: 7px 8px;
+  border: 1px solid #334155; border-radius: 6px; background: #1f2937; color: #f8fafc; box-shadow: 0 5px 14px rgb(15 23 42 / 20%);
+  transform: translateX(-50%); font-size: 10px; font-weight: 600; line-height: 1.65; text-align: left; white-space: nowrap; }
+.yg-page .payout-tooltip::after { content: ''; position: absolute; bottom: -4px; left: 50%; width: 7px; height: 7px; border-right: 1px solid #334155;
+  border-bottom: 1px solid #334155; background: #1f2937; transform: translateX(-50%) rotate(45deg); }
+.yg-page .payout-tooltip > span { display: flex; justify-content: space-between; gap: 12px; }
+.yg-page .payout-tooltip i { color: #94a3b8; font-style: normal; font-weight: 500; }
 .yg-page td.boll-position-cell { min-width: 264px; padding: 7px 12px 8px; background: #fbfcfd;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
 .yg-page:not(.mobile) thead th.th-boll-position { width: 268px; min-width: 268px; }
