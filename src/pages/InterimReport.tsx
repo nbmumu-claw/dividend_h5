@@ -56,6 +56,8 @@ const GROWTH_FILTERS: { key: GrowthFilterKey; label: string }[] = [
   { key: 'netProfitYoy', label: '净利润同比' },
 ]
 
+const GROWTH_PRESETS = ['', '0', '10', '20', '30'] as const
+
 const EMPTY_GROWTH_FILTERS: GrowthFilters = {
   revenueYoy: '',
   netProfitYoy: '',
@@ -451,6 +453,19 @@ export default function InterimReport() {
                           placeholder="例如：10"
                           aria-label={`${label}最低增速（%）`}
                         />
+                        <div className="interim-growth-presets" aria-label={`${label}快捷选项`}>
+                          {GROWTH_PRESETS.map(value => (
+                            <button
+                              key={value || 'all'}
+                              type="button"
+                              className={growthFilters[key] === value ? 'active' : ''}
+                              onClick={() => updateGrowthFilter(key, value)}
+                              aria-pressed={growthFilters[key] === value}
+                            >
+                              {value ? `≥${value}%` : '不限'}
+                            </button>
+                          ))}
+                        </div>
                       </label>
                     ))}
                   </div>
