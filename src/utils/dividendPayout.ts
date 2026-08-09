@@ -4,6 +4,7 @@ export interface DividendPayoutRecord {
   year: number
   payoutRatio: number
   calculationBasis?: 'official' | 'estimated'
+  pendingImplementation?: boolean
 }
 
 interface DividendPayoutResponse {
@@ -16,6 +17,7 @@ function isPayoutRecord(value: unknown): value is DividendPayoutRecord {
   return typeof record.year === 'number'
     && typeof record.payoutRatio === 'number'
     && (record.calculationBasis == null || record.calculationBasis === 'official' || record.calculationBasis === 'estimated')
+    && (record.pendingImplementation == null || typeof record.pendingImplementation === 'boolean')
 }
 
 export async function fetchDividendPayouts(code: string): Promise<DividendPayoutRecord[]> {

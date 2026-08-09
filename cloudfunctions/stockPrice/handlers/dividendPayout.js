@@ -10,7 +10,7 @@ const { ok, badRequest, upstreamError } = require('../utils/response')
 
 const COLLECTION = 'dividendPayouts'
 const EASTMONEY_URL = 'https://datacenter-web.eastmoney.com/api/data/v1/get'
-const PAYOUT_CACHE_VERSION = 5
+const PAYOUT_CACHE_VERSION = 7
 const EASTMONEY_NOTICE_LIST_URL = 'https://np-anotice-stock.eastmoney.com/api/security/ann'
 const EASTMONEY_NOTICE_CONTENT_URL = 'https://np-cnotice-stock.eastmoney.com/api/content/ann'
 
@@ -99,6 +99,8 @@ function parseAmount(value) {
 function extractAnnualCashDividendTotal(content, year) {
   const normalized = String(content || '').replace(/\s+/g, '')
   const patterns = [
+    new RegExp(`${year}年度(?:预计将)?累计(?:向股东)?派发现金(?:红利|股利)(?:总额)?(?:为|达)?([0-9,.，]+)元`),
+    new RegExp(`${year}年度累计现金分红总额(?:为|达)?([0-9,.，]+)元`),
     new RegExp(`${year}年度(?:全年)?(?:合计|累计)派发现金红利(?:为|总额为)?([0-9,.，]+)元`),
     new RegExp(`${year}年度现金(?:股利|红利)(?:总额)?(?:为|合计为|合计派发)?([0-9,.，]+)元`),
     /全年(?:合计|累计)派发现金红利(?:为|总额为)?([0-9,.，]+)元/,
@@ -126,7 +128,7 @@ async function fetchAnnualImplementationTotals(code, years) {
     const candidates = notices.filter(notice => {
       const title = String(notice.title || '')
       return new RegExp(`${year}年?年度`).test(title) && !title.includes('A股')
-        && /(利润分配|权益分派|分红派息).*(实施|派发).*(公告)?/.test(title)
+        && /(利润分配|权益分派|分红派息).*(实施|派发|预案|方案).*(公告)?/.test(title)
     })
     for (const notice of candidates) {
       const contentQuery = new URLSearchParams({ art_code: notice.art_code, client_source: 'web', page_index: '1' })
@@ -147,22 +149,26 @@ function buildPayoutRecords(code, years, rows, financialRows, implementationTota
   const netProfitByYear = new Map(financialRows
     .filter(row => String(row.REPORTDATE || '').slice(5, 10) === '12-31')
     .map(row => [Number(String(row.REPORTDATE).slice(0, 4)), Number(row.PARENT_NETPROFIT)]))
-  const byYear = new Map(years.map(year => [year, { dividendPerShare: 0, eps: null, dividendTotalEstimate: 0, events: [] }]))
+  const byYear = new Map(years.map(year => [year, { dividendPerShare: 0, eps: null, dividendTotalEstimate: 0, hasPendingImplementation: false, events: [] }]))
 
   for (const row of rows) {
-    if (row.ASSIGN_PROGRESS !== '实施分配') continue
+    const isImplemented = row.ASSIGN_PROGRESS === '实施分配'
+    const isApprovedPending = row.ASSIGN_PROGRESS === '股东大会决议通过'
+    if (!isImplemented && !isApprovedPending) continue
     const reportYear = Number(String(row.REPORT_DATE || '').slice(0, 4))
     const group = byYear.get(reportYear)
     const perShare = Number(row.PRETAX_BONUS_RMB) / 10
     if (!group || !Number.isFinite(perShare) || perShare <= 0) continue
 
     group.dividendPerShare += perShare
+    if (isApprovedPending) group.hasPendingImplementation = true
     const shares = Number(row.TOTAL_SHARES)
     if (Number.isFinite(shares) && shares > 0) group.dividendTotalEstimate += perShare * shares
     group.events.push({
       reportDate: String(row.REPORT_DATE).slice(0, 10),
       exDividendDate: String(row.EX_DIVIDEND_DATE || '').slice(0, 10) || null,
       dividendPerShare: perShare,
+      status: isApprovedPending ? 'approved-pending' : 'implemented',
     })
     if (String(row.REPORT_DATE || '').slice(5, 10) === '12-31') {
       const eps = Number(row.BASIC_EPS)
@@ -188,6 +194,9 @@ function buildPayoutRecords(code, years, rows, financialRows, implementationTota
     const dividendTotal = implementationTotal?.dividendTotal ?? fallbackOfficialTotal ?? (group?.dividendTotalEstimate ? Math.round(group.dividendTotalEstimate) : null)
     const calculationBasis = implementationTotal || fallbackOfficialTotal ? 'official' : 'estimated'
     const source = implementationTotal ? 'eastmoney-implementation-announcement' : calculationBasis === 'official' ? 'verified-fallback' : 'eastmoney-estimate'
+    const payoutRatio = group?.hasPendingImplementation && !implementationTotal && group.eps
+      ? Number(((group.dividendPerShare / group.eps) * 100).toFixed(2))
+      : dividendTotal && netProfit ? Number(((dividendTotal / netProfit) * 100).toFixed(2)) : null
     if (!netProfit || netProfit <= 0 || !dividendTotal || group?.events.length === 0) {
       return {
         _id: `${code}_${year}`,
@@ -195,12 +204,13 @@ function buildPayoutRecords(code, years, rows, financialRows, implementationTota
         year,
         dividendPerShare: null,
         eps: group?.eps || null,
-        payoutRatio: null,
+        payoutRatio,
         dividendTotal,
         netProfit: netProfit || null,
         calculationBasis,
         events: group?.events || [],
-        source,
+        pendingImplementation: Boolean(group?.hasPendingImplementation),
+        source: implementationTotal ? 'eastmoney-annual-dividend-announcement' : source,
         announcementCode: implementationTotal?.announcementCode || null,
         announcementTitle: implementationTotal?.announcementTitle || null,
         manualCacheVersion: MANUAL_DIVIDEND_EVENTS[code]?.[year] ? MANUAL_CACHE_VERSION : null,
@@ -215,12 +225,13 @@ function buildPayoutRecords(code, years, rows, financialRows, implementationTota
       year,
       dividendPerShare,
       eps: group.eps,
-      payoutRatio: Number(((dividendTotal / netProfit) * 100).toFixed(2)),
+      payoutRatio,
       dividendTotal,
       netProfit,
       calculationBasis,
       events: group.events,
-      source,
+      pendingImplementation: group.hasPendingImplementation,
+      source: implementationTotal ? 'eastmoney-annual-dividend-announcement' : source,
       announcementCode: implementationTotal?.announcementCode || null,
       announcementTitle: implementationTotal?.announcementTitle || null,
       manualCacheVersion: MANUAL_DIVIDEND_EVENTS[code]?.[year] ? MANUAL_CACHE_VERSION : null,

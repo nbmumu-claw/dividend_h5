@@ -62,7 +62,7 @@ test('aggregates implemented interim and annual dividends by fiscal year', async
   assert.equal(record.netProfit, 34500000000)
   assert.equal(record.payoutRatio, 70.92)
   assert.equal(record.calculationBasis, 'official')
-  assert.equal(record.source, 'eastmoney-implementation-announcement')
+  assert.equal(record.source, 'eastmoney-annual-dividend-announcement')
   assert.equal(record.events.length, 2)
   assert.equal(response.headers['Cache-Control'], 'no-store')
 })
@@ -101,7 +101,30 @@ test('uses Midea 2025 implemented cash dividend total instead of the annual-repo
   assert.equal(record.netProfit, 43945411000)
   assert.equal(record.payoutRatio, 73.18)
   assert.equal(record.calculationBasis, 'official')
-  assert.equal(record.payoutCacheVersion, 5)
+  assert.equal(record.payoutCacheVersion, 7)
+})
+
+test('includes shareholder-approved annual dividends with an EPS-based pending payout ratio', async () => {
+  announcementRows = [
+    { art_code: 'AN_TEST_000651_2025', title: '格力电器:2025年年度利润分配预案的公告' },
+  ]
+  announcementContents = {
+    AN_TEST_000651_2025: '公司2025年度预计将累计向股东派发现金红利16,755,416,223.00元（含税），其中2025年中期利润分配方案已实施完毕。',
+  }
+  upstreamRows = [
+    { REPORT_DATE: '2025-12-31 00:00:00', ASSIGN_PROGRESS: '股东大会决议通过', PRETAX_BONUS_RMB: 20, BASIC_EPS: 5.193, TOTAL_SHARES: 5601405741 },
+    { REPORT_DATE: '2025-09-30 00:00:00', ASSIGN_PROGRESS: '实施分配', PRETAX_BONUS_RMB: 10, BASIC_EPS: 3.7, TOTAL_SHARES: 5601405741, EX_DIVIDEND_DATE: '2026-01-23 00:00:00' },
+  ]
+  financialRows = [{ REPORTDATE: '2025-12-31 00:00:00', PARENT_NETPROFIT: 29003103411.66 }]
+
+  const response = await dividendPayoutHandler({ codes: '000651', years: '2025' })
+  const record = JSON.parse(response.body).data[0].data[0]
+  assert.equal(record.dividendPerShare, 3)
+  assert.equal(record.dividendTotal, 16755416223)
+  assert.equal(record.payoutRatio, 57.77)
+  assert.equal(record.pendingImplementation, true)
+  assert.equal(record.events[0].status, 'approved-pending')
+  assert.equal(record.source, 'eastmoney-annual-dividend-announcement')
 })
 
 test('refreshes only stale Yunnan Baiyao records and adds its special dividends', async () => {
@@ -124,5 +147,5 @@ test('refreshes only stale Yunnan Baiyao records and adds its special dividends'
     [2025, 2.602, 90.09, 'official'],
     [2024, 2.398, 90.09, 'official'],
   ])
-  assert.ok(records.every(record => record.payoutCacheVersion === 5))
+  assert.ok(records.every(record => record.payoutCacheVersion === 7))
 })
