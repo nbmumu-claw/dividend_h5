@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
-import { fetchLatestDividendPayouts } from '../utils/dividendPayout'
+import { fetchDividendPayoutsForCodes, type DividendPayoutRecord } from '../utils/dividendPayout'
 import { predictSector } from '../utils/sectorPredictor'
 import { pickDividendForFill } from '../utils/dividendFill'
 import Modal from '../components/Modal'
@@ -123,6 +123,16 @@ function hitBg(kind: 'buy' | 'sell', y: number, grid: number[]): string | undefi
 const fmtPct = (y: number) => +(y * 100).toFixed(2) + '%'
 
 const cyClass = (cy: number) => (cy >= 0.05 ? 'cy-hi' : cy >= 0.04 ? 'cy-mid' : 'cy-lo')
+
+const payoutForYear = (records: DividendPayoutRecord[] | undefined, year: number) => {
+  const payout = records?.find(record => record.year === year)?.payoutRatio
+  return payout == null ? '--' : `${payout.toFixed(2)}%`
+}
+
+const payoutTooltip = (records: DividendPayoutRecord[] | undefined) => {
+  if (!records?.length) return undefined
+  return [2025, 2024, 2023].map(year => `${year}年：${payoutForYear(records, year)}`).join('\n')
+}
 
 // 涨跌幅：A 股惯例涨红跌绿
 const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat')
@@ -247,7 +257,7 @@ export default function YieldGrid() {
 
   const [rows, setRows] = useState<Row[] | null>(null)
   const [consecutiveDividendYears, setConsecutiveDividendYears] = useState<Record<string, number | null>>({})
-  const [latestDividendPayouts, setLatestDividendPayouts] = useState<Record<string, number | null>>({})
+  const [dividendPayouts, setDividendPayouts] = useState<Record<string, DividendPayoutRecord[]>>({})
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
@@ -640,8 +650,8 @@ export default function YieldGrid() {
     if (!rows?.length) return
     let cancelled = false
     const aShareCodes = rows.filter(row => !row.isHK).map(row => row.code)
-    fetchLatestDividendPayouts(aShareCodes)
-      .then(payouts => { if (!cancelled) setLatestDividendPayouts(previous => ({ ...previous, ...payouts })) })
+    fetchDividendPayoutsForCodes(aShareCodes)
+      .then(payouts => { if (!cancelled) setDividendPayouts(previous => ({ ...previous, ...payouts })) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [rows])
@@ -928,7 +938,7 @@ export default function YieldGrid() {
                         </div>
                         <div className="quote-metric">
                           <small>25年支付率</small>
-                          <span className="value-line"><b>{latestDividendPayouts[r.code] == null ? '--' : `${latestDividendPayouts[r.code]!.toFixed(2)}%`}</b></span>
+                          <span className="value-line" title={payoutTooltip(dividendPayouts[r.code])}><b>{payoutForYear(dividendPayouts[r.code], 2025)}</b></span>
                         </div>
                       </div>
                       {(() => { const lb = lastBuyMap.get(r.code); return lb ? <div className="cmeta">{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</div> : null })()}
@@ -994,7 +1004,7 @@ export default function YieldGrid() {
                               <div className="quote-metric"><span className="value-line"><b>{+r.dive.toFixed(4)}</b></span></div>
                               <div className="quote-metric"><span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span></div>
                               <div className="quote-metric"><span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span></div>
-                              <div className="quote-metric"><span className="value-line"><b>{latestDividendPayouts[r.code] == null ? '--' : `${latestDividendPayouts[r.code]!.toFixed(2)}%`}</b></span></div>
+                              <div className="quote-metric"><span className="value-line" title={payoutTooltip(dividendPayouts[r.code])}><b>{payoutForYear(dividendPayouts[r.code], 2025)}</b></span></div>
                             </div>
                           </td>
                           <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>

@@ -50,14 +50,14 @@ export async function fetchDividendPayouts(code: string): Promise<DividendPayout
   return payoutRecords
 }
 
-// 云函数一次最多处理 20 个标的；网格页只需每只股票最新财年的支付率。
-export async function fetchLatestDividendPayouts(codes: string[]): Promise<Record<string, number | null>> {
+// 云函数一次最多处理 20 个标的；网格页可复用每只股票近三年的支付率。
+export async function fetchDividendPayoutsForCodes(codes: string[]): Promise<Record<string, DividendPayoutRecord[]>> {
   const uniqueCodes = [...new Set(codes.filter(code => /^\d{6}$/.test(code)))]
-  const result: Record<string, number | null> = {}
+  const result: Record<string, DividendPayoutRecord[]> = {}
   const uncachedCodes = uniqueCodes.filter(code => {
     const cached = getCachedPayouts(code)
     if (!cached) return true
-    result[code] = cached[0]?.payoutRatio ?? null
+    result[code] = cached
     return false
   })
   const batches = Array.from({ length: Math.ceil(uncachedCodes.length / 20) }, (_, index) => uncachedCodes.slice(index * 20, index * 20 + 20))
@@ -69,11 +69,11 @@ export async function fetchLatestDividendPayouts(codes: string[]): Promise<Recor
     const payload = await response.json() as DividendPayoutResponse
     for (const code of codesInBatch) {
       const records = payload.data?.find(item => item.code === code)?.data
-      const latest = Array.isArray(records)
-        ? records.filter(isPayoutRecord).sort((a, b) => b.year - a.year)[0]
-        : undefined
-      if (Array.isArray(records)) cachePayouts(code, records.filter(isPayoutRecord).sort((a, b) => b.year - a.year))
-      result[code] = latest?.payoutRatio ?? null
+      const payoutRecords = Array.isArray(records)
+        ? records.filter(isPayoutRecord).sort((a, b) => b.year - a.year)
+        : []
+      cachePayouts(code, payoutRecords)
+      result[code] = payoutRecords
     }
   }))
 
