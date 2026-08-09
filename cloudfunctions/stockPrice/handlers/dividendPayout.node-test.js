@@ -68,6 +68,24 @@ test('caches an unavailable historical year to avoid repeated upstream reads', a
   assert.equal(upstreamCalls, before + 2)
 })
 
+test('uses Midea 2025 implemented cash dividend total instead of the annual-report plan', async () => {
+  upstreamRows = [
+    { REPORT_DATE: '2025-12-31 00:00:00', ASSIGN_PROGRESS: '实施分配', PRETAX_BONUS_RMB: 38, BASIC_EPS: 5.67, TOTAL_SHARES: 6820019535, EX_DIVIDEND_DATE: '2026-06-17 00:00:00' },
+    { REPORT_DATE: '2025-06-30 00:00:00', ASSIGN_PROGRESS: '实施分配', PRETAX_BONUS_RMB: 5, BASIC_EPS: 2.21, TOTAL_SHARES: 7560000000, EX_DIVIDEND_DATE: '2025-09-25 00:00:00' },
+  ]
+  financialRows = [
+    { REPORTDATE: '2025-12-31 00:00:00', PARENT_NETPROFIT: 43945411000 },
+  ]
+
+  const response = await dividendPayoutHandler({ codes: '000333', years: '2025' })
+  const record = JSON.parse(response.body).data[0].data[0]
+  assert.equal(record.dividendTotal, 32160000000)
+  assert.equal(record.netProfit, 43945411000)
+  assert.equal(record.payoutRatio, 73.18)
+  assert.equal(record.calculationBasis, 'official')
+  assert.equal(record.payoutCacheVersion, 4)
+})
+
 test('refreshes only stale Yunnan Baiyao records and adds its special dividends', async () => {
   documents.set('000538_2024', { code: '000538', year: 2024, payoutRatio: 44.55 })
   documents.set('000538_2025', { code: '000538', year: 2025, payoutRatio: 54.78 })
@@ -86,5 +104,5 @@ test('refreshes only stale Yunnan Baiyao records and adds its special dividends'
     [2025, 2.602, 90.09, 'official'],
     [2024, 2.398, 90.09, 'official'],
   ])
-  assert.ok(records.every(record => record.payoutCacheVersion === 3))
+  assert.ok(records.every(record => record.payoutCacheVersion === 4))
 })

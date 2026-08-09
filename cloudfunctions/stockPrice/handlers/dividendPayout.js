@@ -10,7 +10,7 @@ const { ok, badRequest, upstreamError } = require('../utils/response')
 
 const COLLECTION = 'dividendPayouts'
 const EASTMONEY_URL = 'https://datacenter-web.eastmoney.com/api/data/v1/get'
-const PAYOUT_CACHE_VERSION = 3
+const PAYOUT_CACHE_VERSION = 4
 
 // 东财接口未收录的已实施特别分红，按财报年补入。
 const MANUAL_DIVIDEND_EVENTS = {
@@ -23,7 +23,7 @@ const MANUAL_CACHE_VERSION = 1
 
 // 年报/权益分派公告披露的累计现金分红总额，优先于事件金额估算。
 const OFFICIAL_CASH_DIVIDENDS = {
-  '000333': { 2024: 26711662411, 2025: 32360630265 },
+  '000333': { 2024: 26711662411, 2025: 32160000000 },
   '000423': { 2025: 1738737424.8 },
   '000538': { 2024: 4278661722, 2025: 4642651293.01 },
 }
