@@ -196,7 +196,7 @@ module.exports = async function dividendPayoutHandler(params) {
     const results = await Promise.all(codes.map(async code => ({ code, data: await loadCodePayouts(code, years) })))
     return ok(JSON.stringify({ data: results }), {
       'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'no-store',
     })
   } catch (error) {
     return upstreamError(`eastmoney error: ${error.message}`)

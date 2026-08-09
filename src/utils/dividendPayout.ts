@@ -19,7 +19,7 @@ function isPayoutRecord(value: unknown): value is DividendPayoutRecord {
 }
 
 export async function fetchDividendPayouts(code: string): Promise<DividendPayoutRecord[]> {
-  const params = new URLSearchParams({ action: 'dividendPayout', codes: code, years: '2023,2024,2025' })
+  const params = new URLSearchParams({ action: 'dividendPayout', codes: code, years: '2023,2024,2025', version: '3' })
   const response = await fetch(`${CLOUDBASE_DATA_GATEWAY_URL}?${params}`)
   if (!response.ok) throw new Error(`dividend payout request failed: ${response.status}`)
   const payload = await response.json() as DividendPayoutResponse

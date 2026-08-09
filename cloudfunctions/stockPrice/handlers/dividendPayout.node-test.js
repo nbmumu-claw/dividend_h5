@@ -50,6 +50,7 @@ test('aggregates implemented interim and annual dividends by fiscal year', async
   assert.equal(record.payoutRatio, 70.92)
   assert.equal(record.calculationBasis, 'estimated')
   assert.equal(record.events.length, 2)
+  assert.equal(response.headers['Cache-Control'], 'no-store')
 })
 
 test('returns the cached fiscal year without another upstream request', async () => {
