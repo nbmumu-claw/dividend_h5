@@ -927,7 +927,7 @@ export default function YieldGrid() {
                           <span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span>
                         </div>
                         <div className="quote-metric">
-                          <small>近年支付率</small>
+                          <small>25年支付率</small>
                           <span className="value-line"><b>{latestDividendPayouts[r.code] == null ? '--' : `${latestDividendPayouts[r.code]!.toFixed(2)}%`}</b></span>
                         </div>
                       </div>
@@ -961,7 +961,7 @@ export default function YieldGrid() {
                           <th rowSpan={2}>股票</th>
                           <th rowSpan={2} className="quote-summary-head">
                             <span className="quote-summary-title">价格与股息</span>
-                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i><i>连续分红</i><i>近年支付率</i></span>
+                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i><i>连续分红</i><i>25年支付率</i></span>
                           </th>
                           <th rowSpan={2} className="th-boll-position">
                             <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
@@ -1557,6 +1557,7 @@ const CSS = `
 .yg-page .quote-metric small { margin-bottom: 3px; color: #9ca3af; font-size: 9px; line-height: 1; }
 .yg-page .quote-metric .value-line { display: flex; min-width: 0; align-items: baseline; justify-content: center;
   gap: 3px; white-space: nowrap; color: #374151; }
+.yg-page .quote-metric:first-child .value-line { flex-direction: column; align-items: center; gap: 1px; line-height: 1.1; }
 .yg-page .quote-metric .value-line b { font-size: 12.5px; font-weight: 700; }
 .yg-page .quote-metric .value-line i { font-size: 9px; font-style: normal; font-weight: 500; }
 .yg-page td.boll-position-cell { min-width: 264px; padding: 7px 12px 8px; background: #fbfcfd;
