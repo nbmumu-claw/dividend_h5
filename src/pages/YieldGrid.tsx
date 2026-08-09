@@ -1607,7 +1607,9 @@ const CSS = `
 .yg-page .quote-metric .value-line b { font-size: 12.5px; font-weight: 700; }
 .yg-page .quote-metric .value-line i { font-size: 9px; font-style: normal; font-weight: 500; }
 .yg-page .payout-popover { position: relative; display: inline-flex; }
-.yg-page .payout-trigger { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; line-height: inherit; cursor: pointer; }
+.yg-page .payout-trigger { display: inline-flex; flex-direction: column; align-items: center; border: 0; padding: 0; background: transparent;
+  color: inherit; font: inherit; line-height: inherit; cursor: pointer; }
+.yg-page .payout-trigger::after { content: '近3年'; margin-top: 2px; color: #94a3b8; font-size: 8px; font-weight: 500; line-height: 1; }
 .yg-page .payout-trigger:focus-visible { outline: 1px solid #94a3b8; outline-offset: 3px; border-radius: 3px; }
 .yg-page .payout-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; z-index: 20; width: 112px; padding: 7px 8px;
   border: 1px solid #334155; border-radius: 6px; background: #1f2937; color: #f8fafc; box-shadow: 0 5px 14px rgb(15 23 42 / 20%);
