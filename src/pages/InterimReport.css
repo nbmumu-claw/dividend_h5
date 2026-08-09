@@ -189,20 +189,10 @@
 .interim-more-filter-heading span { display: block; margin-top: 3px; color: #9ca3af; font-size: 11px; }
 .interim-more-filter-heading button { padding: 0; border: 0; background: transparent; color: var(--interim-red); font-size: 12px; cursor: pointer; }
 .interim-financial-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 18px; }
-.interim-range-filter > span,
-.interim-date-filter > span { display: block; margin-bottom: 5px; color: #5f6672; font-size: 12px; font-weight: 600; }
+.interim-range-filter > span { display: block; margin-bottom: 5px; color: #5f6672; font-size: 12px; font-weight: 600; }
 .interim-range-filter small { margin-left: 4px; color: #9ca3af; font-size: 10px; font-weight: 400; }
-.interim-range-filter > div,
-.interim-date-filter > div { display: flex; align-items: center; gap: 6px; }
-.interim-range-filter input,
-.interim-date-filter input { min-width: 0; height: 32px; border: 1px solid #e1e4e8; border-radius: 5px; background: #fbfcfd; color: #374151; padding: 0 7px; font: inherit; font-size: 12px; outline: none; }
-.interim-range-filter input { width: calc(50% - 13px); }
-.interim-range-filter input:focus,
-.interim-date-filter input:focus { border-color: #d56b63; background: #fff; }
-.interim-range-filter i,
-.interim-date-filter i { flex: none; color: #9ca3af; font-size: 11px; font-style: normal; }
-.interim-date-filter { margin-top: 13px; padding-top: 12px; border-top: 1px solid #edf0f2; }
-.interim-date-filter input { width: 138px; }
+.interim-range-filter input { width: 100%; min-width: 0; height: 32px; border: 1px solid #e1e4e8; border-radius: 5px; background: #fbfcfd; color: #374151; padding: 0 7px; font: inherit; font-size: 12px; outline: none; }
+.interim-range-filter input:focus { border-color: #d56b63; background: #fff; }
 .interim-more-filters > p { margin: 11px 0 0; color: #9ca3af; font-size: 10px; line-height: 1.5; }
 .interim-sort { display: flex; align-items: center; gap: 8px; color: var(--interim-muted); font-size: 12px; }
 .interim-sort select { height: 31px; border: 1px solid #e1e4e8; border-radius: 6px; background: #fff; color: #374151; padding: 0 28px 0 9px; outline: none; }
@@ -369,7 +359,6 @@
   .interim-more-filter-button { white-space: nowrap; }
   .interim-more-filters { position: fixed; top: auto; right: 10px; left: 10px; bottom: 10px; width: auto; max-height: calc(100vh - 84px); overflow-y: auto; border-radius: 10px 4px 10px 10px; }
   .interim-financial-filter-grid { grid-template-columns: 1fr; gap: 10px; }
-  .interim-date-filter input { width: calc(50% - 14px); }
   .interim-sort { display: block; }
   .interim-sort span { display: block; margin-bottom: 3px; }
   .interim-sort select { max-width: 122px; }

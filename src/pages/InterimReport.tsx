@@ -20,9 +20,9 @@ import './InterimReport.css'
 type Metric = 'netProfit' | 'revenue' | 'eps' | 'roe'
 type StatusFilter = 'all' | 'published' | 'pending'
 type SortKey = 'disclosure' | 'pool' | 'profit2025'
-type FinancialFilterKey = 'revenue' | 'netProfit' | 'revenueYoy' | 'netProfitYoy' | 'eps' | 'roe'
+type GrowthFilterKey = 'revenueYoy' | 'netProfitYoy'
 
-type FinancialFilters = Record<FinancialFilterKey, { min: string; max: string }>
+type GrowthFilters = Record<GrowthFilterKey, string>
 
 interface CustomStock extends YieldGridStock {
   custom: true
@@ -52,22 +52,14 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'profit2025', label: '2025 年报净利润' },
 ]
 
-const FINANCIAL_FILTERS: { key: FinancialFilterKey; label: string; unit: string }[] = [
-  { key: 'revenue', label: '营业收入', unit: '亿元' },
-  { key: 'netProfit', label: '归母净利润', unit: '亿元' },
-  { key: 'revenueYoy', label: '营收同比', unit: '%' },
-  { key: 'netProfitYoy', label: '净利同比', unit: '%' },
-  { key: 'eps', label: '基本 EPS', unit: '元/股' },
-  { key: 'roe', label: '加权 ROE', unit: '%' },
+const GROWTH_FILTERS: { key: GrowthFilterKey; label: string }[] = [
+  { key: 'revenueYoy', label: '营收同比' },
+  { key: 'netProfitYoy', label: '净利润同比' },
 ]
 
-const EMPTY_FINANCIAL_FILTERS: FinancialFilters = {
-  revenue: { min: '', max: '' },
-  netProfit: { min: '', max: '' },
-  revenueYoy: { min: '', max: '' },
-  netProfitYoy: { min: '', max: '' },
-  eps: { min: '', max: '' },
-  roe: { min: '', max: '' },
+const EMPTY_GROWTH_FILTERS: GrowthFilters = {
+  revenueYoy: '',
+  netProfitYoy: '',
 }
 
 function loadCustomStocks(): CustomStock[] {
@@ -123,20 +115,15 @@ function metricYoy(report: InterimReportRecord | undefined, metric: Metric): num
   return null
 }
 
-function financialValue(report: InterimReportRecord, key: FinancialFilterKey): number | null {
-  if (key === 'revenue') return metricValue(report, 'revenue')
-  if (key === 'netProfit') return metricValue(report, 'netProfit')
+function growthValue(report: InterimReportRecord, key: GrowthFilterKey): number | null {
   if (key === 'revenueYoy') return report.revenueYoy
-  if (key === 'netProfitYoy') return report.netProfitYoy
-  return metricValue(report, key)
+  return report.netProfitYoy
 }
 
-function valueInRange(value: number | null, range: { min: string; max: string }): boolean {
-  if (!range.min && !range.max) return true
+function meetsGrowthMinimum(value: number | null, minimum: string): boolean {
+  if (!minimum) return true
   if (value === null) return false
-  const min = range.min === '' ? null : Number(range.min)
-  const max = range.max === '' ? null : Number(range.max)
-  return (min === null || value >= min) && (max === null || value <= max)
+  return value >= Number(minimum)
 }
 
 function reportsForCodes(data: InterimReportResult, codes: string[]): InterimReportResult {
@@ -206,9 +193,7 @@ export default function InterimReport() {
   const [showFirstQuarter, setShowFirstQuarter] = useState(false)
   const [sort, setSort] = useState<SortKey>('disclosure')
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false)
-  const [financialFilters, setFinancialFilters] = useState<FinancialFilters>(EMPTY_FINANCIAL_FILTERS)
-  const [disclosureStart, setDisclosureStart] = useState('')
-  const [disclosureEnd, setDisclosureEnd] = useState('')
+  const [growthFilters, setGrowthFilters] = useState<GrowthFilters>(EMPTY_GROWTH_FILTERS)
   const [addOpen, setAddOpen] = useState(false)
   const [addQuery, setAddQuery] = useState('')
   const [addSector, setAddSector] = useState('其他')
@@ -289,30 +274,22 @@ export default function InterimReport() {
     ...sectors.filter(item => item !== '全部' && item !== '其他'),
   ], [sectors])
 
-  const activeFilterCount = useMemo(() => {
-    const financialCount = FINANCIAL_FILTERS.reduce((count, { key }) => {
-      const range = financialFilters[key]
-      return count + Number(Boolean(range.min || range.max))
-    }, 0)
-    return financialCount + Number(Boolean(disclosureStart || disclosureEnd))
-  }, [disclosureEnd, disclosureStart, financialFilters])
+  const activeFilterCount = useMemo(
+    () => GROWTH_FILTERS.reduce((count, { key }) => count + Number(Boolean(growthFilters[key])), 0),
+    [growthFilters],
+  )
 
-  const hasFinancialFilters = FINANCIAL_FILTERS.some(({ key }) => {
-    const range = financialFilters[key]
-    return Boolean(range.min || range.max)
-  })
+  const hasGrowthFilters = GROWTH_FILTERS.some(({ key }) => Boolean(growthFilters[key]))
 
-  const updateFinancialFilter = (key: FinancialFilterKey, boundary: 'min' | 'max', value: string) => {
-    setFinancialFilters(current => ({
+  const updateGrowthFilter = (key: GrowthFilterKey, value: string) => {
+    setGrowthFilters(current => ({
       ...current,
-      [key]: { ...current[key], [boundary]: value },
+      [key]: value,
     }))
   }
 
   const clearMoreFilters = () => {
-    setFinancialFilters(EMPTY_FINANCIAL_FILTERS)
-    setDisclosureStart('')
-    setDisclosureEnd('')
+    setGrowthFilters(EMPTY_GROWTH_FILTERS)
   }
 
   const visibleStocks = useMemo(() => {
@@ -328,11 +305,8 @@ export default function InterimReport() {
       .filter(stock => {
         const snapshot = result?.stocks[stock.code]
         const report = snapshot?.reports[2026] ?? snapshot?.firstQuarterReports?.[2026]
-        if (hasFinancialFilters && !report) return false
-        if (report && !FINANCIAL_FILTERS.every(({ key }) => valueInRange(financialValue(report, key), financialFilters[key]))) return false
-        const date = disclosureDate(snapshot)?.slice(0, 10)
-        return (!disclosureStart || (date !== undefined && date >= disclosureStart))
-          && (!disclosureEnd || (date !== undefined && date <= disclosureEnd))
+        if (hasGrowthFilters && !report) return false
+        return !report || GROWTH_FILTERS.every(({ key }) => meetsGrowthMinimum(growthValue(report, key), growthFilters[key]))
       })
       .sort((a, b) => {
         if (sort === 'pool') return a.poolIndex - b.poolIndex
@@ -345,7 +319,7 @@ export default function InterimReport() {
         const bd = disclosureDate(result?.stocks[b.code]) ?? '9999-12-31'
         return ad.localeCompare(bd) || a.poolIndex - b.poolIndex
       })
-  }, [disclosureEnd, disclosureStart, financialFilters, hasFinancialFilters, query, result, sector, sort, status, stocks])
+  }, [growthFilters, hasGrowthFilters, query, result, sector, sort, status, stocks])
 
   const publishedCount = stocks.filter(stock => Boolean(result?.stocks[stock.code]?.reports[2026])).length
 
@@ -456,46 +430,27 @@ export default function InterimReport() {
               <div id="interim-more-filters" className="interim-more-filters">
                 <div className="interim-more-filter-heading">
                   <div>
-                    <strong>财务指标区间</strong>
+                    <strong>增长率筛选</strong>
                     <span>优先取 2026 中报；未披露时取 2026 一季报</span>
                   </div>
                   {activeFilterCount > 0 && <button onClick={clearMoreFilters}>清空</button>}
                 </div>
                 <div className="interim-financial-filter-grid">
-                  {FINANCIAL_FILTERS.map(({ key, label, unit }) => (
+                  {GROWTH_FILTERS.map(({ key, label }) => (
                     <label key={key} className="interim-range-filter">
-                      <span>{label}<small>{unit}</small></span>
-                      <div>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          value={financialFilters[key].min}
-                          onChange={event => updateFinancialFilter(key, 'min', event.target.value)}
-                          placeholder="最小"
-                          aria-label={`${label}最小值（${unit}）`}
-                        />
-                        <i>—</i>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          value={financialFilters[key].max}
-                          onChange={event => updateFinancialFilter(key, 'max', event.target.value)}
-                          placeholder="最大"
-                          aria-label={`${label}最大值（${unit}）`}
-                        />
-                      </div>
+                      <span>{label}<small>不低于 %</small></span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={growthFilters[key]}
+                        onChange={event => updateGrowthFilter(key, event.target.value)}
+                        placeholder="例如：10"
+                        aria-label={`${label}最低增速（%）`}
+                      />
                     </label>
                   ))}
                 </div>
-                <div className="interim-date-filter">
-                  <span>披露日期</span>
-                  <div>
-                    <input type="date" value={disclosureStart} onChange={event => setDisclosureStart(event.target.value)} aria-label="披露日期起始" />
-                    <i>至</i>
-                    <input type="date" value={disclosureEnd} onChange={event => setDisclosureEnd(event.target.value)} aria-label="披露日期结束" />
-                  </div>
-                </div>
-                <p>启用财务指标筛选时，缺少 2026 中报和一季报数据的标的将自动排除。</p>
+                <p>填写最低增速即可；缺少 2026 中报和一季报数据的标的将自动排除。</p>
               </div>
             )}
           </div>
