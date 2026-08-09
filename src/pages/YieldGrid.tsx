@@ -971,7 +971,11 @@ export default function YieldGrid() {
                           <th rowSpan={2}>股票</th>
                           <th rowSpan={2} className="quote-summary-head">
                             <span className="quote-summary-title">价格与股息</span>
-                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i><i>连续分红</i><i>25年支付率</i></span>
+                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i></span>
+                          </th>
+                          <th rowSpan={2} className="dividend-quality-head">
+                            <span className="quote-summary-title">分红质量</span>
+                            <span className="dividend-quality-labels"><i>连续分红</i><i>25年支付率</i></span>
                           </th>
                           <th rowSpan={2} className="th-boll-position">
                             <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
@@ -1003,6 +1007,10 @@ export default function YieldGrid() {
                               </div>
                               <div className="quote-metric"><span className="value-line"><b>{+r.dive.toFixed(4)}</b></span></div>
                               <div className="quote-metric"><span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span></div>
+                            </div>
+                          </td>
+                          <td className="dividend-quality-cell">
+                            <div className="dividend-quality">
                               <div className="quote-metric"><span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span></div>
                               <div className="quote-metric"><span className="value-line" title={payoutTooltip(dividendPayouts[r.code])}><b>{payoutForYear(dividendPayouts[r.code], 2025)}</b></span></div>
                             </div>
@@ -1525,11 +1533,15 @@ const CSS = `
 .yg-page thead th.ordinal-slot { padding: 8px 5px; font-size: 11.5px; }
 .yg-page thead th.ordinal-slot.sell { color: #16a34a; background: #fbfefb; }
 .yg-page thead th.ordinal-slot.buy { color: #ea580c; background: #fffcf8; }
-.yg-page thead th.quote-summary-head { width: 328px; min-width: 328px; padding: 6px 8px 7px; background: #f8fafc;
-  border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
+.yg-page thead th.quote-summary-head { width: 200px; min-width: 200px; padding: 6px 8px 7px; background: #f8fafc;
+  border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 0 0 0; }
 .yg-page .quote-summary-title { display: block; margin-bottom: 4px; color: #374151; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
-.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.1fr .8fr .9fr .8fr 1.15fr; align-items: center; }
+.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.3fr .8fr .9fr; align-items: center; }
 .yg-page .quote-summary-labels i { font-style: normal; font-size: 10px; font-weight: 500; color: #94a3b8; }
+.yg-page thead th.dividend-quality-head { width: 128px; min-width: 128px; padding: 6px 8px 7px; background: #f8fafc;
+  border-right: 1px solid #e2e8f0; border-radius: 0 8px 0 0; }
+.yg-page .dividend-quality-labels { display: grid; grid-template-columns: .85fr 1.15fr; align-items: center; }
+.yg-page .dividend-quality-labels i { font-style: normal; font-size: 10px; font-weight: 500; color: #94a3b8; }
 .yg-page thead th.th-boll-position { position: relative; width: 264px; min-width: 264px; padding-top: 14px; padding-bottom: 10px;
   background: #f8fafc; color: #64748b; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
 .yg-page thead th.th-boll-position::before { content: ''; position: absolute; top: 0; left: 38%; right: 38%; height: 2px;
@@ -1557,9 +1569,13 @@ const CSS = `
 .yg-page .chg-dn { color: #16a34a; }
 .yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
-.yg-page td.quote-summary-cell { min-width: 328px; padding: 8px; background: #fbfcfd;
-  border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
-.yg-page .quote-summary { display: grid; grid-template-columns: 1.1fr .8fr .9fr .8fr 1.15fr; align-items: stretch; overflow: hidden;
+.yg-page td.quote-summary-cell { min-width: 200px; padding: 8px; background: #fbfcfd;
+  border-left: 1px solid #e2e8f0; vertical-align: middle; }
+.yg-page .quote-summary { display: grid; grid-template-columns: 1.3fr .8fr .9fr; align-items: stretch; overflow: hidden;
+  border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
+.yg-page td.dividend-quality-cell { min-width: 128px; padding: 8px; background: #fbfcfd;
+  border-right: 1px solid #e2e8f0; vertical-align: middle; }
+.yg-page .dividend-quality { display: grid; grid-template-columns: .85fr 1.15fr; align-items: stretch; overflow: hidden;
   border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
 .yg-page .quote-metric { display: flex; min-width: 0; min-height: 48px; flex-direction: column; align-items: center;
   justify-content: center; padding: 5px 4px; }
@@ -1606,6 +1622,10 @@ const CSS = `
 .yg-page .chead .yg-del { align-self: center; }
 .yg-page .chead .cnm { font-weight: 700; font-size: 15px; }
 .yg-page .quote-summary-mobile { margin-top: 7px; background: #f8fafc; }
+.yg-page .quote-summary-mobile { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.yg-page .quote-summary-mobile .quote-metric:nth-child(-n+3) { grid-column: span 2; }
+.yg-page .quote-summary-mobile .quote-metric:nth-child(n+4) { grid-column: span 3; }
+.yg-page .quote-summary-mobile .quote-metric:nth-child(4) { border-left: 0; }
 .yg-page .quote-summary-mobile .quote-metric { min-height: 52px; padding: 6px 3px; }
 .yg-page .quote-summary-mobile .quote-metric .value-line b { font-size: 12px; }
 .yg-page .cmeta { font-size: 11.5px; color: #9ca3af; margin-top: 5px; }
