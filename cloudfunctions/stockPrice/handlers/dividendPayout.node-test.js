@@ -12,6 +12,12 @@ let upstreamRows = [
 let financialRows = [
   { REPORTDATE: '2025-12-31 00:00:00', PARENT_NETPROFIT: 34500000000 },
 ]
+let announcementRows = [
+  { art_code: 'AN_TEST_600900_2025', title: '长江电力:长江电力2025年年度权益分派实施公告' },
+]
+let announcementContents = {
+  AN_TEST_600900_2025: '2025 年全年现金红利为每股 1.00 元（含税），2025 年度合计派发现金红利24,468,217,716元（含税）。',
+}
 const originalLoad = Module._load
 Module._load = function load(request, parent, isMain) {
   if (parent?.filename.endsWith('/handlers/dividendPayout.js') && request === '../utils/db') {
@@ -30,6 +36,13 @@ Module._load = function load(request, parent, isMain) {
 const originalFetch = global.fetch
 global.fetch = async url => {
   upstreamCalls += 1
+  if (String(url).includes('np-anotice-stock')) {
+    return { ok: true, json: async () => ({ data: { list: announcementRows } }) }
+  }
+  if (String(url).includes('np-cnotice-stock')) {
+    const artCode = new URL(String(url)).searchParams.get('art_code')
+    return { ok: true, json: async () => ({ data: { notice_content: announcementContents[artCode] || '' } }) }
+  }
   return {
     ok: true,
     json: async () => ({ result: { data: String(url).includes('RPT_LICO_FN_CPD') ? financialRows : upstreamRows } }),
@@ -48,7 +61,8 @@ test('aggregates implemented interim and annual dividends by fiscal year', async
   assert.equal(record.dividendPerShare, 1)
   assert.equal(record.netProfit, 34500000000)
   assert.equal(record.payoutRatio, 70.92)
-  assert.equal(record.calculationBasis, 'estimated')
+  assert.equal(record.calculationBasis, 'official')
+  assert.equal(record.source, 'eastmoney-implementation-announcement')
   assert.equal(record.events.length, 2)
   assert.equal(response.headers['Cache-Control'], 'no-store')
 })
@@ -65,10 +79,14 @@ test('caches an unavailable historical year to avoid repeated upstream reads', a
   const first = await dividendPayoutHandler({ codes: '600900', years: '2024' })
   assert.equal(JSON.parse(first.body).data[0].data[0].payoutRatio, null)
   await dividendPayoutHandler({ codes: '600900', years: '2024' })
-  assert.equal(upstreamCalls, before + 2)
+  assert.equal(upstreamCalls, before + 3)
 })
 
 test('uses Midea 2025 implemented cash dividend total instead of the annual-report plan', async () => {
+  announcementRows = [
+    { art_code: 'AN_TEST_000333_A', title: '美的集团:2025年度A股利润分配实施公告' },
+  ]
+  announcementContents = {}
   upstreamRows = [
     { REPORT_DATE: '2025-12-31 00:00:00', ASSIGN_PROGRESS: '实施分配', PRETAX_BONUS_RMB: 38, BASIC_EPS: 5.67, TOTAL_SHARES: 6820019535, EX_DIVIDEND_DATE: '2026-06-17 00:00:00' },
     { REPORT_DATE: '2025-06-30 00:00:00', ASSIGN_PROGRESS: '实施分配', PRETAX_BONUS_RMB: 5, BASIC_EPS: 2.21, TOTAL_SHARES: 7560000000, EX_DIVIDEND_DATE: '2025-09-25 00:00:00' },
@@ -83,10 +101,12 @@ test('uses Midea 2025 implemented cash dividend total instead of the annual-repo
   assert.equal(record.netProfit, 43945411000)
   assert.equal(record.payoutRatio, 73.18)
   assert.equal(record.calculationBasis, 'official')
-  assert.equal(record.payoutCacheVersion, 4)
+  assert.equal(record.payoutCacheVersion, 5)
 })
 
 test('refreshes only stale Yunnan Baiyao records and adds its special dividends', async () => {
+  announcementRows = []
+  announcementContents = {}
   documents.set('000538_2024', { code: '000538', year: 2024, payoutRatio: 44.55 })
   documents.set('000538_2025', { code: '000538', year: 2025, payoutRatio: 54.78 })
   upstreamRows = [
@@ -104,5 +124,5 @@ test('refreshes only stale Yunnan Baiyao records and adds its special dividends'
     [2025, 2.602, 90.09, 'official'],
     [2024, 2.398, 90.09, 'official'],
   ])
-  assert.ok(records.every(record => record.payoutCacheVersion === 4))
+  assert.ok(records.every(record => record.payoutCacheVersion === 5))
 })

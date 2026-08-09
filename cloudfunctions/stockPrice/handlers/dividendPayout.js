@@ -10,7 +10,9 @@ const { ok, badRequest, upstreamError } = require('../utils/response')
 
 const COLLECTION = 'dividendPayouts'
 const EASTMONEY_URL = 'https://datacenter-web.eastmoney.com/api/data/v1/get'
-const PAYOUT_CACHE_VERSION = 4
+const PAYOUT_CACHE_VERSION = 5
+const EASTMONEY_NOTICE_LIST_URL = 'https://np-anotice-stock.eastmoney.com/api/security/ann'
+const EASTMONEY_NOTICE_CONTENT_URL = 'https://np-cnotice-stock.eastmoney.com/api/content/ann'
 
 // 东财接口未收录的已实施特别分红，按财报年补入。
 const MANUAL_DIVIDEND_EVENTS = {
@@ -21,7 +23,8 @@ const MANUAL_DIVIDEND_EVENTS = {
 }
 const MANUAL_CACHE_VERSION = 1
 
-// 年报/权益分派公告披露的累计现金分红总额，优先于事件金额估算。
+// 双重上市公司的 H 股派息在东财 A 股公告流中不完整，暂保留已核验值作为降级。
+// 普通 A 股优先使用下方实施公告的实际全年派现总额，不再依赖此表。
 const OFFICIAL_CASH_DIVIDENDS = {
   '000333': { 2024: 26711662411, 2025: 32160000000 },
   '000423': { 2025: 1738737424.8 },
@@ -88,7 +91,59 @@ async function fetchAnnualNetProfitRows(code) {
   return json?.result?.data || []
 }
 
-function buildPayoutRecords(code, years, rows, financialRows) {
+function parseAmount(value) {
+  const amount = Number(String(value || '').replace(/[,，\s]/g, ''))
+  return Number.isFinite(amount) && amount > 0 ? amount : null
+}
+
+function extractAnnualCashDividendTotal(content, year) {
+  const normalized = String(content || '').replace(/\s+/g, '')
+  const patterns = [
+    new RegExp(`${year}年度(?:全年)?(?:合计|累计)派发现金红利(?:为|总额为)?([0-9,.，]+)元`),
+    new RegExp(`${year}年度现金(?:股利|红利)(?:总额)?(?:为|合计为|合计派发)?([0-9,.，]+)元`),
+    /全年(?:合计|累计)派发现金红利(?:为|总额为)?([0-9,.，]+)元/,
+  ]
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern)
+    const amount = parseAmount(match?.[1])
+    if (amount) return amount
+  }
+  return null
+}
+
+async function fetchAnnualImplementationTotals(code, years) {
+  const query = new URLSearchParams({
+    ann_type: 'A', client_source: 'web', f_node: '0', s_node: '0', sr: '-1',
+    page_size: '100', page_index: '1', stock_list: code,
+  })
+  const response = await fetch(`${EASTMONEY_NOTICE_LIST_URL}?${query}`)
+  if (!response.ok) throw new Error(`eastmoney notice list error: ${response.status}`)
+  const json = await response.json()
+  const notices = json?.data?.list || []
+  const totals = new Map()
+
+  await Promise.all(years.map(async year => {
+    const candidates = notices.filter(notice => {
+      const title = String(notice.title || '')
+      return new RegExp(`${year}年?年度`).test(title) && !title.includes('A股')
+        && /(利润分配|权益分派|分红派息).*(实施|派发).*(公告)?/.test(title)
+    })
+    for (const notice of candidates) {
+      const contentQuery = new URLSearchParams({ art_code: notice.art_code, client_source: 'web', page_index: '1' })
+      const contentResponse = await fetch(`${EASTMONEY_NOTICE_CONTENT_URL}?${contentQuery}`)
+      if (!contentResponse.ok) continue
+      const contentJson = await contentResponse.json()
+      const dividendTotal = extractAnnualCashDividendTotal(contentJson?.data?.notice_content, year)
+      if (dividendTotal) {
+        totals.set(year, { dividendTotal, announcementCode: notice.art_code, announcementTitle: notice.title })
+        return
+      }
+    }
+  }))
+  return totals
+}
+
+function buildPayoutRecords(code, years, rows, financialRows, implementationTotals) {
   const netProfitByYear = new Map(financialRows
     .filter(row => String(row.REPORTDATE || '').slice(5, 10) === '12-31')
     .map(row => [Number(String(row.REPORTDATE).slice(0, 4)), Number(row.PARENT_NETPROFIT)]))
@@ -128,9 +183,11 @@ function buildPayoutRecords(code, years, rows, financialRows) {
   return years.map(year => {
     const group = byYear.get(year)
     const netProfit = netProfitByYear.get(year)
-    const officialDividendTotal = OFFICIAL_CASH_DIVIDENDS[code]?.[year]
-    const dividendTotal = officialDividendTotal ?? (group?.dividendTotalEstimate ? Math.round(group.dividendTotalEstimate) : null)
-    const calculationBasis = officialDividendTotal ? 'official' : 'estimated'
+    const implementationTotal = implementationTotals.get(year)
+    const fallbackOfficialTotal = OFFICIAL_CASH_DIVIDENDS[code]?.[year]
+    const dividendTotal = implementationTotal?.dividendTotal ?? fallbackOfficialTotal ?? (group?.dividendTotalEstimate ? Math.round(group.dividendTotalEstimate) : null)
+    const calculationBasis = implementationTotal || fallbackOfficialTotal ? 'official' : 'estimated'
+    const source = implementationTotal ? 'eastmoney-implementation-announcement' : calculationBasis === 'official' ? 'verified-fallback' : 'eastmoney-estimate'
     if (!netProfit || netProfit <= 0 || !dividendTotal || group?.events.length === 0) {
       return {
         _id: `${code}_${year}`,
@@ -143,7 +200,9 @@ function buildPayoutRecords(code, years, rows, financialRows) {
         netProfit: netProfit || null,
         calculationBasis,
         events: group?.events || [],
-        source: calculationBasis === 'official' ? 'annual-report' : 'eastmoney-estimate',
+        source,
+        announcementCode: implementationTotal?.announcementCode || null,
+        announcementTitle: implementationTotal?.announcementTitle || null,
         manualCacheVersion: MANUAL_DIVIDEND_EVENTS[code]?.[year] ? MANUAL_CACHE_VERSION : null,
         payoutCacheVersion: PAYOUT_CACHE_VERSION,
         cachedAt: new Date().toISOString(),
@@ -161,7 +220,9 @@ function buildPayoutRecords(code, years, rows, financialRows) {
       netProfit,
       calculationBasis,
       events: group.events,
-      source: calculationBasis === 'official' ? 'annual-report' : 'eastmoney-estimate',
+      source,
+      announcementCode: implementationTotal?.announcementCode || null,
+      announcementTitle: implementationTotal?.announcementTitle || null,
       manualCacheVersion: MANUAL_DIVIDEND_EVENTS[code]?.[year] ? MANUAL_CACHE_VERSION : null,
       payoutCacheVersion: PAYOUT_CACHE_VERSION,
       cachedAt: new Date().toISOString(),
@@ -180,8 +241,10 @@ async function loadCodePayouts(code, years) {
   const missingYears = years.filter(year => !cachedYears.has(year))
   if (missingYears.length === 0) return cached.sort((a, b) => b.year - a.year)
 
-  const [rows, financialRows] = await Promise.all([fetchDividendRows(code), fetchAnnualNetProfitRows(code)])
-  const fresh = buildPayoutRecords(code, missingYears, rows, financialRows)
+  const [rows, financialRows, implementationTotals] = await Promise.all([
+    fetchDividendRows(code), fetchAnnualNetProfitRows(code), fetchAnnualImplementationTotals(code, missingYears),
+  ])
+  const fresh = buildPayoutRecords(code, missingYears, rows, financialRows, implementationTotals)
   await writeCache(fresh)
   return [...cached, ...fresh].sort((a, b) => b.year - a.year)
 }
