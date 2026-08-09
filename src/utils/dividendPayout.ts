@@ -3,6 +3,7 @@ const CLOUDBASE_DATA_GATEWAY_URL = 'https://vercel-dividend-d8faqegf03442b6c.ser
 export interface DividendPayoutRecord {
   year: number
   payoutRatio: number
+  calculationBasis?: 'official' | 'estimated'
 }
 
 interface DividendPayoutResponse {
@@ -12,7 +13,9 @@ interface DividendPayoutResponse {
 function isPayoutRecord(value: unknown): value is DividendPayoutRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
-  return typeof record.year === 'number' && typeof record.payoutRatio === 'number'
+  return typeof record.year === 'number'
+    && typeof record.payoutRatio === 'number'
+    && (record.calculationBasis == null || record.calculationBasis === 'official' || record.calculationBasis === 'estimated')
 }
 
 export async function fetchDividendPayouts(code: string): Promise<DividendPayoutRecord[]> {

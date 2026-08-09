@@ -373,7 +373,7 @@ export default function Matrix() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold text-gray-800">近三年股利支付率</div>
-                <div className="mt-0.5 text-xs text-gray-400">按财报年汇总已实施现金分红</div>
+                <div className="mt-0.5 text-xs text-gray-400">现金分红总额 ÷ 归母净利润</div>
               </div>
               {payoutSummary && (
                 <div className="shrink-0 text-right">
@@ -391,6 +391,7 @@ export default function Matrix() {
                     <div key={record.year} className="rounded-lg bg-gray-50 px-2 py-2 text-center">
                       <div className="text-xs text-gray-400">{record.year}</div>
                       <div className="mt-0.5 text-sm font-semibold text-gray-800">{record.payoutRatio.toFixed(2)}%</div>
+                      <div className="mt-0.5 text-[10px] text-gray-400">{record.calculationBasis === 'official' ? '年报金额' : '事件估算'}</div>
                     </div>
                   ))}
                 </div>
