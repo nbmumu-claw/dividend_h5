@@ -425,31 +425,38 @@ export default function InterimReport() {
               更多筛选{activeFilterCount ? ` · ${activeFilterCount}` : ''}
             </button>
             {moreFiltersOpen && (
-              <div id="interim-more-filters" className="interim-more-filters">
-                <div className="interim-more-filter-heading">
-                  <div>
-                    <strong>增长率筛选</strong>
-                    <span>优先取 2026 中报；未披露时取 2026 一季报</span>
+              <>
+                <button
+                  className="interim-more-filter-backdrop"
+                  onClick={() => setMoreFiltersOpen(false)}
+                  aria-label="关闭更多筛选"
+                />
+                <div id="interim-more-filters" className="interim-more-filters">
+                  <div className="interim-more-filter-heading">
+                    <div>
+                      <strong>增长率筛选</strong>
+                      <span>优先取 2026 中报；未披露时取 2026 一季报</span>
+                    </div>
+                    {activeFilterCount > 0 && <button onClick={clearMoreFilters}>清空</button>}
                   </div>
-                  {activeFilterCount > 0 && <button onClick={clearMoreFilters}>清空</button>}
+                  <div className="interim-financial-filter-grid">
+                    {GROWTH_FILTERS.map(({ key, label }) => (
+                      <label key={key} className="interim-range-filter">
+                        <span>{label}<small>不低于 %</small></span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={growthFilters[key]}
+                          onChange={event => updateGrowthFilter(key, event.target.value)}
+                          placeholder="例如：10"
+                          aria-label={`${label}最低增速（%）`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <p>填写最低增速即可；缺少 2026 中报和一季报数据的标的将自动排除。</p>
                 </div>
-                <div className="interim-financial-filter-grid">
-                  {GROWTH_FILTERS.map(({ key, label }) => (
-                    <label key={key} className="interim-range-filter">
-                      <span>{label}<small>不低于 %</small></span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={growthFilters[key]}
-                        onChange={event => updateGrowthFilter(key, event.target.value)}
-                        placeholder="例如：10"
-                        aria-label={`${label}最低增速（%）`}
-                      />
-                    </label>
-                  ))}
-                </div>
-                <p>填写最低增速即可；缺少 2026 中报和一季报数据的标的将自动排除。</p>
-              </div>
+              </>
             )}
           </div>
           <label className="interim-sort">
