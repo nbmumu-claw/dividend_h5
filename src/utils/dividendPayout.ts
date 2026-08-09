@@ -31,6 +31,29 @@ export async function fetchDividendPayouts(code: string): Promise<DividendPayout
     : []
 }
 
+// 云函数一次最多处理 20 个标的；网格页只需每只股票最新财年的支付率。
+export async function fetchLatestDividendPayouts(codes: string[]): Promise<Record<string, number | null>> {
+  const uniqueCodes = [...new Set(codes.filter(code => /^\d{6}$/.test(code)))]
+  const result: Record<string, number | null> = {}
+  const batches = Array.from({ length: Math.ceil(uniqueCodes.length / 20) }, (_, index) => uniqueCodes.slice(index * 20, index * 20 + 20))
+
+  await Promise.all(batches.map(async codesInBatch => {
+    const params = new URLSearchParams({ action: 'dividendPayout', codes: codesInBatch.join(','), years: '2023,2024,2025', version: '3' })
+    const response = await fetch(`${CLOUDBASE_DATA_GATEWAY_URL}?${params}`)
+    if (!response.ok) throw new Error(`dividend payout request failed: ${response.status}`)
+    const payload = await response.json() as DividendPayoutResponse
+    for (const code of codesInBatch) {
+      const records = payload.data?.find(item => item.code === code)?.data
+      const latest = Array.isArray(records)
+        ? records.filter(isPayoutRecord).sort((a, b) => b.year - a.year)[0]
+        : undefined
+      result[code] = latest?.payoutRatio ?? null
+    }
+  }))
+
+  return result
+}
+
 export function summarizeDividendPayout(records: DividendPayoutRecord[]): { average: number; conclusion: string } | null {
   if (!records.length) return null
   const average = records.reduce((sum, record) => sum + record.payoutRatio, 0) / records.length

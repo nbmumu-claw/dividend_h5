@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
+import { fetchLatestDividendPayouts } from '../utils/dividendPayout'
 import { predictSector } from '../utils/sectorPredictor'
 import { pickDividendForFill } from '../utils/dividendFill'
 import Modal from '../components/Modal'
@@ -246,6 +247,7 @@ export default function YieldGrid() {
 
   const [rows, setRows] = useState<Row[] | null>(null)
   const [consecutiveDividendYears, setConsecutiveDividendYears] = useState<Record<string, number | null>>({})
+  const [latestDividendPayouts, setLatestDividendPayouts] = useState<Record<string, number | null>>({})
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
@@ -634,6 +636,16 @@ export default function YieldGrid() {
     return () => { cancelled = true }
   }, [rows])
 
+  useEffect(() => {
+    if (!rows?.length) return
+    let cancelled = false
+    const aShareCodes = rows.filter(row => !row.isHK).map(row => row.code)
+    fetchLatestDividendPayouts(aShareCodes)
+      .then(payouts => { if (!cancelled) setLatestDividendPayouts(previous => ({ ...previous, ...payouts })) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [rows])
+
   // 按板块分组（保持配置中板块出现顺序）
   const sectors: { sector: string; items: Row[] }[] = []
   for (const r of rows || []) {
@@ -914,6 +926,10 @@ export default function YieldGrid() {
                           <small>连续分红</small>
                           <span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span>
                         </div>
+                        <div className="quote-metric">
+                          <small>近年支付率</small>
+                          <span className="value-line"><b>{latestDividendPayouts[r.code] == null ? '--' : `${latestDividendPayouts[r.code]!.toFixed(2)}%`}</b></span>
+                        </div>
                       </div>
                       {(() => { const lb = lastBuyMap.get(r.code); return lb ? <div className="cmeta">{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</div> : null })()}
                       <div className="boll-strip" data-testid={`yield-grid-boll-${r.code}`}>
@@ -945,7 +961,7 @@ export default function YieldGrid() {
                           <th rowSpan={2}>股票</th>
                           <th rowSpan={2} className="quote-summary-head">
                             <span className="quote-summary-title">价格与股息</span>
-                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i><i>连续分红</i></span>
+                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i><i>连续分红</i><i>近年支付率</i></span>
                           </th>
                           <th rowSpan={2} className="th-boll-position">
                             <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
@@ -978,6 +994,7 @@ export default function YieldGrid() {
                               <div className="quote-metric"><span className="value-line"><b>{+r.dive.toFixed(4)}</b></span></div>
                               <div className="quote-metric"><span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span></div>
                               <div className="quote-metric"><span className="value-line"><b>{consecutiveDividendYears[r.code] === undefined || consecutiveDividendYears[r.code] === null ? '--' : `${consecutiveDividendYears[r.code]}年`}</b></span></div>
+                              <div className="quote-metric"><span className="value-line"><b>{latestDividendPayouts[r.code] == null ? '--' : `${latestDividendPayouts[r.code]!.toFixed(2)}%`}</b></span></div>
                             </div>
                           </td>
                           <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
@@ -1501,7 +1518,7 @@ const CSS = `
 .yg-page thead th.quote-summary-head { width: 328px; min-width: 328px; padding: 6px 8px 7px; background: #f8fafc;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
 .yg-page .quote-summary-title { display: block; margin-bottom: 4px; color: #374151; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
-.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.15fr .85fr 1fr .9fr; align-items: center; }
+.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.1fr .8fr .9fr .8fr 1.15fr; align-items: center; }
 .yg-page .quote-summary-labels i { font-style: normal; font-size: 10px; font-weight: 500; color: #94a3b8; }
 .yg-page thead th.th-boll-position { position: relative; width: 264px; min-width: 264px; padding-top: 14px; padding-bottom: 10px;
   background: #f8fafc; color: #64748b; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; }
@@ -1532,7 +1549,7 @@ const CSS = `
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
 .yg-page td.quote-summary-cell { min-width: 328px; padding: 8px; background: #fbfcfd;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; vertical-align: middle; }
-.yg-page .quote-summary { display: grid; grid-template-columns: 1.15fr .85fr 1fr .9fr; align-items: stretch; overflow: hidden;
+.yg-page .quote-summary { display: grid; grid-template-columns: 1.1fr .8fr .9fr .8fr 1.15fr; align-items: stretch; overflow: hidden;
   border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
 .yg-page .quote-metric { display: flex; min-width: 0; min-height: 48px; flex-direction: column; align-items: center;
   justify-content: center; padding: 5px 4px; }
