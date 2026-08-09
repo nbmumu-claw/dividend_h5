@@ -87,7 +87,7 @@
 
 .interim-toolbar {
   position: relative;
-  z-index: 2;
+  z-index: 5;
   margin-bottom: 12px;
   padding: 16px 18px 14px;
   border: 1px solid #eceef1;
@@ -183,7 +183,7 @@
 .interim-more-filter-button { height: 31px; padding: 0 10px; border: 1px solid #d8dde3; border-radius: 6px; background: #fff; color: #5f6672; font-size: 12px; font-weight: 600; cursor: pointer; }
 .interim-more-filter-button:hover,
 .interim-more-filter-button.active { border-color: #e5a6a1; background: #fff5f4; color: #b42318; }
-.interim-more-filters { position: absolute; top: calc(100% + 8px); right: 0; width: min(650px, calc(100vw - 48px)); padding: 15px; border: 1px solid #e1e4e8; border-top: 3px solid var(--interim-red); border-radius: 8px 4px 8px 8px; background: #fff; box-shadow: 0 16px 32px rgba(17, 24, 39, 0.14); }
+.interim-more-filters { position: absolute; z-index: 1; top: calc(100% + 8px); right: 0; width: min(650px, calc(100vw - 48px)); padding: 15px; border: 1px solid #e1e4e8; border-top: 3px solid var(--interim-red); border-radius: 8px 4px 8px 8px; background: #fff; box-shadow: 0 16px 32px rgba(17, 24, 39, 0.14); }
 .interim-more-filter-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 13px; }
 .interim-more-filter-heading strong { display: block; color: #374151; font-size: 13px; }
 .interim-more-filter-heading span { display: block; margin-top: 3px; color: #9ca3af; font-size: 11px; }
