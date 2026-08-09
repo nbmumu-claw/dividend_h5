@@ -1,4 +1,7 @@
+import { cacheGet, cacheSetPermanent } from './cache'
+
 const CLOUDBASE_DATA_GATEWAY_URL = 'https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice'
+const payoutCacheKey = (code: string) => `dividendPayout:v2:${code}`
 
 export interface DividendPayoutRecord {
   year: number
@@ -20,22 +23,44 @@ function isPayoutRecord(value: unknown): value is DividendPayoutRecord {
     && (record.pendingImplementation == null || typeof record.pendingImplementation === 'boolean')
 }
 
+function getCachedPayouts(code: string): DividendPayoutRecord[] | null {
+  const cached = cacheGet<DividendPayoutRecord[]>(payoutCacheKey(code))
+  return Array.isArray(cached)
+    ? cached.filter(isPayoutRecord).sort((a, b) => b.year - a.year)
+    : null
+}
+
+function cachePayouts(code: string, records: DividendPayoutRecord[]) {
+  if (records.length) cacheSetPermanent(payoutCacheKey(code), records)
+}
+
 export async function fetchDividendPayouts(code: string): Promise<DividendPayoutRecord[]> {
+  const cached = getCachedPayouts(code)
+  if (cached) return cached
+
   const params = new URLSearchParams({ action: 'dividendPayout', codes: code, years: '2023,2024,2025', version: '3' })
   const response = await fetch(`${CLOUDBASE_DATA_GATEWAY_URL}?${params}`)
   if (!response.ok) throw new Error(`dividend payout request failed: ${response.status}`)
   const payload = await response.json() as DividendPayoutResponse
   const records = payload.data?.find(item => item.code === code)?.data
-  return Array.isArray(records)
+  const payoutRecords = Array.isArray(records)
     ? records.filter(isPayoutRecord).sort((a, b) => b.year - a.year)
     : []
+  cachePayouts(code, payoutRecords)
+  return payoutRecords
 }
 
 // 云函数一次最多处理 20 个标的；网格页只需每只股票最新财年的支付率。
 export async function fetchLatestDividendPayouts(codes: string[]): Promise<Record<string, number | null>> {
   const uniqueCodes = [...new Set(codes.filter(code => /^\d{6}$/.test(code)))]
   const result: Record<string, number | null> = {}
-  const batches = Array.from({ length: Math.ceil(uniqueCodes.length / 20) }, (_, index) => uniqueCodes.slice(index * 20, index * 20 + 20))
+  const uncachedCodes = uniqueCodes.filter(code => {
+    const cached = getCachedPayouts(code)
+    if (!cached) return true
+    result[code] = cached[0]?.payoutRatio ?? null
+    return false
+  })
+  const batches = Array.from({ length: Math.ceil(uncachedCodes.length / 20) }, (_, index) => uncachedCodes.slice(index * 20, index * 20 + 20))
 
   await Promise.all(batches.map(async codesInBatch => {
     const params = new URLSearchParams({ action: 'dividendPayout', codes: codesInBatch.join(','), years: '2023,2024,2025', version: '3' })
@@ -47,6 +72,7 @@ export async function fetchLatestDividendPayouts(codes: string[]): Promise<Recor
       const latest = Array.isArray(records)
         ? records.filter(isPayoutRecord).sort((a, b) => b.year - a.year)[0]
         : undefined
+      if (Array.isArray(records)) cachePayouts(code, records.filter(isPayoutRecord).sort((a, b) => b.year - a.year))
       result[code] = latest?.payoutRatio ?? null
     }
   }))
