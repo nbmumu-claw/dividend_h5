@@ -19,7 +19,7 @@ import './InterimReport.css'
 
 type Metric = 'netProfit' | 'revenue' | 'eps' | 'roe'
 type StatusFilter = 'all' | 'published' | 'pending'
-type SortKey = 'disclosure' | 'pool' | 'profit2025'
+type SortKey = 'disclosure' | 'profit2025'
 type GrowthFilterKey = 'revenueYoy' | 'netProfitYoy'
 
 type GrowthFilters = Record<GrowthFilterKey, string>
@@ -48,7 +48,6 @@ const METRICS: { key: Metric; label: string; unit: string }[] = [
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'disclosure', label: '披露时间' },
-  { key: 'pool', label: '股票池顺序' },
   { key: 'profit2025', label: '2025 年报净利润' },
 ]
 
@@ -309,7 +308,6 @@ export default function InterimReport() {
         return !report || GROWTH_FILTERS.every(({ key }) => meetsGrowthMinimum(growthValue(report, key), growthFilters[key]))
       })
       .sort((a, b) => {
-        if (sort === 'pool') return a.poolIndex - b.poolIndex
         if (sort === 'profit2025') {
           const av = result?.stocks[a.code]?.annualReports?.[2025]?.netProfit ?? Number.NEGATIVE_INFINITY
           const bv = result?.stocks[b.code]?.annualReports?.[2025]?.netProfit ?? Number.NEGATIVE_INFINITY
