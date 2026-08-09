@@ -11,6 +11,7 @@ import { fetchPeriodBoll, type BollPeriod, type PeriodBoll } from '../utils/peri
 import WeeklyBollPosition from '../components/WeeklyBollPosition'
 import BollPeriodSwitch, { BOLL_PERIOD_LABELS } from '../components/BollPeriodSwitch'
 import BollPeriodOverview from '../components/BollPeriodOverview'
+import { fetchDividendPayouts, summarizeDividendPayout, type DividendPayoutRecord } from '../utils/dividendPayout'
 
 const YIELD_RATES = [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0]
 
@@ -128,6 +129,8 @@ export default function Matrix() {
   const [divHistory, setDivHistory] = useState<DividendHistory | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [listingYear, setListingYear] = useState<number | null>(null)
+  const [payoutRecords, setPayoutRecords] = useState<DividendPayoutRecord[]>([])
+  const [payoutLoading, setPayoutLoading] = useState(false)
 
   useEffect(() => {
     if (!code) return
@@ -148,6 +151,19 @@ export default function Matrix() {
     })
   }, [code, isHK, isUS])
 
+  useEffect(() => {
+    if (!code || isHK || isUS || isBShare(code)) {
+      setPayoutRecords([])
+      setPayoutLoading(false)
+      return
+    }
+    setPayoutLoading(true)
+    fetchDividendPayouts(code)
+      .then(setPayoutRecords)
+      .catch(() => setPayoutRecords([]))
+      .finally(() => setPayoutLoading(false))
+  }, [code, isHK, isUS])
+
   // 近 5 年平均每股派息（不足 5 年取实际年数）
   const avgDps = useMemo(() => {
     const recs = divHistory?.records?.slice(0, 5) ?? []
@@ -155,6 +171,8 @@ export default function Matrix() {
     const sum = recs.reduce((s, r) => s + r.perShare, 0)
     return { avg: sum / recs.length, years: recs.length }
   }, [divHistory])
+
+  const payoutSummary = useMemo(() => summarizeDividendPayout(payoutRecords), [payoutRecords])
 
   // ── 模拟加仓策略 ──────────────────────────────────────────────
   const held = useStore(s => s.watchlist.find(w => w.code === code))
@@ -349,6 +367,40 @@ export default function Matrix() {
         <p className="text-xs text-gray-400 mt-3 px-1">
           左右滑动查看不同股息率目标下的买入价参考，当前价格对应的股息率已高亮标注。
         </p>
+
+        {!isHK && !isUS && !isBShare(code) && (
+          <div className="card mt-4 p-4" data-testid="dividend-payout-trend">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-gray-800">近三年股利支付率</div>
+                <div className="mt-0.5 text-xs text-gray-400">按财报年汇总已实施现金分红</div>
+              </div>
+              {payoutSummary && (
+                <div className="shrink-0 text-right">
+                  <div className="text-lg font-bold text-gray-900">{payoutSummary.average.toFixed(2)}%</div>
+                  <div className="text-[11px] text-gray-400">三年平均</div>
+                </div>
+              )}
+            </div>
+            {payoutLoading ? (
+              <div className="py-3 text-xs text-gray-400">加载中…</div>
+            ) : payoutSummary ? (
+              <>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {payoutRecords.map(record => (
+                    <div key={record.year} className="rounded-lg bg-gray-50 px-2 py-2 text-center">
+                      <div className="text-xs text-gray-400">{record.year}</div>
+                      <div className="mt-0.5 text-sm font-semibold text-gray-800">{record.payoutRatio.toFixed(2)}%</div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 border-l-2 border-gray-200 pl-2 text-xs text-gray-500">趋势：{payoutSummary.conclusion}</p>
+              </>
+            ) : (
+              <div className="py-3 text-xs text-gray-400">暂无近三年股利支付率数据</div>
+            )}
+          </div>
+        )}
 
         {/* 模拟加仓（默认折叠） */}
         <div className="card mt-4">

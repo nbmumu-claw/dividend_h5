@@ -18,6 +18,7 @@ const HANDLERS = {
   stockPrice: './handlers/stockPrice',
   ownerType:  './handlers/ownerType',
   dividendHistory: './handlers/dividendHistory',
+  dividendPayout: './handlers/dividendPayout',
   search: './handlers/search',
   weeklyBoll: './handlers/weeklyBoll',
   periodBoll: './handlers/periodBoll',
