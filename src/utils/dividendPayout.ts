@@ -1,7 +1,7 @@
 import { cacheGet, cacheSetPermanent } from './cache'
 
 const CLOUDBASE_DATA_GATEWAY_URL = 'https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice'
-const payoutCacheKey = (code: string) => `dividendPayout:v2:${code}`
+const payoutCacheKey = (code: string) => `dividendPayout:${code === '600519' ? 'v3' : 'v2'}:${code}`
 
 export interface DividendPayoutRecord {
   year: number

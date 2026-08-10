@@ -10,7 +10,9 @@ const { ok, badRequest, upstreamError } = require('../utils/response')
 
 const COLLECTION = 'dividendPayouts'
 const EASTMONEY_URL = 'https://datacenter-web.eastmoney.com/api/data/v1/get'
-const PAYOUT_CACHE_VERSION = 7
+const PAYOUT_CACHE_VERSION = 8
+const PREVIOUS_PAYOUT_CACHE_VERSION = 7
+const PAYOUT_CACHE_REPAIRS = { '600519': new Set([2023]) }
 const EASTMONEY_NOTICE_LIST_URL = 'https://np-anotice-stock.eastmoney.com/api/security/ann'
 const EASTMONEY_NOTICE_CONTENT_URL = 'https://np-cnotice-stock.eastmoney.com/api/content/ann'
 
@@ -50,7 +52,9 @@ async function readCache(code, years) {
     try {
       const result = await db.collection(COLLECTION).doc(`${code}_${year}`).get()
       const data = Array.isArray(result.data) ? result.data[0] : result.data
+      const needsRepair = PAYOUT_CACHE_REPAIRS[code]?.has(year)
       const isCurrent = data?.payoutCacheVersion === PAYOUT_CACHE_VERSION
+        || (data?.payoutCacheVersion === PREVIOUS_PAYOUT_CACHE_VERSION && !needsRepair)
       return data?.code === code && data?.year === year && isCurrent ? { _id: `${code}_${year}`, ...data } : null
     } catch {
       return null
@@ -104,6 +108,7 @@ function extractAnnualCashDividendTotal(content, year) {
     new RegExp(`${year}年度(?:全年)?(?:合计|累计)派发现金红利(?:为|总额为)?([0-9,.，]+)元`),
     new RegExp(`${year}年度现金(?:股利|红利)(?:总额)?(?:为|合计为|合计派发)?([0-9,.，]+)元`),
     /全年(?:合计|累计)派发现金红利(?:为|总额为)?([0-9,.，]+)元/,
+    /(?:共计|合计)(?:派发|分配)现金(?:红利|股利)(?:总额)?(?:为|达)?([0-9,.，]+)元/,
   ]
   for (const pattern of patterns) {
     const match = normalized.match(pattern)
@@ -114,33 +119,56 @@ function extractAnnualCashDividendTotal(content, year) {
 }
 
 async function fetchAnnualImplementationTotals(code, years) {
-  const query = new URLSearchParams({
-    ann_type: 'A', client_source: 'web', f_node: '0', s_node: '0', sr: '-1',
-    page_size: '100', page_index: '1', stock_list: code,
-  })
-  const response = await fetch(`${EASTMONEY_NOTICE_LIST_URL}?${query}`)
-  if (!response.ok) throw new Error(`eastmoney notice list error: ${response.status}`)
-  const json = await response.json()
-  const notices = json?.data?.list || []
+  const pageSize = 100
+  const earliestYear = Math.min(...years)
+  const notices = []
+  for (let pageIndex = 1; ; pageIndex += 1) {
+    const query = new URLSearchParams({
+      ann_type: 'A', client_source: 'web', f_node: '0', s_node: '0', sr: '-1',
+      page_size: String(pageSize), page_index: String(pageIndex), stock_list: code,
+    })
+    const response = await fetch(`${EASTMONEY_NOTICE_LIST_URL}?${query}`)
+    if (!response.ok) throw new Error(`eastmoney notice list error: ${response.status}`)
+    const json = await response.json()
+    const rows = json?.data?.list || []
+    notices.push(...rows)
+    const oldestYear = Number(String(rows.at(-1)?.notice_date || '').slice(0, 4))
+    if (rows.length < pageSize || (oldestYear && oldestYear <= earliestYear)) break
+  }
   const totals = new Map()
 
   await Promise.all(years.map(async year => {
     const candidates = notices.filter(notice => {
       const title = String(notice.title || '')
-      return new RegExp(`${year}年?年度`).test(title) && !title.includes('A股')
-        && /(利润分配|权益分派|分红派息).*(实施|派发|预案|方案).*(公告)?/.test(title)
+      const isAnnual = new RegExp(`${year}年?年度`).test(title) && !title.includes('A股')
+      const isRegularDividend = /(利润分配|权益分派|分红派息)/.test(title)
+      const isSpecialDividend = /特别分红/.test(title)
+      return isAnnual && (isRegularDividend || isSpecialDividend) && /(实施|派发|预案|方案)/.test(title)
     })
-    for (const notice of candidates) {
+    const selectImplemented = rows => {
+      const implemented = rows.filter(notice => /(实施|派发)/.test(String(notice.title || '')))
+      return implemented.length ? implemented : rows
+    }
+    const regularNotices = selectImplemented(candidates.filter(notice => /(利润分配|权益分派|分红派息)/.test(String(notice.title || '')))).slice(0, 1)
+    const specialNotices = selectImplemented(candidates.filter(notice => /特别分红/.test(String(notice.title || ''))))
+    const selected = [...regularNotices, ...specialNotices]
+    const totalsForYear = []
+    for (const notice of selected) {
       const contentQuery = new URLSearchParams({ art_code: notice.art_code, client_source: 'web', page_index: '1' })
       const contentResponse = await fetch(`${EASTMONEY_NOTICE_CONTENT_URL}?${contentQuery}`)
       if (!contentResponse.ok) continue
       const contentJson = await contentResponse.json()
       const dividendTotal = extractAnnualCashDividendTotal(contentJson?.data?.notice_content, year)
       if (dividendTotal) {
-        totals.set(year, { dividendTotal, announcementCode: notice.art_code, announcementTitle: notice.title })
-        return
+        totalsForYear.push({ dividendTotal, announcementCode: notice.art_code, announcementTitle: notice.title })
       }
     }
+    if (!totalsForYear.length) return
+    totals.set(year, {
+      dividendTotal: totalsForYear.reduce((sum, item) => sum + item.dividendTotal, 0),
+      announcementCode: totalsForYear.map(item => item.announcementCode).join(','),
+      announcementTitle: totalsForYear.map(item => item.announcementTitle).join('；'),
+    })
   }))
   return totals
 }

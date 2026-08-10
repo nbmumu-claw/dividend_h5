@@ -15,6 +15,7 @@ let financialRows = [
 let announcementRows = [
   { art_code: 'AN_TEST_600900_2025', title: '长江电力:长江电力2025年年度权益分派实施公告' },
 ]
+let announcementPages = null
 let announcementContents = {
   AN_TEST_600900_2025: '2025 年全年现金红利为每股 1.00 元（含税），2025 年度合计派发现金红利24,468,217,716元（含税）。',
 }
@@ -37,7 +38,9 @@ const originalFetch = global.fetch
 global.fetch = async url => {
   upstreamCalls += 1
   if (String(url).includes('np-anotice-stock')) {
-    return { ok: true, json: async () => ({ data: { list: announcementRows } }) }
+    const pageIndex = Number(new URL(String(url)).searchParams.get('page_index'))
+    const rows = announcementPages?.[pageIndex - 1] || announcementRows
+    return { ok: true, json: async () => ({ data: { list: rows } }) }
   }
   if (String(url).includes('np-cnotice-stock')) {
     const artCode = new URL(String(url)).searchParams.get('art_code')
@@ -74,6 +77,15 @@ test('returns the cached fiscal year without another upstream request', async ()
   assert.equal(upstreamCalls, before)
 })
 
+test('keeps unaffected version 7 cache records without refetching', async () => {
+  documents.set('601288_2024', { code: '601288', year: 2024, payoutRatio: 66.66, payoutCacheVersion: 7 })
+  const before = upstreamCalls
+  const response = await dividendPayoutHandler({ codes: '601288', years: '2024' })
+  const record = JSON.parse(response.body).data[0].data[0]
+  assert.equal(record.payoutRatio, 66.66)
+  assert.equal(upstreamCalls, before)
+})
+
 test('caches an unavailable historical year to avoid repeated upstream reads', async () => {
   const before = upstreamCalls
   const first = await dividendPayoutHandler({ codes: '600900', years: '2024' })
@@ -101,7 +113,7 @@ test('uses Midea 2025 implemented cash dividend total instead of the annual-repo
   assert.equal(record.netProfit, 43945411000)
   assert.equal(record.payoutRatio, 73.18)
   assert.equal(record.calculationBasis, 'official')
-  assert.equal(record.payoutCacheVersion, 7)
+  assert.equal(record.payoutCacheVersion, 8)
 })
 
 test('includes shareholder-approved annual dividends with an EPS-based pending payout ratio', async () => {
@@ -127,8 +139,35 @@ test('includes shareholder-approved annual dividends with an EPS-based pending p
   assert.equal(record.source, 'eastmoney-annual-dividend-announcement')
 })
 
+test('adds implemented special dividends to the matching fiscal year', async () => {
+  announcementRows = []
+  announcementPages = [
+    Array.from({ length: 100 }, (_, index) => ({ art_code: `AN_FILLER_${index}`, title: '贵州茅台:其他公告' })),
+    [
+      { art_code: 'AN_TEST_600519_ANNUAL', title: '贵州茅台:2023年年度权益分派实施公告' },
+      { art_code: 'AN_TEST_600519_SPECIAL', title: '贵州茅台:2023年度回报股东特别分红实施公告' },
+    ],
+  ]
+  announcementContents = {
+    AN_TEST_600519_ANNUAL: '公司2023年度利润分配共计派发现金红利38,786,363,273元（含税）。',
+    AN_TEST_600519_SPECIAL: '公司2023年度回报股东特别分红共计派发现金红利24,000,915,166.80元（含税）。',
+  }
+  upstreamRows = [
+    { REPORT_DATE: '2023-12-31 00:00:00', ASSIGN_PROGRESS: '实施分配', PRETAX_BONUS_RMB: 308.76, BASIC_EPS: 59.49, TOTAL_SHARES: 1256197800, EX_DIVIDEND_DATE: '2024-06-19 00:00:00' },
+  ]
+  financialRows = [{ REPORTDATE: '2023-12-31 00:00:00', PARENT_NETPROFIT: 74734071550.75 }]
+
+  const response = await dividendPayoutHandler({ codes: '600519', years: '2023' })
+  const record = JSON.parse(response.body).data[0].data[0]
+  assert.equal(record.dividendTotal, 62787278439.8)
+  assert.equal(record.payoutRatio, 84.01)
+  assert.equal(record.calculationBasis, 'official')
+  assert.match(record.announcementTitle, /特别分红/)
+})
+
 test('refreshes only stale Yunnan Baiyao records and adds its special dividends', async () => {
   announcementRows = []
+  announcementPages = null
   announcementContents = {}
   documents.set('000538_2024', { code: '000538', year: 2024, payoutRatio: 44.55 })
   documents.set('000538_2025', { code: '000538', year: 2025, payoutRatio: 54.78 })
@@ -147,5 +186,5 @@ test('refreshes only stale Yunnan Baiyao records and adds its special dividends'
     [2025, 2.602, 90.09, 'official'],
     [2024, 2.398, 90.09, 'official'],
   ])
-  assert.ok(records.every(record => record.payoutCacheVersion === 7))
+  assert.ok(records.every(record => record.payoutCacheVersion === 8))
 })
