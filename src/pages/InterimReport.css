@@ -240,10 +240,10 @@
 .interim-panel-summary { display: flex; align-items: center; min-width: 0; }
 .interim-count { color: #374151; font-size: 13px; font-weight: 600; }
 .interim-generated { margin-left: 10px; color: #9ca3af; font-size: 11px; }
-.interim-like { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border: 1px solid #e1e4e8; border-radius: 15px; background: #fff; color: #7b8490; font-size: 11px; line-height: 1; cursor: pointer; }
-.interim-like svg { width: 14px; height: 14px; }
-.interim-like:hover:not(:disabled) { border-color: #e5a6a1; color: #b42318; }
-.interim-like.liked { border-color: #f3c7c4; background: #fff5f4; color: #b42318; }
+.interim-like { display: inline-flex; align-items: center; gap: 8px; height: 58px; padding: 0 24px; border: 2px solid #ff9892; border-radius: 30px; background: #fffafa; color: #c92a2a; font-family: 'DIN Alternate', 'PingFang SC', sans-serif; font-size: 25px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; cursor: pointer; }
+.interim-like svg { width: 25px; height: 25px; }
+.interim-like:hover:not(:disabled) { border-color: #ff6b6b; background: #fff5f4; color: #b42318; }
+.interim-like.liked { border-color: #ff6b6b; background: #fff5f4; color: #c92a2a; }
 .interim-like:disabled { cursor: default; }
 .interim-panel-actions { display: flex; align-items: center; gap: 10px; }
 .interim-report-view { display: flex; align-items: center; gap: 6px; }
@@ -369,7 +369,7 @@
 @keyframes interim-shimmer { to { background-position: -200% 0; } }
 
 .interim-note { margin: 0; padding: 12px 18px 8px; color: #9ca3af; font-size: 10px; line-height: 1.6; }
-.interim-feedback { display: flex; align-items: center; gap: 9px; min-height: 50px; padding: 9px 18px 12px; border-top: 1px solid #f0f1f3; color: #7b8490; font-size: 11px; }
+.interim-feedback { display: flex; align-items: center; gap: 18px; min-height: 82px; padding: 14px 18px 16px; border-top: 1px solid #f0f1f3; color: #9ca3af; font-size: 18px; font-weight: 600; }
 
 .interim-modal-search { width: 100%; }
 .interim-sector-select { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 0 2px; color: #6b7280; font-size: 12px; }
@@ -434,7 +434,9 @@
   .interim-panel-actions { gap: 6px; }
   .interim-report-view > span { display: none; }
   .interim-generated { display: block; margin: 2px 0 0; }
-  .interim-feedback { padding-inline: 14px; }
+  .interim-feedback { gap: 12px; padding-inline: 14px; font-size: 14px; }
+  .interim-like { height: 46px; padding-inline: 17px; border-radius: 24px; font-size: 20px; }
+  .interim-like svg { width: 20px; height: 20px; }
   .interim-metric-tabs { display: flex; margin-inline: 14px; overflow-x: auto; scrollbar-width: none; }
   .interim-metric-tabs::-webkit-scrollbar { display: none; }
   .interim-metric-tabs button { min-width: 128px; flex: 1; }
