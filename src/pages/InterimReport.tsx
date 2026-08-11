@@ -38,8 +38,7 @@ interface DisplayStock extends YieldGridStock {
 }
 
 const CUSTOM_STORAGE_KEY = 'interim-report-custom-stocks'
-const REPORT_CACHE_KEY = 'interim-report-data'
-const LEGACY_REPORT_CACHE_KEY_PREFIX = 'interim-report-data:'
+const REPORT_CACHE_KEY = 'interim-report-data:v2'
 const MAX_CUSTOM_STOCKS = 5
 const TABLE_COLUMN_COUNT = 4 + INTERIM_REPORT_YEARS.length
 
@@ -192,16 +191,6 @@ function mergeReports(cached: InterimReportResult | null, latest: InterimReportR
   }
 }
 
-function loadLegacyReportCache(): InterimReportResult | null {
-  const prefix = `dh_cache_${LEGACY_REPORT_CACHE_KEY_PREFIX}`
-  return Object.keys(localStorage)
-    .filter(key => key.startsWith(prefix))
-    .reduce<InterimReportResult | null>((merged, key) => {
-      const cached = cacheGet<InterimReportResult>(key.slice('dh_cache_'.length))
-      return cached ? mergeReports(merged, cached) : merged
-    }, null)
-}
-
 function MetricReading({ report, metric, period, sorted }: {
   report: InterimReportRecord | undefined
   metric: Metric
@@ -266,8 +255,7 @@ export default function InterimReport() {
     let cancelled = false
     setError('')
     const codes = codesKey.split(',')
-    const cached = cacheGet<InterimReportResult>(REPORT_CACHE_KEY) ?? loadLegacyReportCache()
-    if (cached) cacheSetPermanent(REPORT_CACHE_KEY, cached)
+    const cached = cacheGet<InterimReportResult>(REPORT_CACHE_KEY)
     const forceRefresh = forceRefreshRef.current
     forceRefreshRef.current = false
     const missingCodes = forceRefresh
