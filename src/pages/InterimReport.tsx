@@ -3,6 +3,7 @@ import Modal from '../components/Modal'
 import { Toast, useToast } from '../components/Toast'
 import { YIELD_GRID_STOCKS, type YieldGridStock } from '../data/yieldGridStocks'
 import { cacheGet, cacheSetPermanent } from '../utils/cache'
+import { addInterimReportLike, getInterimReportLikes, hasInterimReportLiked } from '../utils/gridLikes'
 import {
   disclosureDate,
   fetchInterimReportData,
@@ -243,6 +244,26 @@ export default function InterimReport() {
   const [addSector, setAddSector] = useState('其他')
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<InterimStockSearchResult[]>([])
+  const [likes, setLikes] = useState<number | null>(null)
+  const [liked, setLiked] = useState(hasInterimReportLiked)
+  const [liking, setLiking] = useState(false)
+
+  useEffect(() => { getInterimReportLikes().then(setLikes).catch(() => {}) }, [])
+
+  const onLike = () => {
+    if (liked || liking) return
+    setLiking(true)
+    setLiked(true)
+    setLikes(value => (value ?? 0) + 1)
+    addInterimReportLike()
+      .then(setLikes)
+      .catch(() => {
+        setLiked(false)
+        setLikes(value => (value === null ? value : value - 1))
+        showToast('点赞失败，请稍后再试')
+      })
+      .finally(() => setLiking(false))
+  }
 
   const stocks = useMemo<DisplayStock[]>(() => [
     ...YIELD_GRID_STOCKS.map((stock, poolIndex) => ({ ...stock, poolIndex })),
@@ -605,11 +626,15 @@ export default function InterimReport() {
 
       <section className="interim-data-panel">
         <div className="interim-panel-topline">
-          <div>
+          <div className="interim-panel-summary">
             <span className="interim-count">当前 {visibleStocks.length} 只</span>
             <span className="interim-generated">
               {result ? `生成于 ${formatGeneratedAt(result.generatedAt)}` : '正在获取最新数据'}
             </span>
+            <button type="button" className={`interim-like${liked ? ' liked' : ''}`} onClick={onLike} disabled={liked || liking} aria-pressed={liked} title={liked ? '已点赞，感谢支持' : '觉得有用？点个赞'}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path d="M7 10v10H4V10h3Zm0 10h9.6a2 2 0 0 0 1.94-1.5l1.2-4.5A2 2 0 0 0 17.8 11H14l.45-3.1A2.4 2.4 0 0 0 12.08 5L7 10Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span>{likes === null ? '…' : likes}</span>
+            </button>
           </div>
           <div className="interim-panel-actions">
             <div className="interim-report-view" aria-label="表格报告口径">

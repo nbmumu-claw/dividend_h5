@@ -237,8 +237,14 @@
 }
 
 .interim-panel-topline { padding: 13px 18px 9px; }
+.interim-panel-summary { display: flex; align-items: center; min-width: 0; }
 .interim-count { color: #374151; font-size: 13px; font-weight: 600; }
 .interim-generated { margin-left: 10px; color: #9ca3af; font-size: 11px; }
+.interim-like { display: inline-flex; align-items: center; gap: 3px; height: 23px; margin-left: 9px; padding: 0 7px; border: 1px solid #e1e4e8; border-radius: 12px; background: #fff; color: #7b8490; font-size: 10px; line-height: 1; cursor: pointer; }
+.interim-like svg { width: 12px; height: 12px; }
+.interim-like:hover:not(:disabled) { border-color: #e5a6a1; color: #b42318; }
+.interim-like.liked { border-color: #f3c7c4; background: #fff5f4; color: #b42318; }
+.interim-like:disabled { cursor: default; }
 .interim-panel-actions { display: flex; align-items: center; gap: 10px; }
 .interim-report-view { display: flex; align-items: center; gap: 6px; }
 .interim-report-view > span { color: #8a929d; font-size: 10px; font-weight: 600; }
@@ -423,9 +429,11 @@
   .interim-sort select { max-width: 122px; }
   .interim-data-panel { border-radius: 12px 4px 12px 12px; border-left: 0; border-right: 0; }
   .interim-panel-topline { padding-inline: 14px; }
+  .interim-panel-summary { flex-wrap: wrap; }
   .interim-panel-actions { gap: 6px; }
   .interim-report-view > span { display: none; }
   .interim-generated { display: block; margin: 2px 0 0; }
+  .interim-like { margin-left: 8px; }
   .interim-metric-tabs { display: flex; margin-inline: 14px; overflow-x: auto; scrollbar-width: none; }
   .interim-metric-tabs::-webkit-scrollbar { display: none; }
   .interim-metric-tabs button { min-width: 128px; flex: 1; }
