@@ -244,8 +244,8 @@
 .interim-summary-like svg { width: 13px; height: 13px; }
 .interim-summary-like:hover:not(:disabled), .interim-summary-like.liked { border-color: #ff9892; background: #fff5f4; }
 .interim-summary-like:disabled { cursor: default; }
-.interim-like { display: inline-flex; align-items: center; gap: 8px; height: 58px; padding: 0 24px; border: 2px solid #ff9892; border-radius: 30px; background: #fffafa; color: #c92a2a; font-family: 'DIN Alternate', 'PingFang SC', sans-serif; font-size: 25px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; cursor: pointer; }
-.interim-like svg { width: 25px; height: 25px; }
+.interim-like { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 15px; border: 1.5px solid #ff9892; border-radius: 20px; background: #fffafa; color: #c92a2a; font-family: 'DIN Alternate', 'PingFang SC', sans-serif; font-size: 18px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; cursor: pointer; }
+.interim-like svg { width: 19px; height: 19px; }
 .interim-like:hover:not(:disabled) { border-color: #ff6b6b; background: #fff5f4; color: #b42318; }
 .interim-like.liked { border-color: #ff6b6b; background: #fff5f4; color: #c92a2a; }
 .interim-like:disabled { cursor: default; }
@@ -373,7 +373,7 @@
 @keyframes interim-shimmer { to { background-position: -200% 0; } }
 
 .interim-note { margin: 0; padding: 12px 18px 8px; color: #9ca3af; font-size: 10px; line-height: 1.6; }
-.interim-feedback { display: flex; align-items: center; gap: 18px; min-height: 82px; padding: 14px 18px 16px; border-top: 1px solid #f0f1f3; color: #9ca3af; font-size: 18px; font-weight: 600; }
+.interim-feedback { display: flex; align-items: center; gap: 11px; min-height: 60px; padding: 10px 18px 12px; border-top: 1px solid #f0f1f3; color: #9ca3af; font-size: 13px; font-weight: 600; }
 
 .interim-modal-search { width: 100%; }
 .interim-sector-select { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 0 2px; color: #6b7280; font-size: 12px; }
@@ -439,9 +439,9 @@
   .interim-report-view > span { display: none; }
   .interim-generated { display: block; margin: 2px 0 0; }
   .interim-summary-like { margin-left: 8px; }
-  .interim-feedback { gap: 12px; padding-inline: 14px; font-size: 14px; }
-  .interim-like { height: 46px; padding-inline: 17px; border-radius: 24px; font-size: 20px; }
-  .interim-like svg { width: 20px; height: 20px; }
+  .interim-feedback { gap: 9px; min-height: 54px; padding: 9px 14px 11px; font-size: 12px; }
+  .interim-like { height: 34px; padding-inline: 13px; border-radius: 18px; font-size: 16px; }
+  .interim-like svg { width: 17px; height: 17px; }
   .interim-metric-tabs { display: flex; margin-inline: 14px; overflow-x: auto; scrollbar-width: none; }
   .interim-metric-tabs::-webkit-scrollbar { display: none; }
   .interim-metric-tabs button { min-width: 128px; flex: 1; }
