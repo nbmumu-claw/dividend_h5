@@ -19,8 +19,12 @@ import './InterimReport.css'
 
 type Metric = 'netProfit' | 'revenue' | 'eps' | 'roe'
 type StatusFilter = 'all' | 'published' | 'pending'
-type SortKey = 'disclosure' | 'profit2025'
+type SortKey = 'disclosure' | 'profit2025' | 'latestNetProfitYoy' | 'latestRevenueYoy' | 'firstQuarterNetProfitYoy' | 'firstQuarterRevenueYoy'
 type GrowthFilterKey = 'revenueYoy' | 'netProfitYoy'
+type GrowthReportPeriod = 'interim' | 'firstQuarter'
+type ReportPeriod = '一' | '中' | '年'
+type ReportView = 'interim' | 'firstQuarter' | 'annual' | 'all'
+type SingleColumnSort = { field: 'disclosure' | 'metric'; year?: InterimReportYear; direction: 'asc' | 'desc' }
 
 type GrowthFilters = Record<GrowthFilterKey, string>
 
@@ -46,9 +50,20 @@ const METRICS: { key: Metric; label: string; unit: string }[] = [
   { key: 'roe', label: '加权 ROE', unit: '%' },
 ]
 
+const REPORT_VIEW_OPTIONS: { key: ReportView; label: string }[] = [
+  { key: 'interim', label: '中报' },
+  { key: 'firstQuarter', label: '一季报' },
+  { key: 'annual', label: '年报' },
+  { key: 'all', label: '全量' },
+]
+
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'disclosure', label: '披露时间' },
-  { key: 'profit2025', label: '2025 年报净利润' },
+  { key: 'latestNetProfitYoy', label: '2026 中报净利润同比' },
+  { key: 'latestRevenueYoy', label: '2026 中报营收同比' },
+  { key: 'firstQuarterNetProfitYoy', label: '2026 一季报净利润同比' },
+  { key: 'firstQuarterRevenueYoy', label: '2026 一季报营收同比' },
+  { key: 'profit2025', label: '2025 年报净利润同比' },
 ]
 
 const GROWTH_FILTERS: { key: GrowthFilterKey; label: string }[] = [
@@ -56,7 +71,7 @@ const GROWTH_FILTERS: { key: GrowthFilterKey; label: string }[] = [
   { key: 'netProfitYoy', label: '净利润同比' },
 ]
 
-const GROWTH_PRESETS = ['', '0', '10', '20', '30'] as const
+const GROWTH_PRESETS = ['', 'negative', '-20', '-10', '0', '10', '20', '30'] as const
 
 const EMPTY_GROWTH_FILTERS: GrowthFilters = {
   revenueYoy: '',
@@ -121,10 +136,36 @@ function growthValue(report: InterimReportRecord, key: GrowthFilterKey): number 
   return report.netProfitYoy
 }
 
+function sortValue(snapshot: InterimReportResult['stocks'][string] | undefined, key: SortKey): number {
+  if (key === 'profit2025') return snapshot?.annualReports?.[2025]?.netProfitYoy ?? Number.NEGATIVE_INFINITY
+  if (key === 'latestNetProfitYoy') return snapshot?.reports[2026]?.netProfitYoy ?? Number.NEGATIVE_INFINITY
+  if (key === 'latestRevenueYoy') return snapshot?.reports[2026]?.revenueYoy ?? Number.NEGATIVE_INFINITY
+  if (key === 'firstQuarterNetProfitYoy') return snapshot?.firstQuarterReports?.[2026]?.netProfitYoy ?? Number.NEGATIVE_INFINITY
+  if (key === 'firstQuarterRevenueYoy') return snapshot?.firstQuarterReports?.[2026]?.revenueYoy ?? Number.NEGATIVE_INFINITY
+  return Number.NEGATIVE_INFINITY
+}
+
 function meetsGrowthMinimum(value: number | null, minimum: string): boolean {
   if (!minimum) return true
   if (value === null) return false
+  if (minimum === 'negative') return value < 0
   return value >= Number(minimum)
+}
+
+function isSortedReading(sort: SortKey, year: number, period: ReportPeriod): boolean {
+  if (year === 2026 && period === '中') return sort === 'latestNetProfitYoy' || sort === 'latestRevenueYoy'
+  if (year === 2026 && period === '一') return sort === 'firstQuarterNetProfitYoy' || sort === 'firstQuarterRevenueYoy'
+  return year === 2025 && period === '年' && sort === 'profit2025'
+}
+
+function reportForView(
+  snapshot: InterimReportResult['stocks'][string] | undefined,
+  year: InterimReportYear,
+  reportView: ReportView,
+): InterimReportRecord | undefined {
+  if (reportView === 'interim') return snapshot?.reports[year]
+  if (reportView === 'firstQuarter') return snapshot?.firstQuarterReports?.[year as (typeof FIRST_QUARTER_REPORT_YEARS)[number]]
+  return snapshot?.annualReports?.[year as (typeof ANNUAL_REPORT_YEARS)[number]]
 }
 
 function reportsForCodes(data: InterimReportResult, codes: string[]): InterimReportResult {
@@ -152,16 +193,17 @@ function loadLegacyReportCache(): InterimReportResult | null {
     }, null)
 }
 
-function MetricReading({ report, metric, period }: {
+function MetricReading({ report, metric, period, sorted }: {
   report: InterimReportRecord | undefined
   metric: Metric
-  period: '一' | '中' | '年'
+  period?: ReportPeriod
+  sorted?: boolean
 }) {
   const value = metricValue(report, metric)
   const yoy = metricYoy(report, metric)
   return (
-    <div className="interim-period-reading">
-      <em>{period}</em>
+    <div className={`interim-period-reading${sorted ? ' sorted-reading' : ''}`}>
+      {period && <em>{period}</em>}
       <div>
         <strong>{formatNumber(value, 2)}</strong>
         {yoy !== null && (
@@ -191,9 +233,12 @@ export default function InterimReport() {
   const [sector, setSector] = useState('全部')
   const [status, setStatus] = useState<StatusFilter>('all')
   const [metric, setMetric] = useState<Metric>('netProfit')
-  const [showFirstQuarter, setShowFirstQuarter] = useState(false)
+  const [reportView, setReportView] = useState<ReportView>('interim')
   const [sort, setSort] = useState<SortKey>('disclosure')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [singleColumnSort, setSingleColumnSort] = useState<SingleColumnSort | null>(null)
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false)
+  const [growthReportPeriod, setGrowthReportPeriod] = useState<GrowthReportPeriod>('interim')
   const [growthFilters, setGrowthFilters] = useState<GrowthFilters>(EMPTY_GROWTH_FILTERS)
   const [addOpen, setAddOpen] = useState(false)
   const [addQuery, setAddQuery] = useState('')
@@ -305,23 +350,62 @@ export default function InterimReport() {
       })
       .filter(stock => {
         const snapshot = result?.stocks[stock.code]
-        const report = snapshot?.reports[2026] ?? snapshot?.firstQuarterReports?.[2026]
+        const report = growthReportPeriod === 'interim'
+          ? snapshot?.reports[2026]
+          : snapshot?.firstQuarterReports?.[2026]
         if (hasGrowthFilters && !report) return false
         return !report || GROWTH_FILTERS.every(({ key }) => meetsGrowthMinimum(growthValue(report, key), growthFilters[key]))
       })
       .sort((a, b) => {
-        if (sort === 'profit2025') {
-          const av = result?.stocks[a.code]?.annualReports?.[2025]?.netProfit ?? Number.NEGATIVE_INFINITY
-          const bv = result?.stocks[b.code]?.annualReports?.[2025]?.netProfit ?? Number.NEGATIVE_INFINITY
-          return bv - av || a.poolIndex - b.poolIndex
+        if (reportView !== 'all' && singleColumnSort) {
+          const snapshotA = result?.stocks[a.code]
+          const snapshotB = result?.stocks[b.code]
+          if (singleColumnSort.field === 'disclosure') {
+            const av = disclosureDate(snapshotA)
+            const bv = disclosureDate(snapshotB)
+            if (av === null) return bv === null ? a.poolIndex - b.poolIndex : 1
+            if (bv === null) return -1
+            return (singleColumnSort.direction === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv)) || a.poolIndex - b.poolIndex
+          }
+          const year = singleColumnSort.year!
+          const av = metricValue(reportForView(snapshotA, year, reportView), metric)
+          const bv = metricValue(reportForView(snapshotB, year, reportView), metric)
+          if (av === null) return bv === null ? a.poolIndex - b.poolIndex : 1
+          if (bv === null) return -1
+          return (singleColumnSort.direction === 'desc' ? bv - av : av - bv) || a.poolIndex - b.poolIndex
+        }
+        if (sort !== 'disclosure') {
+          const av = sortValue(result?.stocks[a.code], sort)
+          const bv = sortValue(result?.stocks[b.code], sort)
+          return (sortDirection === 'desc' ? bv - av : av - bv) || a.poolIndex - b.poolIndex
         }
         const ad = disclosureDate(result?.stocks[a.code]) ?? '9999-12-31'
         const bd = disclosureDate(result?.stocks[b.code]) ?? '9999-12-31'
         return ad.localeCompare(bd) || a.poolIndex - b.poolIndex
       })
-  }, [growthFilters, hasGrowthFilters, query, result, sector, sort, status, stocks])
+  }, [growthFilters, growthReportPeriod, hasGrowthFilters, metric, query, reportView, result, sector, singleColumnSort, sort, sortDirection, status, stocks])
 
   const publishedCount = stocks.filter(stock => Boolean(result?.stocks[stock.code]?.reports[2026])).length
+  const disclosureProgress = stocks.length ? Math.round((publishedCount / stocks.length) * 100) : 0
+  const recentDisclosure = useMemo(() => stocks
+    .map(stock => ({ stock, date: result?.stocks[stock.code]?.reports[2026]?.noticeDate ?? null }))
+    .filter((item): item is { stock: DisplayStock; date: string } => item.date !== null)
+    .sort((a, b) => b.date.localeCompare(a.date))[0], [result, stocks])
+  const nextDisclosure = useMemo(() => stocks
+    .filter(stock => !result?.stocks[stock.code]?.reports[2026])
+    .map(stock => ({ stock, date: disclosureDate(result?.stocks[stock.code]) }))
+    .filter((item): item is { stock: DisplayStock; date: string } => item.date !== null)
+    .sort((a, b) => a.date.localeCompare(b.date))[0], [result, stocks])
+  const sortedYear = sort === 'latestNetProfitYoy' || sort === 'latestRevenueYoy' || sort === 'firstQuarterNetProfitYoy' || sort === 'firstQuarterRevenueYoy'
+    ? 2026
+    : sort === 'profit2025' ? 2025 : null
+  const highlightedYear = reportView === 'all' ? sortedYear : singleColumnSort?.year ?? null
+
+  const toggleSingleColumnSort = (field: SingleColumnSort['field'], year?: InterimReportYear) => {
+    setSingleColumnSort(current => current?.field === field && current.year === year
+      ? { ...current, direction: current.direction === 'desc' ? 'asc' : 'desc' }
+      : { field, year, direction: 'desc' })
+  }
 
   const persistCustomStocks = (next: CustomStock[]) => {
     setCustomStocks(next)
@@ -366,11 +450,22 @@ export default function InterimReport() {
           </div>
         </div>
         <div className="interim-summary" aria-label="披露进度摘要">
-          <div><strong>{publishedCount}</strong><span>已披露</span></div>
-          <i />
-          <div><strong>{stocks.length - publishedCount}</strong><span>待披露</span></div>
-          <i />
-          <div><strong>{stocks.length}</strong><span>总标的</span></div>
+          <div className="interim-summary-stats">
+            <div><strong>{publishedCount}</strong><span>已披露</span></div>
+            <i />
+            <div><strong>{stocks.length - publishedCount}</strong><span>待披露</span></div>
+            <i />
+            <div><strong>{stocks.length}</strong><span>总标的</span></div>
+          </div>
+          <div className="interim-progress" aria-label={`披露进度 ${disclosureProgress}%`}>
+            <div><span>披露进度</span><strong>{disclosureProgress}%</strong></div>
+            <i><b style={{ width: `${disclosureProgress}%` }} /></i>
+          </div>
+          <div className="interim-disclosure-glance" aria-label="披露节奏">
+            <div><span>最近披露</span><strong>{recentDisclosure ? `${recentDisclosure.stock.name} · ${formatDate(recentDisclosure.date)}` : '待更新'}</strong></div>
+            <i />
+            <div><span>下一只待披露</span><strong>{nextDisclosure ? `${nextDisclosure.stock.name} · ${formatDate(nextDisclosure.date)}` : '待更新'}</strong></div>
+          </div>
         </div>
       </header>
 
@@ -437,9 +532,28 @@ export default function InterimReport() {
                   <div className="interim-more-filter-heading">
                     <div>
                       <strong>增长率筛选</strong>
-                      <span>优先取 2026 中报；未披露时取 2026 一季报</span>
+                      <span>选择同一报告期进行同比筛选</span>
                     </div>
                     {activeFilterCount > 0 && <button onClick={clearMoreFilters}>清空</button>}
+                  </div>
+                  <div className="interim-report-period" aria-label="增长率筛选报告期">
+                    <span>筛选口径</span>
+                    <div>
+                      {([
+                        ['interim', '2026 中报'],
+                        ['firstQuarter', '2026 一季报'],
+                      ] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={growthReportPeriod === key ? 'active' : ''}
+                          onClick={() => setGrowthReportPeriod(key)}
+                          aria-pressed={growthReportPeriod === key}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="interim-financial-filter-grid">
                     {GROWTH_FILTERS.map(({ key, label }) => (
@@ -448,7 +562,7 @@ export default function InterimReport() {
                         <input
                           type="number"
                           inputMode="decimal"
-                          value={growthFilters[key]}
+                          value={growthFilters[key] === 'negative' ? '' : growthFilters[key]}
                           onChange={event => updateGrowthFilter(key, event.target.value)}
                           placeholder="例如：10"
                           aria-label={`${label}最低增速（%）`}
@@ -462,24 +576,32 @@ export default function InterimReport() {
                               onClick={() => updateGrowthFilter(key, value)}
                               aria-pressed={growthFilters[key] === value}
                             >
-                              {value ? `≥${value}%` : '不限'}
+                              {value === 'negative' ? '仅负增长' : value ? `≥${value}%` : '不限'}
                             </button>
                           ))}
                         </div>
                       </label>
                     ))}
                   </div>
-                  <p>填写最低增速即可；缺少 2026 中报和一季报数据的标的将自动排除。</p>
+                  <p>填写最低增速即可；缺少{growthReportPeriod === 'interim' ? '2026 中报' : '2026 一季报'}数据的标的将自动排除。</p>
                 </div>
               </>
             )}
           </div>
-          <label className="interim-sort">
-            <span>排序</span>
-            <select value={sort} onChange={event => setSort(event.target.value as SortKey)}>
-              {SORT_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
-            </select>
-          </label>
+          {reportView === 'all' && (
+            <label className="interim-sort">
+              <span>排序</span>
+              <select value={sort} onChange={event => {
+                const nextSort = event.target.value as SortKey
+                setSort(nextSort)
+                setSortDirection('desc')
+                if (nextSort === 'latestRevenueYoy' || nextSort === 'firstQuarterRevenueYoy') setMetric('revenue')
+                if (nextSort === 'latestNetProfitYoy' || nextSort === 'firstQuarterNetProfitYoy' || nextSort === 'profit2025') setMetric('netProfit')
+              }}>
+                {SORT_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
+              </select>
+            </label>
+          )}
         </div>
       </section>
 
@@ -492,13 +614,27 @@ export default function InterimReport() {
             </span>
           </div>
           <div className="interim-panel-actions">
-            <button
-              className={`interim-quarter-toggle${showFirstQuarter ? ' active' : ''}`}
-              onClick={() => setShowFirstQuarter(value => !value)}
-              aria-pressed={showFirstQuarter}
-            >
-              <i />显示一季报
-            </button>
+            <div className="interim-report-view" aria-label="表格报告口径">
+              <span>报告口径</span>
+              <div>
+                {REPORT_VIEW_OPTIONS.map(option => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={reportView === option.key ? 'active' : ''}
+                    onClick={() => {
+                      setReportView(option.key)
+                      if (option.key === 'all') setSortDirection('desc')
+                      if (option.key !== 'all' && sort !== 'disclosure') setSort('disclosure')
+                      setSingleColumnSort(null)
+                    }}
+                    aria-pressed={reportView === option.key}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button className="interim-refresh" onClick={() => {
               forceRefreshRef.current = true
               setRefreshKey(value => value + 1)
@@ -538,12 +674,34 @@ export default function InterimReport() {
                 <th rowSpan={2} className="stock-column">标的</th>
                 <th rowSpan={2}>板块</th>
                 <th colSpan={2} className="progress-group">2026 披露进度</th>
-                <th colSpan={INTERIM_REPORT_YEARS.length} className="years-group">财报数据对比 · {METRICS.find(item => item.key === metric)?.label}</th>
+                <th colSpan={INTERIM_REPORT_YEARS.length} className="years-group">财报数据对比 · {METRICS.find(item => item.key === metric)?.label} · {REPORT_VIEW_OPTIONS.find(item => item.key === reportView)?.label}</th>
               </tr>
               <tr>
                 <th>状态</th>
-                <th>披露日期</th>
-                {INTERIM_REPORT_YEARS.map(year => <th key={year} className={`year-column year-${year}`}>{year}</th>)}
+                <th className={reportView === 'all' && sort === 'disclosure' ? 'sorted-column' : ''} aria-sort={singleColumnSort?.field === 'disclosure' ? (singleColumnSort.direction === 'desc' ? 'descending' : 'ascending') : undefined}>
+                  {reportView === 'all' ? '披露日期' : (
+                    <button className={`interim-year-sort${singleColumnSort?.field === 'disclosure' ? ' active' : ''}${singleColumnSort?.field === 'disclosure' && singleColumnSort.direction === 'asc' ? ' asc' : ''}`} onClick={() => toggleSingleColumnSort('disclosure')} title={singleColumnSort?.field === 'disclosure' ? `当前${singleColumnSort.direction === 'desc' ? '倒序' : '正序'}，点击切换` : '按披露日期倒序排列'}>
+                      披露日期
+                      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m3 4 3 3 3-3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </button>
+                  )}
+                </th>
+                {INTERIM_REPORT_YEARS.map(year => {
+                  const sortable = reportView !== 'all'
+                  const active = sortable && singleColumnSort?.field === 'metric' && singleColumnSort.year === year
+                  return (
+                    <th key={year} className={`year-column year-${year}${highlightedYear === year ? ' sorted-column' : ''}`} aria-sort={active ? (singleColumnSort.direction === 'desc' ? 'descending' : 'ascending') : undefined}>
+                      {sortable ? (
+                        <button className={`interim-year-sort${active ? ' active' : ''}${active && singleColumnSort.direction === 'asc' ? ' asc' : ''}`} onClick={() => toggleSingleColumnSort('metric', year)} title={active ? `当前${singleColumnSort.direction === 'desc' ? '倒序' : '正序'}，点击切换` : '按当前字段倒序排列'}>
+                          {year}
+                          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                            <path d="m3 4 3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      ) : year}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -575,26 +733,37 @@ export default function InterimReport() {
                     </td>
                     <td><span className="interim-sector-tag">{stock.sector}</span></td>
                     <td><span className={`interim-status ${isPublished ? 'published' : 'pending'}`}>{isPublished ? '已披露' : '待披露'}</span></td>
-                    <td className="interim-date">{formatDate(disclosureDate(snapshot))}</td>
+                    <td className={`interim-date${reportView === 'all' && sort === 'disclosure' ? ' sorted-column' : ''}`}>{formatDate(disclosureDate(snapshot))}</td>
                     {INTERIM_REPORT_YEARS.map((year: InterimReportYear) => {
                       const isHistorical = ANNUAL_REPORT_YEARS.some(item => item === year)
                       return (
-                        <td key={year} className={`interim-value year-column year-${year}`}>
-                          {showFirstQuarter && (
-                            <MetricReading
-                              report={snapshot?.firstQuarterReports?.[year as (typeof FIRST_QUARTER_REPORT_YEARS)[number]]}
-                              metric={metric}
-                              period="一"
-                            />
+                        <td key={year} className={`interim-value year-column year-${year}${sortedYear === year ? ' sorted-column' : ''}`}>
+                          {reportView === 'all' ? (
+                            <>
+                              <MetricReading
+                                report={snapshot?.firstQuarterReports?.[year as (typeof FIRST_QUARTER_REPORT_YEARS)[number]]}
+                                metric={metric}
+                                period="一"
+                                sorted={isSortedReading(sort, year, '一')}
+                              />
+                              <MetricReading
+                                report={snapshot?.reports[year]}
+                                metric={metric}
+                                period="中"
+                                sorted={isSortedReading(sort, year, '中')}
+                              />
+                              {isHistorical ? (
+                                <MetricReading
+                                  report={snapshot?.annualReports?.[year as (typeof ANNUAL_REPORT_YEARS)[number]]}
+                                  metric={metric}
+                                  period="年"
+                                  sorted={isSortedReading(sort, year, '年')}
+                                />
+                              ) : <PeriodPlaceholder />}
+                            </>
+                          ) : (
+                            <MetricReading report={reportForView(snapshot, year, reportView)} metric={metric} />
                           )}
-                          <MetricReading report={snapshot?.reports[year]} metric={metric} period="中" />
-                          {isHistorical ? (
-                            <MetricReading
-                              report={snapshot?.annualReports?.[year as (typeof ANNUAL_REPORT_YEARS)[number]]}
-                              metric={metric}
-                              period="年"
-                            />
-                          ) : <PeriodPlaceholder />}
                         </td>
                       )
                     })}
@@ -627,6 +796,26 @@ export default function InterimReport() {
             {addSectors.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
         </label>
+        {customStocks.length > 0 && (
+          <section className="interim-added-stocks" aria-label="已添加的中报标的">
+            <div className="interim-added-stocks-heading">
+              <strong>已添加标的</strong>
+              <span>{customStocks.length}/{MAX_CUSTOM_STOCKS}</span>
+            </div>
+            <div className="interim-added-stocks-list">
+              {customStocks.map(stock => (
+                <div key={stock.code} className="interim-added-stock">
+                  <span><strong>{stock.name}</strong><small>{stock.code} · {stock.sector}</small></span>
+                  <button onClick={() => removeStock(stock.code)} aria-label={`移除 ${stock.name}`} title={`移除 ${stock.name}`}>
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M5 5l10 10M15 5 5 15" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         <div className="interim-search-results">
           {searching ? (
             <p>搜索中…</p>
