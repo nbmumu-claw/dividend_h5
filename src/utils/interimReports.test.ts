@@ -31,6 +31,8 @@ describe('disclosureDate', () => {
           revenueYoy: null,
           netProfit: null,
           netProfitYoy: null,
+          deductNetProfit: null,
+          deductNetProfitYoy: null,
           eps: null,
           roe: null,
         },

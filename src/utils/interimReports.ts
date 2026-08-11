@@ -14,6 +14,8 @@ export interface InterimReportRecord {
   revenueYoy: number | null
   netProfit: number | null
   netProfitYoy: number | null
+  deductNetProfit: number | null
+  deductNetProfitYoy: number | null
   eps: number | null
   roe: number | null
 }
@@ -57,6 +59,13 @@ const REPORT_COLUMNS = [
   'SJLTZ',
   'BASIC_EPS',
   'WEIGHTAVG_ROE',
+].join(',')
+
+const DEDUCT_REPORT_COLUMNS = [
+  'SECURITY_CODE',
+  'REPORT_DATE',
+  'DEDUCT_PARENT_NETPROFIT',
+  'DEDUCT_PARENT_NETPROFIT_YOY',
 ].join(',')
 
 const APPOINTMENT_COLUMNS = [
@@ -108,9 +117,26 @@ function toReportRecord(row: JsonRecord, code: string): InterimReportRecord {
     revenueYoy: numberOrNull(row.YSTZ),
     netProfit: numberOrNull(row.PARENT_NETPROFIT),
     netProfitYoy: numberOrNull(row.SJLTZ),
+    deductNetProfit: null,
+    deductNetProfitYoy: null,
     eps: numberOrNull(row.BASIC_EPS),
     roe: numberOrNull(row.WEIGHTAVG_ROE),
   }
+}
+
+async function fetchDeductReports(codes: string[]): Promise<JsonRecord[]> {
+  const reportDates = [
+    ...FIRST_QUARTER_REPORT_YEARS.map(year => `${year}-03-31`),
+    ...INTERIM_REPORT_YEARS.map(year => `${year}-06-30`),
+    ...ANNUAL_REPORT_YEARS.map(year => `${year}-12-31`),
+  ]
+  return fetchRows(new URLSearchParams({
+    reportName: 'RPT_F10_FINANCE_GINCOME',
+    columns: DEDUCT_REPORT_COLUMNS,
+    filter: `(REPORT_DATE in (${reportDates.map(date => `'${date}'`).join(',')}))${codeFilter(codes)}`,
+    pageNumber: '1',
+    pageSize: String(codes.length * reportDates.length),
+  }))
 }
 
 async function fetchRows(params: URLSearchParams): Promise<JsonRecord[]> {
@@ -144,11 +170,12 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
   const uniqueCodes = [...new Set(codes)].filter(code => /^\d{6}$/.test(code))
   if (!uniqueCodes.length) return { generatedAt: new Date().toISOString(), stocks: {} }
 
-  const [firstQuarterRows, interimRows, annualRows, appointmentRows] = await Promise.all([
+  const [firstQuarterRows, interimRows, annualRows, appointmentRows, deductRows] = await Promise.all([
     Promise.all(FIRST_QUARTER_REPORT_YEARS.map(year => fetchReportDate(`${year}-03-31`, uniqueCodes))),
     Promise.all(INTERIM_REPORT_YEARS.map(year => fetchReportDate(`${year}-06-30`, uniqueCodes))),
     Promise.all(ANNUAL_REPORT_YEARS.map(year => fetchReportDate(`${year}-12-31`, uniqueCodes))),
     fetchAppointments(uniqueCodes),
+    fetchDeductReports(uniqueCodes),
   ])
 
   const stocks: Record<string, InterimReportSnapshot> = Object.fromEntries(
@@ -180,6 +207,24 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
       annualReports[year] = toReportRecord(row, code)
     }
   })
+
+  for (const row of deductRows) {
+    const code = stringOrNull(row.SECURITY_CODE)
+    const reportDate = stringOrNull(row.REPORT_DATE)
+    if (!code || !reportDate || !stocks[code]) continue
+    const year = Number(reportDate.slice(0, 4))
+    const monthDay = reportDate.slice(5, 10)
+    const report = monthDay === '03-31'
+      ? stocks[code].firstQuarterReports?.[year as FirstQuarterReportYear]
+      : monthDay === '06-30'
+        ? stocks[code].reports[year as InterimReportYear]
+        : monthDay === '12-31'
+          ? stocks[code].annualReports?.[year as AnnualReportYear]
+          : undefined
+    if (!report) continue
+    report.deductNetProfit = numberOrNull(row.DEDUCT_PARENT_NETPROFIT)
+    report.deductNetProfitYoy = numberOrNull(row.DEDUCT_PARENT_NETPROFIT_YOY)
+  }
 
   for (const row of appointmentRows) {
     const code = stringOrNull(row.SECURITY_CODE)

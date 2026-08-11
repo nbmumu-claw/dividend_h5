@@ -17,9 +17,9 @@ import {
 } from '../utils/interimReports'
 import './InterimReport.css'
 
-type Metric = 'netProfit' | 'revenue' | 'eps' | 'roe'
+type Metric = 'netProfit' | 'deductNetProfit' | 'revenue' | 'eps' | 'roe'
 type StatusFilter = 'all' | 'published' | 'pending'
-type SortKey = 'disclosure' | 'profit2025' | 'latestNetProfitYoy' | 'latestRevenueYoy' | 'firstQuarterNetProfitYoy' | 'firstQuarterRevenueYoy'
+type SortKey = 'disclosure' | 'profit2025' | 'deductProfit2025' | 'latestNetProfitYoy' | 'latestDeductNetProfitYoy' | 'latestRevenueYoy' | 'firstQuarterNetProfitYoy' | 'firstQuarterDeductNetProfitYoy' | 'firstQuarterRevenueYoy'
 type GrowthFilterKey = 'revenueYoy' | 'netProfitYoy'
 type GrowthReportPeriod = 'interim' | 'firstQuarter'
 type ReportPeriod = '一' | '中' | '年'
@@ -45,6 +45,7 @@ const TABLE_COLUMN_COUNT = 4 + INTERIM_REPORT_YEARS.length
 
 const METRICS: { key: Metric; label: string; unit: string }[] = [
   { key: 'netProfit', label: '归母净利润', unit: '亿元' },
+  { key: 'deductNetProfit', label: '扣非净利润', unit: '亿元' },
   { key: 'revenue', label: '营业收入', unit: '亿元' },
   { key: 'eps', label: '基本 EPS', unit: '元/股' },
   { key: 'roe', label: '加权 ROE', unit: '%' },
@@ -60,10 +61,13 @@ const REPORT_VIEW_OPTIONS: { key: ReportView; label: string }[] = [
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'disclosure', label: '披露时间' },
   { key: 'latestNetProfitYoy', label: '2026 中报净利润同比' },
+  { key: 'latestDeductNetProfitYoy', label: '2026 中报扣非净利润同比' },
   { key: 'latestRevenueYoy', label: '2026 中报营收同比' },
   { key: 'firstQuarterNetProfitYoy', label: '2026 一季报净利润同比' },
+  { key: 'firstQuarterDeductNetProfitYoy', label: '2026 一季报扣非净利润同比' },
   { key: 'firstQuarterRevenueYoy', label: '2026 一季报营收同比' },
   { key: 'profit2025', label: '2025 年报净利润同比' },
+  { key: 'deductProfit2025', label: '2025 年报扣非净利润同比' },
 ]
 
 const GROWTH_FILTERS: { key: GrowthFilterKey; label: string }[] = [
@@ -119,6 +123,7 @@ function formatNumber(value: number | null, digits: number): string {
 function metricValue(report: InterimReportRecord | undefined, metric: Metric): number | null {
   if (!report) return null
   if (metric === 'netProfit') return report.netProfit === null ? null : report.netProfit / 100_000_000
+  if (metric === 'deductNetProfit') return report.deductNetProfit === null ? null : report.deductNetProfit / 100_000_000
   if (metric === 'revenue') return report.revenue === null ? null : report.revenue / 100_000_000
   if (metric === 'eps') return report.eps
   return report.roe
@@ -127,6 +132,7 @@ function metricValue(report: InterimReportRecord | undefined, metric: Metric): n
 function metricYoy(report: InterimReportRecord | undefined, metric: Metric): number | null {
   if (!report) return null
   if (metric === 'netProfit') return report.netProfitYoy
+  if (metric === 'deductNetProfit') return report.deductNetProfitYoy
   if (metric === 'revenue') return report.revenueYoy
   return null
 }
@@ -138,9 +144,12 @@ function growthValue(report: InterimReportRecord, key: GrowthFilterKey): number 
 
 function sortValue(snapshot: InterimReportResult['stocks'][string] | undefined, key: SortKey): number {
   if (key === 'profit2025') return snapshot?.annualReports?.[2025]?.netProfitYoy ?? Number.NEGATIVE_INFINITY
+  if (key === 'deductProfit2025') return snapshot?.annualReports?.[2025]?.deductNetProfitYoy ?? Number.NEGATIVE_INFINITY
   if (key === 'latestNetProfitYoy') return snapshot?.reports[2026]?.netProfitYoy ?? Number.NEGATIVE_INFINITY
+  if (key === 'latestDeductNetProfitYoy') return snapshot?.reports[2026]?.deductNetProfitYoy ?? Number.NEGATIVE_INFINITY
   if (key === 'latestRevenueYoy') return snapshot?.reports[2026]?.revenueYoy ?? Number.NEGATIVE_INFINITY
   if (key === 'firstQuarterNetProfitYoy') return snapshot?.firstQuarterReports?.[2026]?.netProfitYoy ?? Number.NEGATIVE_INFINITY
+  if (key === 'firstQuarterDeductNetProfitYoy') return snapshot?.firstQuarterReports?.[2026]?.deductNetProfitYoy ?? Number.NEGATIVE_INFINITY
   if (key === 'firstQuarterRevenueYoy') return snapshot?.firstQuarterReports?.[2026]?.revenueYoy ?? Number.NEGATIVE_INFINITY
   return Number.NEGATIVE_INFINITY
 }
@@ -153,9 +162,9 @@ function meetsGrowthMinimum(value: number | null, minimum: string): boolean {
 }
 
 function isSortedReading(sort: SortKey, year: number, period: ReportPeriod): boolean {
-  if (year === 2026 && period === '中') return sort === 'latestNetProfitYoy' || sort === 'latestRevenueYoy'
-  if (year === 2026 && period === '一') return sort === 'firstQuarterNetProfitYoy' || sort === 'firstQuarterRevenueYoy'
-  return year === 2025 && period === '年' && sort === 'profit2025'
+  if (year === 2026 && period === '中') return sort === 'latestNetProfitYoy' || sort === 'latestDeductNetProfitYoy' || sort === 'latestRevenueYoy'
+  if (year === 2026 && period === '一') return sort === 'firstQuarterNetProfitYoy' || sort === 'firstQuarterDeductNetProfitYoy' || sort === 'firstQuarterRevenueYoy'
+  return year === 2025 && period === '年' && (sort === 'profit2025' || sort === 'deductProfit2025')
 }
 
 function reportForView(
@@ -396,7 +405,7 @@ export default function InterimReport() {
     .map(stock => ({ stock, date: disclosureDate(result?.stocks[stock.code]) }))
     .filter((item): item is { stock: DisplayStock; date: string } => item.date !== null)
     .sort((a, b) => a.date.localeCompare(b.date))[0], [result, stocks])
-  const sortedYear = sort === 'latestNetProfitYoy' || sort === 'latestRevenueYoy' || sort === 'firstQuarterNetProfitYoy' || sort === 'firstQuarterRevenueYoy'
+  const sortedYear = sort === 'latestNetProfitYoy' || sort === 'latestDeductNetProfitYoy' || sort === 'latestRevenueYoy' || sort === 'firstQuarterNetProfitYoy' || sort === 'firstQuarterDeductNetProfitYoy' || sort === 'firstQuarterRevenueYoy'
     ? 2026
     : sort === 'profit2025' ? 2025 : null
   const highlightedYear = reportView === 'all' ? sortedYear : singleColumnSort?.year ?? null
@@ -597,6 +606,7 @@ export default function InterimReport() {
                 setSortDirection('desc')
                 if (nextSort === 'latestRevenueYoy' || nextSort === 'firstQuarterRevenueYoy') setMetric('revenue')
                 if (nextSort === 'latestNetProfitYoy' || nextSort === 'firstQuarterNetProfitYoy' || nextSort === 'profit2025') setMetric('netProfit')
+                if (nextSort === 'latestDeductNetProfitYoy' || nextSort === 'firstQuarterDeductNetProfitYoy' || nextSort === 'deductProfit2025') setMetric('deductNetProfit')
               }}>
                 {SORT_OPTIONS.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
               </select>
