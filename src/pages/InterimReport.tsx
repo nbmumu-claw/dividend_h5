@@ -631,6 +631,10 @@ export default function InterimReport() {
             <span className="interim-generated">
               {result ? `生成于 ${formatGeneratedAt(result.generatedAt)}` : '正在获取最新数据'}
             </span>
+            <button type="button" className={`interim-summary-like${liked ? ' liked' : ''}`} onClick={onLike} disabled={liked || liking} aria-pressed={liked}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true"><path d="M7 10v10H4V10h3Zm0 10h9.6a2 2 0 0 0 1.94-1.5l1.2-4.5A2 2 0 0 0 17.8 11H14l.45-3.1A2.4 2.4 0 0 0 12.08 5L7 10Z" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span>{likes === null ? '…' : likes}</span>
+            </button>
           </div>
           <div className="interim-panel-actions">
             <div className="interim-report-view" aria-label="表格报告口径">

@@ -240,6 +240,10 @@
 .interim-panel-summary { display: flex; align-items: center; min-width: 0; }
 .interim-count { color: #374151; font-size: 13px; font-weight: 600; }
 .interim-generated { margin-left: 10px; color: #9ca3af; font-size: 11px; }
+.interim-summary-like { display: inline-flex; align-items: center; gap: 4px; height: 24px; margin-left: 12px; padding: 0 8px; border: 1px solid #f1cfcc; border-radius: 13px; background: #fffafa; color: #c92a2a; font-family: 'DIN Alternate', 'PingFang SC', sans-serif; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.interim-summary-like svg { width: 13px; height: 13px; }
+.interim-summary-like:hover:not(:disabled), .interim-summary-like.liked { border-color: #ff9892; background: #fff5f4; }
+.interim-summary-like:disabled { cursor: default; }
 .interim-like { display: inline-flex; align-items: center; gap: 8px; height: 58px; padding: 0 24px; border: 2px solid #ff9892; border-radius: 30px; background: #fffafa; color: #c92a2a; font-family: 'DIN Alternate', 'PingFang SC', sans-serif; font-size: 25px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; cursor: pointer; }
 .interim-like svg { width: 25px; height: 25px; }
 .interim-like:hover:not(:disabled) { border-color: #ff6b6b; background: #fff5f4; color: #b42318; }
@@ -434,6 +438,7 @@
   .interim-panel-actions { gap: 6px; }
   .interim-report-view > span { display: none; }
   .interim-generated { display: block; margin: 2px 0 0; }
+  .interim-summary-like { margin-left: 8px; }
   .interim-feedback { gap: 12px; padding-inline: 14px; font-size: 14px; }
   .interim-like { height: 46px; padding-inline: 17px; border-radius: 24px; font-size: 20px; }
   .interim-like svg { width: 20px; height: 20px; }
