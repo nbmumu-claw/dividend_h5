@@ -407,7 +407,7 @@ export default function InterimReport() {
     .sort((a, b) => a.date.localeCompare(b.date))[0], [result, stocks])
   const sortedYear = sort === 'latestNetProfitYoy' || sort === 'latestDeductNetProfitYoy' || sort === 'latestRevenueYoy' || sort === 'firstQuarterNetProfitYoy' || sort === 'firstQuarterDeductNetProfitYoy' || sort === 'firstQuarterRevenueYoy'
     ? 2026
-    : sort === 'profit2025' ? 2025 : null
+    : sort === 'profit2025' || sort === 'deductProfit2025' ? 2025 : null
   const highlightedYear = reportView === 'all' ? sortedYear : singleColumnSort?.year ?? null
 
   const toggleSingleColumnSort = (field: SingleColumnSort['field'], year?: InterimReportYear) => {
