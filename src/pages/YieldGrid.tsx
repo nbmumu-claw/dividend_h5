@@ -780,6 +780,7 @@ export default function YieldGrid() {
               </svg>
               <span className="yg-reportbtn-full">中报数据</span>
               <span className="yg-reportbtn-short">中报</span>
+              <span className="yg-reportbtn-new">NEW</span>
             </button>
             <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
           </div>
@@ -1434,12 +1435,14 @@ const CSS = `
 .yg-page .yg-auth { flex: 0 0 auto; padding: 5px 16px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #6b7280; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .yg-auth.on { border-color: #fecaca; color: #dc2626; background: #fef2f2; cursor: default; }
-.yg-page .yg-reportbtn { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 11px;
+.yg-page .yg-reportbtn { position: relative; display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 11px;
   border: 1px solid #fed7aa; border-radius: 999px; background: #fffaf5; color: #c2410c; font-size: 13px;
   font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .yg-reportbtn svg { width: 14px; height: 14px; }
 .yg-page .yg-reportbtn:active { background: #ffedd5; }
 .yg-page .yg-reportbtn-short { display: none; }
+.yg-page .yg-reportbtn-new { position: absolute; top: -7px; right: -11px; padding: 1px 4px; border: 1px solid #fff;
+  border-radius: 999px; background: #dc2626; color: #fff; font-size: 8px; font-weight: 700; line-height: 1.15; letter-spacing: .2px; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }
