@@ -773,11 +773,6 @@ export default function YieldGrid() {
             <span>返回</span>
           </button>
           <div className="yg-tools">
-            {authUser ? (
-              <span className="yg-auth on">{authUser.user_metadata?.nickName || authUser.email?.split('@')[0] || '已登录'}</span>
-            ) : (
-              <button className="yg-auth" onClick={() => navigate('/settings')}>登录同步</button>
-            )}
             <button className="yg-reportbtn" onClick={() => navigate('/reports/2026-interim')}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
                 <path d="M6.5 3.5h8l3 3v14h-11z" strokeLinecap="round" strokeLinejoin="round" />
