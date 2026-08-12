@@ -772,12 +772,22 @@ export default function YieldGrid() {
             </svg>
             <span>返回</span>
           </button>
-          {authUser ? (
-            <span className="yg-auth on">{authUser.user_metadata?.nickName || authUser.email?.split('@')[0] || '已登录'}</span>
-          ) : (
-            <button className="yg-auth" onClick={() => navigate('/settings')}>登录同步</button>
-          )}
-          <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
+          <div className="yg-tools">
+            {authUser ? (
+              <span className="yg-auth on">{authUser.user_metadata?.nickName || authUser.email?.split('@')[0] || '已登录'}</span>
+            ) : (
+              <button className="yg-auth" onClick={() => navigate('/settings')}>登录同步</button>
+            )}
+            <button className="yg-reportbtn" onClick={() => navigate('/reports/2026-interim')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                <path d="M6.5 3.5h8l3 3v14h-11z" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M14.5 3.5v3h3M9 15.5v-3M12 15.5v-6M15 15.5v-4" strokeLinecap="round" />
+              </svg>
+              <span className="yg-reportbtn-full">中报数据</span>
+              <span className="yg-reportbtn-short">中报</span>
+            </button>
+            <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
+          </div>
         </div>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
@@ -1417,6 +1427,7 @@ const CSS = `
 .yg-page * { box-sizing: border-box; }
 .yg-page .wrap { max-width: 1440px; margin: 0 auto; }
 .yg-page .yg-topbar { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }
+.yg-page .yg-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
 .yg-page .yg-back { display: inline-flex; align-items: center; gap: 2px; margin: 0 0 0 -6px;
   padding: 4px 6px; background: none; border: 0; cursor: pointer; color: #6b7280; font-size: 14px;
   font-family: inherit; }
@@ -1428,6 +1439,12 @@ const CSS = `
 .yg-page .yg-auth { flex: 0 0 auto; padding: 5px 16px; border: 1px solid #e5e7eb; border-radius: 999px;
   background: #fff; color: #6b7280; font-size: 13px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .yg-page .yg-auth.on { border-color: #fecaca; color: #dc2626; background: #fef2f2; cursor: default; }
+.yg-page .yg-reportbtn { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; padding: 5px 11px;
+  border: 1px solid #fed7aa; border-radius: 999px; background: #fffaf5; color: #c2410c; font-size: 13px;
+  font-family: inherit; cursor: pointer; white-space: nowrap; }
+.yg-page .yg-reportbtn svg { width: 14px; height: 14px; }
+.yg-page .yg-reportbtn:active { background: #ffedd5; }
+.yg-page .yg-reportbtn-short { display: none; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }
@@ -1708,6 +1725,12 @@ const CSS = `
   background: #fff; color: #6b7280; font-family: inherit; font-size: 12px; cursor: pointer; }
 .boll-filter-grid button.selected { border-color: #1f2328; background: #1f2328; color: #fff; font-weight: 600; }
 @media (max-width: 359px) {
+  .yg-page .yg-tools { gap: 4px; }
+  .yg-page .yg-auth { padding-inline: 8px; }
+  .yg-page .yg-cfgbtn { padding-inline: 8px; }
+  .yg-page .yg-reportbtn { padding-inline: 8px; }
+  .yg-page .yg-reportbtn-full { display: none; }
+  .yg-page .yg-reportbtn-short { display: inline; }
   .boll-filter-grid { gap: 3px; }
   .boll-filter-grid button { font-size: 11px; }
 }
