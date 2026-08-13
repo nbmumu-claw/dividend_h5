@@ -392,8 +392,9 @@ export default function InterimReport() {
             return (singleColumnSort.direction === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv)) || a.poolIndex - b.poolIndex
           }
           const year = singleColumnSort.year!
-          const av = metricYoy(reportForView(snapshotA, year, reportView), metric)
-          const bv = metricYoy(reportForView(snapshotB, year, reportView), metric)
+          const valueForSort = metric === 'eps' || metric === 'roe' ? metricValue : metricYoy
+          const av = valueForSort(reportForView(snapshotA, year, reportView), metric)
+          const bv = valueForSort(reportForView(snapshotB, year, reportView), metric)
           if (av === null) return bv === null ? a.poolIndex - b.poolIndex : 1
           if (bv === null) return -1
           return (singleColumnSort.direction === 'desc' ? bv - av : av - bv) || a.poolIndex - b.poolIndex
@@ -719,10 +720,11 @@ export default function InterimReport() {
                 {INTERIM_REPORT_YEARS.map(year => {
                   const sortable = reportView !== 'all'
                   const active = sortable && singleColumnSort?.field === 'metric' && singleColumnSort.year === year
+                  const sortsByValue = metric === 'eps' || metric === 'roe'
                   return (
                     <th key={year} className={`year-column year-${year}${highlightedYear === year ? ' sorted-column' : ''}`} aria-sort={active ? (singleColumnSort.direction === 'desc' ? 'descending' : 'ascending') : undefined}>
                       {sortable ? (
-                        <button className={`interim-year-sort${active ? ' active' : ''}${active && singleColumnSort.direction === 'asc' ? ' asc' : ''}`} onClick={() => toggleSingleColumnSort('metric', year)} title={active ? `当前${singleColumnSort.direction === 'desc' ? '同比倒序' : '同比正序'}，点击切换` : '按当前字段同比倒序排列'}>
+                        <button className={`interim-year-sort${active ? ' active' : ''}${active && singleColumnSort.direction === 'asc' ? ' asc' : ''}`} onClick={() => toggleSingleColumnSort('metric', year)} title={active ? `当前${singleColumnSort.direction === 'desc' ? `${sortsByValue ? '值' : '同比'}倒序` : `${sortsByValue ? '值' : '同比'}正序`}，点击切换` : `按当前字段${sortsByValue ? '值' : '同比'}倒序排列`}>
                           {year}
                           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
                             <path d="m3 4 3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
