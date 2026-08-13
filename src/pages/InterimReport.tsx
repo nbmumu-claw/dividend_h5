@@ -158,7 +158,8 @@ function meetsGrowthMinimum(value: number | null, minimum: string): boolean {
   if (!minimum) return true
   if (value === null) return false
   if (minimum === 'negative') return value < 0
-  return value >= Number(minimum)
+  const threshold = Number(minimum)
+  return threshold < 0 ? value <= threshold : value >= threshold
 }
 
 function isSortedReading(sort: SortKey, year: number, period: ReportPeriod): boolean {
@@ -594,7 +595,7 @@ export default function InterimReport() {
                               onClick={() => updateGrowthFilter(key, value)}
                               aria-pressed={growthFilters[key] === value}
                             >
-                              {value === 'negative' ? '仅负增长' : value ? `≥${value}%` : '不限'}
+                              {value === 'negative' ? '仅负增长' : value ? `${Number(value) < 0 ? '≤' : '≥'}${value}%` : '不限'}
                             </button>
                           ))}
                         </div>
