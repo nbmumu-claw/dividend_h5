@@ -1,9 +1,11 @@
 export const INTERIM_REPORT_YEARS = [2026, 2025, 2024, 2023, 2022] as const
 export const FIRST_QUARTER_REPORT_YEARS = [2026, 2025, 2024, 2023, 2022] as const
+export const SECOND_QUARTER_REPORT_YEARS = [2026, 2025, 2024, 2023, 2022] as const
 export const ANNUAL_REPORT_YEARS = [2025, 2024, 2023, 2022] as const
 
 export type InterimReportYear = (typeof INTERIM_REPORT_YEARS)[number]
 export type FirstQuarterReportYear = (typeof FIRST_QUARTER_REPORT_YEARS)[number]
+export type SecondQuarterReportYear = (typeof SECOND_QUARTER_REPORT_YEARS)[number]
 export type AnnualReportYear = (typeof ANNUAL_REPORT_YEARS)[number]
 
 export interface InterimReportRecord {
@@ -33,6 +35,7 @@ export interface InterimAppointment {
 export interface InterimReportSnapshot {
   reports: Partial<Record<InterimReportYear, InterimReportRecord>>
   firstQuarterReports?: Partial<Record<FirstQuarterReportYear, InterimReportRecord>>
+  secondQuarterReports?: Partial<Record<SecondQuarterReportYear, InterimReportRecord>>
   annualReports?: Partial<Record<AnnualReportYear, InterimReportRecord>>
   appointment?: InterimAppointment
 }
@@ -124,6 +127,34 @@ function toReportRecord(row: JsonRecord, code: string): InterimReportRecord {
   }
 }
 
+function difference(current: number | null, previous: number | null): number | null {
+  return current === null || previous === null ? null : current - previous
+}
+
+function quarterYoy(current: number | null, previous: number | null): number | null {
+  return current === null || previous === null || previous === 0 ? null : (current - previous) / Math.abs(previous) * 100
+}
+
+function toSecondQuarterRecord(interim: InterimReportRecord, firstQuarter: InterimReportRecord, lastYear?: InterimReportRecord): InterimReportRecord {
+  const revenue = difference(interim.revenue, firstQuarter.revenue)
+  const netProfit = difference(interim.netProfit, firstQuarter.netProfit)
+  const deductNetProfit = difference(interim.deductNetProfit, firstQuarter.deductNetProfit)
+  const eps = difference(interim.eps, firstQuarter.eps)
+  return {
+    code: interim.code,
+    name: interim.name,
+    noticeDate: interim.noticeDate,
+    revenue,
+    revenueYoy: quarterYoy(revenue, lastYear?.revenue ?? null),
+    netProfit,
+    netProfitYoy: quarterYoy(netProfit, lastYear?.netProfit ?? null),
+    deductNetProfit,
+    deductNetProfitYoy: quarterYoy(deductNetProfit, lastYear?.deductNetProfit ?? null),
+    eps,
+    roe: null,
+  }
+}
+
 async function fetchDeductReports(codes: string[]): Promise<JsonRecord[]> {
   const reportDates = [
     ...FIRST_QUARTER_REPORT_YEARS.map(year => `${year}-03-31`),
@@ -179,7 +210,7 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
   ])
 
   const stocks: Record<string, InterimReportSnapshot> = Object.fromEntries(
-    uniqueCodes.map(code => [code, { reports: {}, firstQuarterReports: {}, annualReports: {} }]),
+    uniqueCodes.map(code => [code, { reports: {}, firstQuarterReports: {}, secondQuarterReports: {}, annualReports: {} }]),
   )
 
   FIRST_QUARTER_REPORT_YEARS.forEach((year, index) => {
@@ -224,6 +255,22 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
     if (!report) continue
     report.deductNetProfit = numberOrNull(row.DEDUCT_PARENT_NETPROFIT)
     report.deductNetProfitYoy = numberOrNull(row.DEDUCT_PARENT_NETPROFIT_YOY)
+  }
+
+  for (const snapshot of Object.values(stocks)) {
+    const secondQuarterReports = snapshot.secondQuarterReports
+    if (!secondQuarterReports) continue
+    for (const year of SECOND_QUARTER_REPORT_YEARS) {
+      const interim = snapshot.reports[year]
+      const firstQuarter = snapshot.firstQuarterReports?.[year]
+      const lastYearInterim = snapshot.reports[year - 1 as InterimReportYear]
+      const lastYearFirstQuarter = snapshot.firstQuarterReports?.[year - 1 as FirstQuarterReportYear]
+      if (!interim || !firstQuarter) continue
+      const lastYear = lastYearInterim && lastYearFirstQuarter
+        ? toSecondQuarterRecord(lastYearInterim, lastYearFirstQuarter)
+        : undefined
+      secondQuarterReports[year] = toSecondQuarterRecord(interim, firstQuarter, lastYear)
+    }
   }
 
   for (const row of appointmentRows) {

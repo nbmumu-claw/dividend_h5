@@ -10,6 +10,7 @@ import {
   ANNUAL_REPORT_YEARS,
   FIRST_QUARTER_REPORT_YEARS,
   INTERIM_REPORT_YEARS,
+  SECOND_QUARTER_REPORT_YEARS,
   searchInterimStocks,
   type InterimReportRecord,
   type InterimReportResult,
@@ -22,9 +23,9 @@ type Metric = 'netProfit' | 'deductNetProfit' | 'revenue' | 'eps' | 'roe'
 type StatusFilter = 'all' | 'published' | 'pending'
 type SortKey = 'disclosure' | 'profit2025' | 'deductProfit2025' | 'latestNetProfitYoy' | 'latestDeductNetProfitYoy' | 'latestRevenueYoy' | 'firstQuarterNetProfitYoy' | 'firstQuarterDeductNetProfitYoy' | 'firstQuarterRevenueYoy'
 type GrowthFilterKey = 'revenueYoy' | 'netProfitYoy'
-type GrowthReportPeriod = 'interim' | 'firstQuarter'
-type ReportPeriod = '一' | '中' | '年'
-type ReportView = 'interim' | 'firstQuarter' | 'annual' | 'all'
+type GrowthReportPeriod = 'interim' | 'firstQuarter' | 'secondQuarter'
+type ReportPeriod = '一' | '二' | '中' | '年'
+type ReportView = 'interim' | 'firstQuarter' | 'secondQuarter' | 'annual' | 'all'
 type SingleColumnSort = { field: 'disclosure' | 'metric'; year?: InterimReportYear; direction: 'asc' | 'desc' }
 
 type GrowthFilters = Record<GrowthFilterKey, string>
@@ -39,7 +40,7 @@ interface DisplayStock extends YieldGridStock {
 }
 
 const CUSTOM_STORAGE_KEY = 'interim-report-custom-stocks'
-const REPORT_CACHE_KEY = 'interim-report-data:v2'
+const REPORT_CACHE_KEY = 'interim-report-data:v3'
 const MAX_CUSTOM_STOCKS = 5
 const TABLE_COLUMN_COUNT = 4 + INTERIM_REPORT_YEARS.length
 
@@ -54,6 +55,7 @@ const METRICS: { key: Metric; label: string; unit: string }[] = [
 const REPORT_VIEW_OPTIONS: { key: ReportView; label: string }[] = [
   { key: 'interim', label: '中报' },
   { key: 'firstQuarter', label: '一季报' },
+  { key: 'secondQuarter', label: '二季报' },
   { key: 'annual', label: '年报' },
   { key: 'all', label: '全量' },
 ]
@@ -175,6 +177,7 @@ function reportForView(
 ): InterimReportRecord | undefined {
   if (reportView === 'interim') return snapshot?.reports[year]
   if (reportView === 'firstQuarter') return snapshot?.firstQuarterReports?.[year as (typeof FIRST_QUARTER_REPORT_YEARS)[number]]
+  if (reportView === 'secondQuarter') return snapshot?.secondQuarterReports?.[year as (typeof SECOND_QUARTER_REPORT_YEARS)[number]]
   return snapshot?.annualReports?.[year as (typeof ANNUAL_REPORT_YEARS)[number]]
 }
 
@@ -371,7 +374,9 @@ export default function InterimReport() {
         const snapshot = result?.stocks[stock.code]
         const report = growthReportPeriod === 'interim'
           ? snapshot?.reports[2026]
-          : snapshot?.firstQuarterReports?.[2026]
+          : growthReportPeriod === 'firstQuarter'
+            ? snapshot?.firstQuarterReports?.[2026]
+            : snapshot?.secondQuarterReports?.[2026]
         if (hasGrowthFilters && !report) return false
         return !report || GROWTH_FILTERS.every(({ key }) => meetsGrowthMinimum(growthValue(report, key), growthFilters[key]))
       })
@@ -561,6 +566,7 @@ export default function InterimReport() {
                       {([
                         ['interim', '2026 中报'],
                         ['firstQuarter', '2026 一季报'],
+                        ['secondQuarter', '2026 二季报'],
                       ] as const).map(([key, label]) => (
                         <button
                           key={key}
@@ -602,7 +608,7 @@ export default function InterimReport() {
                       </label>
                     ))}
                   </div>
-                  <p>填写最低增速即可；缺少{growthReportPeriod === 'interim' ? '2026 中报' : '2026 一季报'}数据的标的将自动排除。</p>
+                  <p>填写最低增速即可；缺少{growthReportPeriod === 'interim' ? '2026 中报' : growthReportPeriod === 'firstQuarter' ? '2026 一季报' : '2026 二季报'}数据的标的将自动排除。</p>
                 </div>
               </>
             )}
@@ -769,6 +775,11 @@ export default function InterimReport() {
                                 metric={metric}
                                 period="一"
                                 sorted={isSortedReading(sort, year, '一')}
+                              />
+                              <MetricReading
+                                report={snapshot?.secondQuarterReports?.[year as (typeof SECOND_QUARTER_REPORT_YEARS)[number]]}
+                                metric={metric}
+                                period="二"
                               />
                               <MetricReading
                                 report={snapshot?.reports[year]}
