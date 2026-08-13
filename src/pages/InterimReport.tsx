@@ -157,7 +157,7 @@ function sortValue(snapshot: InterimReportResult['stocks'][string] | undefined, 
 function meetsGrowthMinimum(value: number | null, minimum: string): boolean {
   if (!minimum) return true
   if (value === null) return false
-  if (minimum === 'negative') return value < 0
+  if (minimum === 'negative') return value <= 0
   const threshold = Number(minimum)
   return threshold < 0 ? value <= threshold : value >= threshold
 }
