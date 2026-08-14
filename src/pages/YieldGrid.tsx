@@ -76,7 +76,7 @@ const SELL_MUTED = new Set(['中国广核', '中国核电'])
 type GridCfg = { buyStep: number; buyCount: number; sellStep: number; sellCount: number; lowerTolerance: number; middleTolerance: number; upperTolerance: number; yieldTolerance: number }
 const DEFAULT_CFG: GridCfg = { buyStep: 0.005, buyCount: 4, sellStep: 0.005, sellCount: 4, lowerTolerance: 0.0025, middleTolerance: 0.01, upperTolerance: 0.0025, yieldTolerance: 0.0025 }
 const STEP_OPTIONS = [0.0025, 0.005]
-const COUNT_OPTIONS = [2, 4, 6, 8]
+const COUNT_OPTIONS = [0, 2, 4, 6, 8]
 const ORDINAL_MARKS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧']
 function loadCfg(): GridCfg {
   const c = gp().cfg as Record<string, unknown> | undefined
@@ -459,9 +459,11 @@ export default function YieldGrid() {
   const cfg: GridCfg = { ...DEFAULT_CFG, ...storedCfg }
   const storedYieldStarts = useStore(s => s.gridPrefs.yieldStarts)
   const yieldStarts = storedYieldStarts ?? DEFAULT_YIELD_STARTS
+  const showBoll = useStore(s => s.gridPrefs.showBoll !== false)
   const yieldStartMap = useMemo(() => new Map(yieldStarts.map(item => [item.code, item])), [yieldStarts])
   const [showCfg, setShowCfg] = useState(false)
   const updateCfg = (partial: Partial<GridCfg>) => { saveCfg({ ...cfg, ...partial }) }
+  const updateShowBoll = (next: boolean) => saveGp({ showBoll: next })
   const updateYieldStarts = (next: YieldStart[]) => saveGp({ yieldStarts: next })
   const [yieldFilter, setYieldFilter] = useState<YieldStatusFilter>('all')
   const [bollFilters, setBollFilters] = useState<BollFilters>({ ...EMPTY_BOLL_FILTERS })
@@ -905,7 +907,7 @@ export default function YieldGrid() {
           const isDenseGrid = sellOrdinalCount === 8 && buyOrdinalCount === 8
           // 窄屏或浏览器放大时保持列宽，以横向滚动代替文字重叠。
           const tableMinWidth = isNarrowDesktop || isDenseGrid
-            ? 120 + 328 + (isMobile ? 264 : 268) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 56)
+            ? 120 + 328 + (showBoll ? (isMobile ? 264 : 268) : 0) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 56)
             : undefined
           const isCollapsed = groupBySector && collapsed.has(sector)
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
@@ -968,7 +970,7 @@ export default function YieldGrid() {
                         </div>
                       </div>
                       {(() => { const lb = lastBuyMap.get(r.code); return lb ? <div className="cmeta">{fmtDate(lb.ts)} {lb.isFirst ? '建仓' : '加仓'} {symOf(r.isHK, r.code)}{lb.price.toFixed(2)} × {lb.qty} 股</div> : null })()}
-                      <div className="boll-strip" data-testid={`yield-grid-boll-${r.code}`}>
+                      {showBoll && <div className="boll-strip" data-testid={`yield-grid-boll-${r.code}`}>
                         <div className="boll-mobile-head">
                           <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
                           <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} />
@@ -976,15 +978,19 @@ export default function YieldGrid() {
                         <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} />
                         {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
                         <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.dive} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
-                      </div>
-                      <div className="glabel sell">卖出网格</div>
-                      <div className="tiers">
-                        {sellGridFor(r, cfg, yieldStartMap).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} starts={yieldStartMap} />)}
-                      </div>
-                      <div className="glabel buy">买入网格</div>
-                      <div className="tiers">
-                        {buyGridFor(r, cfg, yieldStartMap).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" cfg={cfg} starts={yieldStartMap} />)}
-                      </div>
+                      </div>}
+                      {sellOrdinalCount > 0 && <>
+                        <div className="glabel sell">卖出网格</div>
+                        <div className="tiers">
+                          {sellGridFor(r, cfg, yieldStartMap).map(y => <Chip key={'s' + y} r={r} y={y} kind="sell" cfg={cfg} starts={yieldStartMap} />)}
+                        </div>
+                      </>}
+                      {buyOrdinalCount > 0 && <>
+                        <div className="glabel buy">买入网格</div>
+                        <div className="tiers">
+                          {buyGridFor(r, cfg, yieldStartMap).map(y => <Chip key={'b' + y} r={r} y={y} kind="buy" cfg={cfg} starts={yieldStartMap} />)}
+                        </div>
+                      </>}
                     </div>
                   ))}
                 </div>
@@ -1003,12 +1009,12 @@ export default function YieldGrid() {
                             <span className="quote-summary-title">分红质量</span>
                             <span className="dividend-quality-labels"><i>连续分红</i><i>25年支付率</i></span>
                           </th>
-                          <th rowSpan={2} className="th-boll-position">
+                          {showBoll && <th rowSpan={2} className="th-boll-position">
                             <span>{BOLL_PERIOD_LABELS[bollPeriod]} BOLL 位置</span>
                             <BollPeriodSwitch value={bollPeriod} onChange={setBollPeriod} compact />
-                          </th>
-                          <th colSpan={sellOrdinalCount} className="ordinal-group sell">卖出网格</th>
-                          <th colSpan={buyOrdinalCount} className="ordinal-group buy sep">买入网格</th>
+                          </th>}
+                          {sellOrdinalCount > 0 && <th colSpan={sellOrdinalCount} className="ordinal-group sell">卖出网格</th>}
+                          {buyOrdinalCount > 0 && <th colSpan={buyOrdinalCount} className="ordinal-group buy sep">买入网格</th>}
                         </tr>
                         <tr>
                           {Array.from({ length: sellOrdinalCount }, (_, i) => <th key={'os' + i} className="ordinal-slot sell">卖出{ORDINAL_MARKS[i]}</th>)}
@@ -1041,11 +1047,11 @@ export default function YieldGrid() {
                               <div className="quote-metric"><span className="value-line"><PayoutValue records={dividendPayouts[r.code]} /></span></div>
                             </div>
                           </td>
-                          <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
+                          {showBoll && <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
                             <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} compact />
                             {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
                             <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.dive} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
-                          </td>
+                          </td>}
                           {Array.from({ length: sellOrdinalCount }, (_, i) => <OrdinalCell key={'os' + i} r={r} y={sellGridFor(r, cfg, yieldStartMap)[i]} kind="sell" cfg={cfg} starts={yieldStartMap} />)}
                           {Array.from({ length: buyOrdinalCount }, (_, i) => <OrdinalCell key={'ob' + i} r={r} y={buyGridFor(r, cfg, yieldStartMap)[i]} kind="buy" sep={i === 0} cfg={cfg} starts={yieldStartMap} />)}
                         </tr>
@@ -1274,6 +1280,21 @@ export default function YieldGrid() {
                   ))}
                 </div>
               </div>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 p-3">
+              <div>
+                <div className="text-sm font-semibold text-gray-800">显示 BOLL 列</div>
+                <div className="mt-0.5 text-xs text-gray-400">关闭后隐藏 BOLL 指标，网格表更紧凑。</div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showBoll}
+                onClick={() => updateShowBoll(!showBoll)}
+                className={`relative h-6 w-11 rounded-full transition-colors ${showBoll ? 'bg-red-600' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-transform ${showBoll ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
             <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
               <div className="flex items-center justify-between gap-3">
