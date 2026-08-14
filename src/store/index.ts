@@ -171,9 +171,9 @@ interface AppState {
   setGridPrefs: (patch: Partial<GridPrefs>) => void
 
   // 模拟加仓策略（决策矩阵页·纯推演偏好，按股票存，绝不影响真实持仓数据）
-  // 结构：{ [code]: { end: 终点股息率, shares: { [档位股息率.toFixed(1)]: 该档股数 } } }
-  simStrategy: Record<string, { end: number; shares: Record<string, number>; step?: number }>
-  setSimStrategy: (code: string, patch: Partial<{ end: number; shares: Record<string, number>; step?: number }>) => void
+  // 结构：{ [code]: { end: 终点股息率, price: 模拟现价, shares: { [档位股息率.toFixed(1)]: 该档股数 } } }
+  simStrategy: Record<string, { end: number; shares: Record<string, number>; step?: number; price?: number }>
+  setSimStrategy: (code: string, patch: Partial<{ end: number; shares: Record<string, number>; step?: number; price?: number }>) => void
 
   // Import/export
   importBackup: (data: AppState['watchlist'] extends unknown ? Record<string, unknown> : never) => void

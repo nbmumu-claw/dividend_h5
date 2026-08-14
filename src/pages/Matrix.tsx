@@ -181,6 +181,11 @@ export default function Matrix() {
   const [simOpen, setSimOpen] = useState(true)  // 默认展开
   const [histOpen, setHistOpen] = useState(true) // 默认展开
   const historyRef = useRef<HTMLDivElement>(null)
+  const [simPriceInput, setSimPriceInput] = useState('')
+
+  useEffect(() => {
+    setSimPriceInput(strat?.price != null ? String(strat.price) : '')
+  }, [code, strat?.price])
 
   useEffect(() => {
     if (section !== 'history') return
@@ -194,8 +199,9 @@ export default function Matrix() {
     const cost = costStr != null && costStr !== '' ? parseFloat(costStr) : NaN
     const hasHolding = shares > 0 && isFinite(cost)
 
-    // 现价对应股息率（加仓只能从现价起，不可能在比现价更高的价位买）
-    const curYield = currentPrice > 0 && dividend > 0 ? (dividend / currentPrice) * 100 : 0
+    // 模拟现价未填写时，沿用行情现价；加仓不能从比模拟现价更高的价位开始。
+    const simPrice = (strat?.price ?? 0) > 0 ? strat!.price! : currentPrice
+    const curYield = simPrice > 0 && dividend > 0 ? (dividend / simPrice) * 100 : 0
 
     // 加仓档：首档 +「现价档之后 3 个默认整档」+「再 3 个可选整档（用户延长）」
     //  · 现价股息率 < 门槛：尚未到价，首档=门槛档（等跌到 4%/5%）
@@ -211,7 +217,7 @@ export default function Matrix() {
         allSteps.push({ key: simKey(base), rate: base, targetPrice: dividend / (base / 100), isCurrent: false, optional: false })
         firstCheckpoint = r2(base + step)
       } else {
-        allSteps.push({ key: 'cur', rate: curYield, targetPrice: currentPrice, isCurrent: true, optional: false })
+        allSteps.push({ key: 'cur', rate: curYield, targetPrice: simPrice, isCurrent: true, optional: false })
         firstCheckpoint = r2(Math.floor(curYield / step + 1e-9) * step + step) // 严格上方最近档
       }
       // 前 3 档默认显示，后 3 档可选（用户延长）
@@ -417,6 +423,25 @@ export default function Matrix() {
           </button>
           {simOpen && (
             <div className="px-4 pb-4">
+              <div className="mb-3 flex items-center justify-end gap-2 text-xs text-gray-500">
+                <label htmlFor="sim-price">模拟现价</label>
+                <span>{cs}</span>
+                <input
+                  id="sim-price"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  placeholder={currentPrice > 0 ? currentPrice.toFixed(2) : '输入现价'}
+                  value={simPriceInput}
+                  onChange={e => setSimPriceInput(e.target.value)}
+                  onBlur={() => {
+                    const price = Number(simPriceInput)
+                    setSimStrategy(code, { price: price > 0 ? price : undefined })
+                  }}
+                  className="w-24 text-right border border-gray-200 rounded-md px-1.5 py-1 text-sm focus:border-red-400 focus:outline-none"
+                />
+              </div>
               {sim.rows.length === 0 ? (
                 <div className="text-xs text-gray-400 text-center py-4">暂无现价或每股红利数据，无法推演</div>
               ) : (
