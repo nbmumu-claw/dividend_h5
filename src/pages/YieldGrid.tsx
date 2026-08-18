@@ -180,11 +180,11 @@ function loadActive(): string { return gp().active || ALL }
 function saveActive(v: string) { saveGp({ active: v }) }
 
 // 标的排序
-type SortKey = 'cy' | 'chg' | 'consecutiveYears' | 'price'
+type SortKey = 'cy' | 'chg' | 'consecutiveYears' | 'price' | 'bollPosition'
 type SortState = { key: SortKey; dir: 'asc' | 'desc' }
 const DEFAULT_SORT: SortState = { key: 'cy', dir: 'desc' }
 const SORT_OPTS: { key: SortKey; label: string }[] = [
-  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'consecutiveYears', label: '连续分红年数' }, { key: 'price', label: '现价' },
+  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'consecutiveYears', label: '连续分红年数' }, { key: 'bollPosition', label: '轨道下→上' }, { key: 'price', label: '现价' },
 ]
 const SORT_KEYS = new Set<string>(SORT_OPTS.map(o => o.key))
 function loadSort(): SortState { const s = gp().sort; return s?.key ? (s as SortState) : DEFAULT_SORT }
@@ -377,6 +377,10 @@ export default function YieldGrid() {
   // 兼容老用户曾保存的已下线排序键（如「名称」）→ 回落默认
   const sort: SortState = useMemo(() => sortRaw?.key && SORT_KEYS.has(sortRaw.key) ? sortRaw as SortState : DEFAULT_SORT, [sortRaw])
   const chooseSort = (key: SortKey) => {
+    if (key === 'bollPosition') {
+      saveSort({ key, dir: 'asc' })
+      return
+    }
     const next: SortState = sort.key === key
       ? { key, dir: sort.dir === 'desc' ? 'asc' : 'desc' }
       : { key, dir: 'desc' }
@@ -689,6 +693,18 @@ export default function YieldGrid() {
   const pinPos = new Map(stockOrder.map((c, i) => [c, i]))
   const cmpBy = (a: Row, b: Row) => {
     const m = sort.dir === 'desc' ? -1 : 1
+    if (sort.key === 'bollPosition') {
+      const bollPosition = (r: Row) => {
+        const boll = bollByCode[r.code]
+        return boll && boll.upper > boll.lower ? (r.price - boll.lower) / (boll.upper - boll.lower) : null
+      }
+      const va = bollPosition(a)
+      const vb = bollPosition(b)
+      if (va == null && vb == null) return 0
+      if (va == null) return 1
+      if (vb == null) return -1
+      return va - vb
+    }
     if (sort.key === 'consecutiveYears') {
       const va = consecutiveDividendYears[a.code]
       const vb = consecutiveDividendYears[b.code]
