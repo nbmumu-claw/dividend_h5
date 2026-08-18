@@ -377,13 +377,9 @@ export default function YieldGrid() {
   // 兼容老用户曾保存的已下线排序键（如「名称」）→ 回落默认
   const sort: SortState = useMemo(() => sortRaw?.key && SORT_KEYS.has(sortRaw.key) ? sortRaw as SortState : DEFAULT_SORT, [sortRaw])
   const chooseSort = (key: SortKey) => {
-    if (key === 'bollPosition') {
-      saveSort({ key, dir: 'asc' })
-      return
-    }
     const next: SortState = sort.key === key
       ? { key, dir: sort.dir === 'desc' ? 'asc' : 'desc' }
-      : { key, dir: 'desc' }
+      : { key, dir: key === 'bollPosition' ? 'asc' : 'desc' }
     saveSort(next)
   }
   const stockOrder = useStore(s => s.gridPrefs.stockOrder)
@@ -703,7 +699,7 @@ export default function YieldGrid() {
       if (va == null && vb == null) return 0
       if (va == null) return 1
       if (vb == null) return -1
-      return va - vb
+      return (va - vb) * m
     }
     if (sort.key === 'consecutiveYears') {
       const va = consecutiveDividendYears[a.code]
@@ -879,11 +875,15 @@ export default function YieldGrid() {
           <div className="sortbar">
             <div className="sortopts">
               <span className="lbl">排序</span>
-              {SORT_OPTS.map(o => (
-                <button key={o.key} className={`chip${sort.key === o.key ? ' active' : ''}`} onClick={() => chooseSort(o.key)}>
-                  {o.label}{sort.key === o.key ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
-                </button>
-              ))}
+              {SORT_OPTS.map(o => {
+                const active = sort.key === o.key
+                const bollLabel = active && o.key === 'bollPosition' ? `轨道${sort.dir === 'asc' ? '下→上' : '上→下'}` : o.label
+                return (
+                  <button key={o.key} className={`chip${active ? ' active' : ''}`} onClick={() => chooseSort(o.key)}>
+                    {bollLabel}{active && o.key !== 'bollPosition' ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                  </button>
+                )
+              })}
               {stockOrder.length > 0 && <button className="chip clear" onClick={clearStockOrder}>清除手排</button>}
             </div>
             {groupBySector && visible.length >= 2 && (
