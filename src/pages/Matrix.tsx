@@ -465,7 +465,10 @@ export default function Matrix() {
                             <div>{sim.cost > 0 ? `${((dividend / sim.cost) * 100).toFixed(2)}%` : '持仓'}</div>
                             <div className="text-[10px] text-gray-400 leading-none mt-0.5">成本</div>
                           </td>
-                          <td className="py-2 text-right text-gray-700">{cs}{sim.cost.toFixed(2)}</td>
+                          <td className="py-2 text-right text-gray-700">
+                            <div>{cs}{sim.cost.toFixed(2)}</div>
+                            {currentPrice > 0 && <div className="text-[10px] text-gray-400 leading-none mt-0.5">现价 {cs}{currentPrice.toFixed(2)}</div>}
+                          </td>
                           <td className="py-2 text-right text-gray-400">
                             <div>{sim.shares}</div>
                             {sim.cost > 0 && <div className="text-[10px] leading-none mt-0.5">{cs}{fmtAmt(sim.shares * sim.cost)}</div>}
