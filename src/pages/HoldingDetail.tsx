@@ -434,7 +434,10 @@ export default function HoldingDetail() {
                   <button className="flex-1 flex items-center gap-3 text-left" onClick={() => openEdit(t)}>
                     <span className={`tag flex-shrink-0 ${t.type === 'sell' ? 'tag-sell' : t.type === 'dividend' || t.type === 'dividendTax' ? 'tag-yellow' : 'tag-red'}`}>{TX_LABEL[t.type]}</span>
                     <div>
-                      <div className="text-sm text-gray-800">{t.type === 'dividendTax' ? `${rowQty(t)} ${stock.isFund ? '份' : '股'} · 预估税额` : `${rowQty(t)} ${stock.isFund ? '份' : '股'} @ ${curSym}${Number(t.price).toFixed(3)}`}</div>
+                      <div className="text-sm text-gray-800">
+                        {t.type === 'dividendTax' ? `${rowQty(t)} ${stock.isFund ? '份' : '股'} · 预估税额` : `${rowQty(t)} ${stock.isFund ? '份' : '股'} @ ${curSym}${Number(t.price).toFixed(3)}`}
+                        {t.type === 'dividend' && <span className="ml-1 text-xs text-gray-400">税后</span>}
+                      </div>
                       <div className="text-xs text-gray-400">{t.ts ? fmtDate(t.ts) : ''}</div>
                     </div>
                   </button>
