@@ -884,6 +884,7 @@ export default function YieldGrid() {
                   </button>
                 )
               })}
+              {hasActiveFilters && <button className="chip clear" onClick={clearFilters}>清除筛选</button>}
               {stockOrder.length > 0 && <button className="chip clear" onClick={clearStockOrder}>清除手排</button>}
             </div>
             {groupBySector && visible.length >= 2 && (
