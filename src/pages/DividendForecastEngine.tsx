@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendPayouts, type DividendPayoutRecord } from '../utils/dividendPayout'
@@ -22,7 +22,7 @@ function RefreshIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><pat
 
 export default function DividendForecastEngine() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('000423')
+  const [query, setQuery] = useState('600941')
   const [result, setResult] = useState<ForecastResult | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -79,6 +79,8 @@ export default function DividendForecastEngine() {
   }
 
   const run = async (event?: FormEvent) => { event?.preventDefault(); await runFor(query) }
+
+  useEffect(() => { void runFor('600941') }, [])
 
   const maxDps = result ? Math.max(result.annualDps, ...result.history.map(item => item.perShare), .01) : 1
   return <main className="forecast-page"><div className="forecast-shell">
