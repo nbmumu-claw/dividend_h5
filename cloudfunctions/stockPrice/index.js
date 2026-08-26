@@ -19,6 +19,7 @@ const HANDLERS = {
   ownerType:  './handlers/ownerType',
   dividendHistory: './handlers/dividendHistory',
   dividendPayout: './handlers/dividendPayout',
+  forecastData: './handlers/forecastData',
   search: './handlers/search',
   weeklyBoll: './handlers/weeklyBoll',
   periodBoll: './handlers/periodBoll',

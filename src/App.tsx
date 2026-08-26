@@ -25,6 +25,7 @@ const AccountManager = lazy(() => import('./pages/AccountManager'))
 const TradeSummary = lazy(() => import('./pages/TradeSummary'))
 const Support = lazy(() => import('./pages/Support'))
 const Changelog = lazy(() => import('./pages/Changelog'))
+const DividendForecastEngine = lazy(() => import('./pages/DividendForecastEngine'))
 
 function PageLoading() {
   return (
@@ -40,7 +41,7 @@ export default function App() {
   const setUsdRate = useStore(s => s.setUsdRate)
   const syncWatchlistDividends = useStore(s => s.syncWatchlistDividends)
   const pathname = useLocation().pathname
-  const hideTabBar = ['/yield-grid', '/reports/2026-interim'].includes(pathname)
+  const hideTabBar = ['/yield-grid', '/reports/2026-interim', '/dividend-forecast'].includes(pathname)
   // PC 端这几页用更宽的容器以容纳多列布局
   const roomy = ['/discovery', '/watchlist'].includes(pathname)
 
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/matrix" element={<Matrix />} />
             <Route path="/yield-grid" element={<YieldGrid />} />
+            <Route path="/dividend-forecast" element={<DividendForecastEngine />} />
             <Route path="/reports/2026-interim" element={<InterimReport />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/settings" element={<Settings />} />
