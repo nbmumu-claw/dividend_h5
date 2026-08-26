@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendPayouts, type DividendPayoutRecord } from '../utils/dividendPayout'
 import { fetchDividendHistory, type DividendYearRecord } from '../utils/dividendHistory'
+import { YIELD_GRID_STOCKS } from '../data/yieldGridStocks'
 
 type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number }
 type ForecastRemote = { name: string; reports: ReportRow[]; latestShare: { TOTAL_SHARES: number; REPORT_DATE?: string; NOTICE_DATE?: string } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null }
@@ -14,6 +15,7 @@ const percent = (value: number) => `${(value * 100).toFixed(2)}%`
 const billion = (value: number) => `${(value / 1e8).toFixed(2)} 亿`
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
 const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+const forecastSectors = ['全部', ...new Set(YIELD_GRID_STOCKS.map(stock => stock.sector))]
 
 function BackIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.75 4.25 6 10l5.75 5.75" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> }
 function RefreshIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8.25A6 6 0 1 0 16 12M15.5 4.5v3.75h-3.75" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg> }
@@ -25,6 +27,7 @@ export default function DividendForecastEngine() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [matches, setMatches] = useState<SearchResult[]>([])
+  const [activeSector, setActiveSector] = useState('全部')
 
   const runFor = async (keyword: string) => {
     let code = keyword.trim()
@@ -72,6 +75,7 @@ export default function DividendForecastEngine() {
     <header className="forecast-heading"><p className="forecast-kicker">DIVIDEND FORECAST · 2026E</p><h1>分红预测引擎</h1><p>用中报利润、三年季节性、常规派息率和权益股本，生成可追溯的全年每股股息预测。</p></header>
     <form className="forecast-search" onSubmit={run}><label htmlFor="forecast-code">证券代码 / 名称</label><input id="forecast-code" value={query} onChange={event => setQuery(event.target.value)} maxLength={20} placeholder="输入 6 位代码或股票名称" /><button type="submit" disabled={loading}>{loading ? '正在拉取数据' : '查询并计算'}</button><div className="forecast-examples"><span>试试</span><button type="button" onClick={() => setQuery('000423')}>东阿阿胶</button><button type="button" onClick={() => setQuery('601318')}>中国平安</button><button type="button" onClick={() => setQuery('600941')}>中国移动</button><button type="button" onClick={() => setQuery('601728')}>中国电信</button></div></form>
     <div className="forecast-rule"><b>本页规则</b><span>26E 每股股息 = 26E 归母净利润 × 常规现金派息率 ÷ 预计权益股本；全年净利润以 26H1 ÷ 23–25 年 H1/全年利润中位数估算。缺少任一可审计输入即暂不覆盖。</span></div>
+    <section className="forecast-sector-picker"><div className="forecast-sector-tabs">{forecastSectors.map(sector => <button type="button" key={sector} className={activeSector === sector ? 'active' : ''} onClick={() => setActiveSector(sector)}>{sector}</button>)}</div>{activeSector === '全部' ? <p>选择一个板块，快速带入网格页标的。</p> : <div className="forecast-sector-stocks">{YIELD_GRID_STOCKS.filter(stock => stock.sector === activeSector).map(stock => <button type="button" key={stock.code} onClick={() => { setQuery(stock.code); void runFor(stock.code) }}><strong>{stock.name}</strong><span>{stock.code}</span></button>)}</div>}</section>
     {matches.length > 0 && <section className="forecast-search-results"><b>找到多个 A 股标的，请选择：</b><div>{matches.map(item => <button key={item.code} type="button" onClick={() => { setQuery(item.code); void runFor(item.code) }}><strong>{item.name}</strong><span>{item.code}</span></button>)}</div></section>}
     {error && <section className="forecast-error"><b>暂不覆盖</b><span>{error}</span></section>}
     {result && <>
