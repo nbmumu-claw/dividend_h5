@@ -536,3 +536,4 @@ body {
 .forecast-info-tip { display:flex; align-items:center; justify-content:center; }
 .forecast-info-tip > span small { display:block; line-height:1.55; }
 .forecast-info-tip > span { top:18px; }
+.forecast-payout-kpi > p::after { content:' · 点击 i 可切换'; color:#E85B3D; }
