@@ -5,9 +5,9 @@ import { fetchDividendPayouts, type DividendPayoutRecord } from '../utils/divide
 import { fetchDividendHistory, type DividendYearRecord } from '../utils/dividendHistory'
 
 type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number }
-type ForecastRemote = { name: string; reports: ReportRow[]; latestShare: { TOTAL_SHARES: number } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null }
+type ForecastRemote = { name: string; reports: ReportRow[]; latestShare: { TOTAL_SHARES: number; REPORT_DATE?: string; NOTICE_DATE?: string } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null }
 type Seasonality = { year: number; h1Profit: number; annualProfit: number; ratio: number }
-type ForecastResult = { code: string; name: string; annualDps: number; terminalDps: number; yieldRate: number | null; price: number | null; annualProfit: number; h1Profit: number; payout: number; payoutMedian: number; shares: number; interim: number; seasonality: Seasonality[]; payouts: DividendPayoutRecord[]; history: DividendYearRecord[]; interimExceedsModel: boolean }
+type ForecastResult = { code: string; name: string; annualDps: number; terminalDps: number; yieldRate: number | null; price: number | null; annualProfit: number; h1Profit: number; payout: number; payoutMedian: number; shares: number; shareSourceDate: string | null; interim: number; seasonality: Seasonality[]; payouts: DividendPayoutRecord[]; history: DividendYearRecord[]; interimExceedsModel: boolean }
 
 const gateway = 'https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice'
 const percent = (value: number) => `${(value * 100).toFixed(2)}%`
@@ -60,7 +60,7 @@ export default function DividendForecastEngine() {
       const annualProfit = h1Profit / median(seasonality.map(item => item.ratio))
       const shares = response.latestShare.TOTAL_SHARES, interim = response.interimDividend.PRETAX_BONUS_RMB / 10
       const annualDps = annualProfit * payout / shares, price = prices[code]?.price ?? null
-      setResult({ code, name: response.name || code, annualDps, terminalDps: Math.max(annualDps - interim, 0), yieldRate: price && price > 0 ? annualDps / price : null, price, annualProfit, h1Profit, payout, payoutMedian, shares, interim, seasonality, payouts: [...payouts].sort((a, b) => a.year - b.year), history: (history?.records ?? []).filter(item => item.year >= 2023 && item.year <= 2025).sort((a, b) => a.year - b.year), interimExceedsModel: interim > annualDps })
+      setResult({ code, name: response.name || code, annualDps, terminalDps: Math.max(annualDps - interim, 0), yieldRate: price && price > 0 ? annualDps / price : null, price, annualProfit, h1Profit, payout, payoutMedian, shares, shareSourceDate: response.latestShare.REPORT_DATE || response.latestShare.NOTICE_DATE || null, interim, seasonality, payouts: [...payouts].sort((a, b) => a.year - b.year), history: (history?.records ?? []).filter(item => item.year >= 2023 && item.year <= 2025).sort((a, b) => a.year - b.year), interimExceedsModel: interim > annualDps })
     } catch (reason) { setError(reason instanceof Error ? reason.message : '数据请求失败，请稍后重试。') } finally { setLoading(false) }
   }
 
