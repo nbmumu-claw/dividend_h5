@@ -5,6 +5,7 @@ type Engine = { name: string; h1: number; ratios: number[]; payout: number; shar
 const DATA: Record<string, Engine> = {
   '601318': { name: '中国平安', h1: 925.85, ratios: [.8153, .5894, .5049], payout: .3647, shares: 18.107641995, interim: .98, date: '2026-08-21', dividends: [2.43, 2.55, 2.70] },
   '601728': { name: '中国电信', h1: 195.88, ratios: [.664, .661, .694], payout: .75, shares: 91.507, interim: .1606, date: '2026-08-21', dividends: [.213, .2598, .272] },
+  '000423': { name: '东阿阿胶', h1: 8.6038, ratios: [.4615, .4742, .4615], payout: 1, shares: .639826824, interim: 1.344811, date: '2026-08-25', dividends: [1.2, 2.5, 2.7] },
 }
 const pct = (n: number) => `${(n * 100).toFixed(2)}%`
 
