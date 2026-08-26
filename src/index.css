@@ -535,3 +535,4 @@ body {
 .forecast-payout-switch { display:grid; gap:5px; margin-top:8px; padding-top:8px; border-top:1px solid #EDF0F3; }.forecast-payout-switch button { width:100%; padding:6px 8px; border:1px solid #E0E6ED; border-radius:5px; background:#fff; color:#657287; font-size:11px; text-align:left; }.forecast-payout-switch button:hover,.forecast-payout-switch button.active { border-color:#F2B4A5; background:#FFF5F1; color:#E85B3D; font-weight:700; }
 .forecast-info-tip { display:flex; align-items:center; justify-content:center; }
 .forecast-info-tip > span small { display:block; line-height:1.55; }
+.forecast-info-tip > span { top:18px; }
