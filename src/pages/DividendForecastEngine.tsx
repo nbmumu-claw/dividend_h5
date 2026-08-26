@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchStockPrices } from '../utils/api'
+import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendPayouts, type DividendPayoutRecord } from '../utils/dividendPayout'
 import { fetchDividendHistory, type DividendYearRecord } from '../utils/dividendHistory'
 
@@ -23,13 +23,19 @@ export default function DividendForecastEngine() {
   const [result, setResult] = useState<ForecastResult | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [matches, setMatches] = useState<SearchResult[]>([])
 
-  const run = async (event?: FormEvent) => {
-    event?.preventDefault()
-    const code = query.trim()
-    if (!/^\d{6}$/.test(code)) { setError('请输入 6 位 A 股代码，例如 000423。'); return }
-    setLoading(true); setError(''); setResult(null)
+  const runFor = async (keyword: string) => {
+    let code = keyword.trim()
+    if (!code) { setError('请输入 6 位 A 股代码或股票名称。'); return }
+    setLoading(true); setError(''); setResult(null); setMatches([])
     try {
+      if (!/^\d{6}$/.test(code)) {
+        const candidates = (await searchStocks(code)).filter(item => !item.isHK && !item.isUS && /^\d{6}$/.test(item.code))
+        if (candidates.length === 0) throw new Error(`未找到“${code}”对应的 A 股标的。`)
+        if (candidates.length > 1) { setMatches(candidates.slice(0, 8)); return }
+        code = candidates[0].code
+      }
       const [response, payouts, prices, history] = await Promise.all([
         fetch(`${gateway}?action=forecastData&code=${code}`).then(async request => {
           if (!request.ok) throw new Error(`财报数据请求失败（${request.status}）`)
@@ -56,12 +62,15 @@ export default function DividendForecastEngine() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : '数据请求失败，请稍后重试。') } finally { setLoading(false) }
   }
 
+  const run = async (event?: FormEvent) => { event?.preventDefault(); await runFor(query) }
+
   const maxDps = result ? Math.max(result.annualDps, ...result.history.map(item => item.perShare), .01) : 1
   return <main className="forecast-page"><div className="forecast-shell">
     <div className="forecast-toolbar"><button className="forecast-back" onClick={() => navigate('/yield-grid')}><BackIcon /> 返回网格页</button><span className="forecast-live"><i /> 实时数据</span></div>
     <header className="forecast-heading"><p className="forecast-kicker">DIVIDEND FORECAST · 2026E</p><h1>分红预测引擎</h1><p>用中报利润、三年季节性、常规派息率和权益股本，生成可追溯的全年每股股息预测。</p></header>
-    <form className="forecast-search" onSubmit={run}><label htmlFor="forecast-code">证券代码</label><input id="forecast-code" value={query} onChange={event => setQuery(event.target.value)} inputMode="numeric" maxLength={6} placeholder="输入 6 位 A 股代码" /><button type="submit" disabled={loading}>{loading ? '正在拉取数据' : '查询并计算'}</button><div className="forecast-examples"><span>试试</span><button type="button" onClick={() => setQuery('000423')}>000423</button><button type="button" onClick={() => setQuery('601318')}>601318</button><button type="button" onClick={() => setQuery('600900')}>600900</button></div></form>
+    <form className="forecast-search" onSubmit={run}><label htmlFor="forecast-code">证券代码 / 名称</label><input id="forecast-code" value={query} onChange={event => setQuery(event.target.value)} maxLength={20} placeholder="输入 6 位代码或股票名称" /><button type="submit" disabled={loading}>{loading ? '正在拉取数据' : '查询并计算'}</button><div className="forecast-examples"><span>试试</span><button type="button" onClick={() => setQuery('000423')}>000423</button><button type="button" onClick={() => setQuery('601318')}>601318</button><button type="button" onClick={() => setQuery('600941')}>600941</button><button type="button" onClick={() => setQuery('中国移动')}>中国移动</button></div></form>
     <div className="forecast-rule"><b>本页规则</b><span>26E 每股股息 = 26E 归母净利润 × 常规现金派息率 ÷ 预计权益股本；全年净利润以 26H1 ÷ 23–25 年 H1/全年利润中位数估算。缺少任一可审计输入即暂不覆盖。</span></div>
+    {matches.length > 0 && <section className="forecast-search-results"><b>找到多个 A 股标的，请选择：</b><div>{matches.map(item => <button key={item.code} type="button" onClick={() => { setQuery(item.code); void runFor(item.code) }}><strong>{item.name}</strong><span>{item.code}</span></button>)}</div></section>}
     {error && <section className="forecast-error"><b>暂不覆盖</b><span>{error}</span></section>}
     {result && <>
       <section className="forecast-result-head"><div><div className="forecast-security"><span>{result.code}</span><h2>{result.name}</h2><em>中报锚定 · B级</em></div><p>数据按查询时实时拉取；每股预测不随盘中行情变动，预期股息率随现价更新。</p></div><button className="forecast-refresh" onClick={() => run()} disabled={loading}><RefreshIcon /> 刷新数据</button></section>
