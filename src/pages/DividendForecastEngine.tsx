@@ -1,32 +1,76 @@
-import { useState } from 'react'
+import { FormEvent, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices } from '../utils/api'
-import { fetchDividendPayouts } from '../utils/dividendPayout'
+import { fetchDividendPayouts, type DividendPayoutRecord } from '../utils/dividendPayout'
 import { fetchDividendHistory, type DividendYearRecord } from '../utils/dividendHistory'
 
-type Row = { REPORTDATE: string; PARENT_NETPROFIT: number }
-type Remote = { name: string; reports: Row[]; latestShare: { TOTAL_SHARES: number } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null }
+type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number }
+type ForecastRemote = { name: string; reports: ReportRow[]; latestShare: { TOTAL_SHARES: number } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null }
+type Seasonality = { year: number; h1Profit: number; annualProfit: number; ratio: number }
+type ForecastResult = { code: string; name: string; annualDps: number; terminalDps: number; yieldRate: number | null; price: number | null; annualProfit: number; h1Profit: number; payout: number; shares: number; interim: number; seasonality: Seasonality[]; payouts: DividendPayoutRecord[]; history: DividendYearRecord[]; interimExceedsModel: boolean }
+
 const gateway = 'https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice'
-const pct = (n: number) => `${(n * 100).toFixed(2)}%`
+const percent = (value: number) => `${(value * 100).toFixed(2)}%`
+const billion = (value: number) => `${(value / 1e8).toFixed(2)} 亿`
+const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
+
+function BackIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11.75 4.25 6 10l5.75 5.75" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> }
+function RefreshIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8.25A6 6 0 1 0 16 12M15.5 4.5v3.75h-3.75" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg> }
 
 export default function DividendForecastEngine() {
-  const [query, setQuery] = useState('000423'), [result, setResult] = useState<{ name: string; dps: number; yield: number | null; profit: number; payout: number; shares: number; interim: number; ratios: number[]; history: DividendYearRecord[] } | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false)
-  const run = async () => {
-    const code = query.trim(); if (!/^\d{6}$/.test(code)) { setError('请输入 6 位 A 股代码'); return }
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('000423')
+  const [result, setResult] = useState<ForecastResult | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const run = async (event?: FormEvent) => {
+    event?.preventDefault()
+    const code = query.trim()
+    if (!/^\d{6}$/.test(code)) { setError('请输入 6 位 A 股代码，例如 000423。'); return }
     setLoading(true); setError(''); setResult(null)
     try {
-      const [remote, payouts, prices, history] = await Promise.all([fetch(`${gateway}?action=forecastData&code=${code}`).then(r => r.json() as Promise<Remote>), fetchDividendPayouts(code), fetchStockPrices([{ code }], true), fetchDividendHistory(code)])
-      const get = (date: string) => remote.reports.find(r => r.REPORTDATE?.startsWith(date))?.PARENT_NETPROFIT
-      const h1 = ['2026-06-30', '2025-06-30', '2024-06-30', '2023-06-30'].map(get)
-      const annual = ['2025-12-31', '2024-12-31', '2023-12-31'].map(get)
-      if (h1.some(v => !v) || annual.some(v => !v) || !remote.latestShare || !remote.interimDividend || payouts.length < 3) throw new Error('缺少中报、年报、股本、中期息或三年派息率')
-      const ratios = [0, 1, 2].map(i => (h1[i + 1]! / annual[i]!)).sort((a, b) => a - b)
-      const payout = payouts.map(v => v.payoutRatio / 100).sort((a, b) => a - b)[1]
-      const profit = h1[0]! / ratios[1], shares = remote.latestShare.TOTAL_SHARES, interim = remote.interimDividend.PRETAX_BONUS_RMB / 10
-      const dps = Math.max(interim, profit * payout / shares)
-      const price = prices[code]?.price ?? null
-      setResult({ name: remote.name, dps, yield: price ? dps / price : null, profit, payout, shares: shares / 1e8, interim, ratios, history: history?.records ?? [] })
-    } catch (e) { setError(e instanceof Error ? e.message : '查询失败') } finally { setLoading(false) }
+      const [response, payouts, prices, history] = await Promise.all([
+        fetch(`${gateway}?action=forecastData&code=${code}`).then(async request => {
+          if (!request.ok) throw new Error(`财报数据请求失败（${request.status}）`)
+          return request.json() as Promise<ForecastRemote>
+        }),
+        fetchDividendPayouts(code), fetchStockPrices([{ code }], true), fetchDividendHistory(code),
+      ])
+      const report = (date: string) => response.reports.find(item => item.REPORTDATE.startsWith(date))?.PARENT_NETPROFIT
+      const h1Profit = report('2026-06-30')
+      const seasonality: Seasonality[] = [2025, 2024, 2023].map(year => {
+        const h1 = report(`${year}-06-30`), annual = report(`${year}-12-31`)
+        if (!h1 || !annual) throw new Error(`缺少 ${year} 年中报或年报归母净利润。`)
+        return { year, h1Profit: h1, annualProfit: annual, ratio: h1 / annual }
+      })
+      if (!h1Profit) throw new Error('尚未取得 2026 年中报归母净利润。')
+      if (!response.latestShare?.TOTAL_SHARES) throw new Error('尚未取得最新权益分派股本。')
+      if (!response.interimDividend?.PRETAX_BONUS_RMB) throw new Error('尚未取得已公告中期每股股息。')
+      if (payouts.length < 3) throw new Error('尚未取得连续三年的常规现金派息率。')
+      const payout = median(payouts.map(item => item.payoutRatio / 100))
+      const annualProfit = h1Profit / median(seasonality.map(item => item.ratio))
+      const shares = response.latestShare.TOTAL_SHARES, interim = response.interimDividend.PRETAX_BONUS_RMB / 10
+      const annualDps = annualProfit * payout / shares, price = prices[code]?.price ?? null
+      setResult({ code, name: response.name || code, annualDps, terminalDps: Math.max(annualDps - interim, 0), yieldRate: price && price > 0 ? annualDps / price : null, price, annualProfit, h1Profit, payout, shares, interim, seasonality, payouts: [...payouts].sort((a, b) => a.year - b.year), history: (history?.records ?? []).filter(item => item.year >= 2023 && item.year <= 2025).sort((a, b) => a.year - b.year), interimExceedsModel: interim > annualDps })
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '数据请求失败，请稍后重试。') } finally { setLoading(false) }
   }
-  const max = result ? Math.max(result.dps, ...result.history.map(item => item.perShare)) : 1
-  return <main className="forecast-page"><header><small>DIVIDEND FORECAST ENGINE · LIVE</small><h1>分红预测引擎</h1><p>实时调用财报、权益股本、派息率、历史分红与行情接口。</p></header><section className="forecast-search"><input value={query} onChange={e => setQuery(e.target.value)} /><button onClick={run}>{loading ? '查询中…' : '查询'}</button></section>{error && <section className="forecast-warning">{error}</section>}{result && <><section><h2>{result.name} · {query}</h2><div className="forecast-kpis"><div><small>26E 每股股息</small><b>{result.dps.toFixed(3)} 元</b></div><div><small>26E 预期股息率</small><b>{result.yield ? pct(result.yield) : '—'}</b></div><div><small>全年归母净利</small><b>{(result.profit / 1e8).toFixed(2)} 亿元</b></div><div><small>中期已公告股息</small><b>{result.interim.toFixed(3)} 元</b></div></div></section><section><h2>关键输入</h2><div className="forecast-inputs"><div><b>利润季节性</b><span>{result.ratios.map(pct).join(' / ')}（中位数）</span></div><div><b>常规现金派息率</b><span>{pct(result.payout)}</span></div><div><b>权益分派股本</b><span>{result.shares.toFixed(3)} 亿股</span></div><div><b>下半年修正</b><span>1.00（无披露证据调整）</span></div></div></section><section><h2>计算路径</h2><div className="forecast-flow"><span>26H1 利润</span><i>→</i><span>历史季节性推全年</span><i>→</i><span>× 常规派息率</span><i>→</i><span>÷ 权益股本</span><i>→</i><span>26E 每股股息</span></div></section><section><h2>历史实际股息对比</h2><div className="forecast-bars">{[...result.history.filter(item => item.year >= 2023 && item.year <= 2025).sort((a,b)=>a.year-b.year), { year: 2026, perShare: result.dps }].map(item => <div key={item.year}><b style={{ height: `${item.perShare / max * 140}px` }}>{item.perShare.toFixed(3)}</b><span>{item.year === 2026 ? '2026E' : item.year}</span></div>)}</div></section></>}</main>
+
+  const maxDps = result ? Math.max(result.annualDps, ...result.history.map(item => item.perShare), .01) : 1
+  return <main className="forecast-page"><div className="forecast-shell">
+    <div className="forecast-toolbar"><button className="forecast-back" onClick={() => navigate('/yield-grid')}><BackIcon /> 返回网格页</button><span className="forecast-live"><i /> 实时数据</span></div>
+    <header className="forecast-heading"><p className="forecast-kicker">DIVIDEND FORECAST · 2026E</p><h1>分红预测引擎</h1><p>用中报利润、三年季节性、常规派息率和权益股本，生成可追溯的全年每股股息预测。</p></header>
+    <form className="forecast-search" onSubmit={run}><label htmlFor="forecast-code">证券代码</label><input id="forecast-code" value={query} onChange={event => setQuery(event.target.value)} inputMode="numeric" maxLength={6} placeholder="输入 6 位 A 股代码" /><button type="submit" disabled={loading}>{loading ? '正在拉取数据' : '查询并计算'}</button><div className="forecast-examples"><span>试试</span><button type="button" onClick={() => setQuery('000423')}>000423</button><button type="button" onClick={() => setQuery('601318')}>601318</button><button type="button" onClick={() => setQuery('600900')}>600900</button></div></form>
+    <div className="forecast-rule"><b>本页规则</b><span>26E 每股股息 = 26E 归母净利润 × 常规现金派息率 ÷ 预计权益股本；全年净利润以 26H1 ÷ 23–25 年 H1/全年利润中位数估算。缺少任一可审计输入即暂不覆盖。</span></div>
+    {error && <section className="forecast-error"><b>暂不覆盖</b><span>{error}</span></section>}
+    {result && <>
+      <section className="forecast-result-head"><div><div className="forecast-security"><span>{result.code}</span><h2>{result.name}</h2><em>中报锚定 · B级</em></div><p>数据按查询时实时拉取；每股预测不随盘中行情变动，预期股息率随现价更新。</p></div><button className="forecast-refresh" onClick={() => run()} disabled={loading}><RefreshIcon /> 刷新数据</button></section>
+      <section className="forecast-hero-grid" aria-label="预测结果"><article className="forecast-main-kpi"><span>26E 每股股息</span><strong>{result.annualDps.toFixed(3)}<small>元</small></strong><p>预计末期：{result.terminalDps.toFixed(3)} 元</p></article><article><span>26E 预期股息率</span><strong className="forecast-accent">{result.yieldRate === null ? '—' : percent(result.yieldRate)}</strong><p>现价：{result.price === null ? '未取得' : `${result.price.toFixed(2)} 元`}</p></article><article><span>全年归母净利润</span><strong>{billion(result.annualProfit)}</strong><p>26H1：{billion(result.h1Profit)}</p></article><article><span>常规现金派息率</span><strong>{percent(result.payout)}</strong><p>23–25 年中位数</p></article></section>
+      {result.interimExceedsModel && <section className="forecast-alert"><b>数据校验提示</b><span>模型推算的全年股息低于已公告中期息，结果未被“max”覆盖；请等待年末利润或分红方案更新后再判断。</span></section>}
+      <section className="forecast-desktop-data"><div className="forecast-section-title"><div><h2>预测输入与计算过程</h2><p>所有展示值均为本次查询的原始输入或其直接计算结果。</p></div><span>单位：元 / 股 / 亿元</span></div><div className="forecast-data-layout"><div className="forecast-matrix"><div className="forecast-matrix-head"><span>利润季节性</span><span>H1 归母净利</span><span>全年归母净利</span><span>H1 / 全年</span></div>{result.seasonality.map(item => <div className="forecast-matrix-row" key={item.year}><b>{item.year}</b><span>{billion(item.h1Profit)}</span><span>{billion(item.annualProfit)}</span><strong>{percent(item.ratio)}</strong></div>)}<div className="forecast-matrix-row forecast-matrix-result"><b>中位数</b><span>—</span><span>—</span><strong>{percent(median(result.seasonality.map(item => item.ratio)))}</strong></div></div><div className="forecast-input-list"><div><span>已公告中期股息</span><b>{result.interim.toFixed(3)} 元/股</b></div><div><span>权益分派股本</span><b>{(result.shares / 1e8).toFixed(3)} 亿股</b></div><div><span>下半年修正系数</span><b>1.00 <small>无披露依据调整</small></b></div><div><span>预测末期股息</span><b>{result.terminalDps.toFixed(3)} 元/股</b></div></div></div><div className="forecast-equation"><span>26H1 利润</span><i>÷</i><span>季节性中位数</span><i>×</i><span>常规派息率</span><i>÷</i><span>权益股本</span><i>=</i><strong>{result.annualDps.toFixed(3)} 元/股</strong></div></section>
+      <section className="forecast-desktop-data forecast-history-panel"><div className="forecast-section-title"><div><h2>历史实际股息与派息率</h2><p>股息为已公告/实施口径；派息率用于取中位数，不用特别分红做外推。</p></div></div><div className="forecast-history-grid"><div className="forecast-bar-chart">{[...result.history, { year: 2026, perShare: result.annualDps }].map(item => <div className="forecast-bar-item" key={item.year}><span className="forecast-bar-value">{item.perShare.toFixed(3)}</span><div className={`forecast-bar ${item.year === 2026 ? 'is-forecast' : ''}`} style={{ height: `${Math.max(12, item.perShare / maxDps * 134)}px` }} /><b>{item.year === 2026 ? '2026E' : item.year}</b></div>)}</div><div className="forecast-payout-table"><div><span>年度</span><span>常规现金派息率</span></div>{result.payouts.map(item => <div key={item.year}><b>{item.year}</b><strong>{percent(item.payoutRatio / 100)}</strong></div>)}<div className="forecast-payout-median"><b>中位数</b><strong>{percent(result.payout)}</strong></div></div></div></section>
+      <div className="forecast-mobile-data"><details open><summary>预测输入与计算过程 <span>展开</span></summary><div className="forecast-mobile-detail"><p>26H1 归母净利 <b>{billion(result.h1Profit)}</b></p><p>季节性中位数 <b>{percent(median(result.seasonality.map(item => item.ratio)))}</b></p><p>常规现金派息率 <b>{percent(result.payout)}</b></p><p>权益分派股本 <b>{(result.shares / 1e8).toFixed(3)} 亿股</b></p><p>已公告中期股息 <b>{result.interim.toFixed(3)} 元/股</b></p><p>预计末期股息 <b>{result.terminalDps.toFixed(3)} 元/股</b></p></div></details><details><summary>23–25 年利润季节性 <span>展开</span></summary><div className="forecast-mobile-detail">{result.seasonality.map(item => <p key={item.year}>{item.year} H1/全年 <b>{percent(item.ratio)}</b></p>)}</div></details><details><summary>历史股息与派息率 <span>展开</span></summary><div className="forecast-mobile-detail">{result.history.map(item => <p key={item.year}>{item.year} 实际股息 <b>{item.perShare.toFixed(3)} 元/股</b></p>)}{result.payouts.map(item => <p key={`payout-${item.year}`}>{item.year} 派息率 <b>{percent(item.payoutRatio / 100)}</b></p>)}</div></details></div>
+    </>}
+    {!result && !error && !loading && <section className="forecast-empty"><b>输入代码，开始一次可追溯的预测</b><span>会同时核验中报利润、近三年季节性、派息率、股本、中期息和实时价格。</span></section>}
+  </div></main>
 }
