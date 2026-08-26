@@ -6,7 +6,7 @@ import { fetchDividendHistory, type DividendYearRecord } from '../utils/dividend
 import { YIELD_GRID_STOCKS } from '../data/yieldGridStocks'
 
 type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number }
-type ForecastRemote = { name: string; reports: ReportRow[]; latestShare: { TOTAL_SHARES: number; REPORT_DATE?: string; NOTICE_DATE?: string } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null }
+type ForecastRemote = { name: string; reports: ReportRow[]; latestShare: { TOTAL_SHARES: number; REPORT_DATE?: string; NOTICE_DATE?: string } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null; priorInterimDividend: { PRETAX_BONUS_RMB: number } | null }
 type Seasonality = { year: number; h1Profit: number; annualProfit: number; ratio: number }
 type ForecastResult = { code: string; name: string; annualDps: number; terminalDps: number | null; yieldRate: number | null; price: number | null; annualProfit: number; h1Profit: number; payout: number; payoutAverage: number; payoutMedian: number; payoutLatest: number; payoutMethod: 'average' | 'median' | 'latest'; shares: number; shareSourceDate: string | null; interim: number | null; seasonality: Seasonality[]; payouts: DividendPayoutRecord[]; history: DividendYearRecord[]; interimExceedsModel: boolean }
 
@@ -67,7 +67,12 @@ export default function DividendForecastEngine() {
         : Math.max(...payoutRates) > 1 || Math.max(...payoutRates) - Math.min(...payoutRates) > .3 ? 'median' : 'average'
       const payout = payoutMethod === 'latest' ? payoutLatest : payoutMethod === 'median' ? payoutMedian : payoutAverage
       const shares = response.latestShare.TOTAL_SHARES, interim = response.interimDividend?.PRETAX_BONUS_RMB ? response.interimDividend.PRETAX_BONUS_RMB / 10 : null
-      const annualDps = annualProfit * payout / shares, price = prices[code]?.price ?? null
+      const profitDps = annualProfit * payout / shares
+      const priorInterim = response.priorInterimDividend?.PRETAX_BONUS_RMB ? response.priorInterimDividend.PRETAX_BONUS_RMB / 10 : null
+      const priorAnnualDps = history?.records.find(item => item.year === 2025)?.perShare ?? null
+      const interimAnchor = interim !== null && priorInterim !== null && priorAnnualDps !== null ? priorAnnualDps * interim / priorInterim : null
+      const annualDps = payoutMethod === 'latest' && interimAnchor !== null ? Math.min(profitDps, interimAnchor) : profitDps
+      const price = prices[code]?.price ?? null
       setResult({ code, name: response.name || code, annualDps, terminalDps: interim === null ? null : Math.max(annualDps - interim, 0), yieldRate: price && price > 0 ? annualDps / price : null, price, annualProfit, h1Profit, payout, payoutAverage, payoutMedian, payoutLatest, payoutMethod, shares, shareSourceDate: response.latestShare.REPORT_DATE || response.latestShare.NOTICE_DATE || null, interim, seasonality, payouts: [...payouts].sort((a, b) => a.year - b.year), history: (history?.records ?? []).filter(item => item.year >= 2023 && item.year <= 2025).sort((a, b) => a.year - b.year), interimExceedsModel: interim !== null && interim > annualDps })
     } catch (reason) { setError(reason instanceof Error ? reason.message : '数据请求失败，请稍后重试。') } finally { setLoading(false) }
   }
