@@ -539,6 +539,6 @@ body {
 .forecast-payout-kpi > p::after { content:' · 点击 i 看详情'; color:#E85B3D; }
 .forecast-payout-switch button.active { border-color:#E85B3D; background:#E85B3D; box-shadow:0 3px 8px rgba(232,91,61,.22); color:#fff; }.forecast-payout-switch button.active::after { content:'✓ 当前选择'; float:right; font-size:10px; }
 .forecast-info-tip:hover > span,.forecast-info-tip:focus > span { display:none; }.forecast-info-tip.is-open > span { display:block; }
-.forecast-heading .forecast-risk { margin-top:12px; white-space:nowrap; font-size:11px; letter-spacing:-.15px; }
-@media (max-width:760px) { .forecast-heading .forecast-risk { white-space:normal; font-size:12px; } }
+.forecast-heading .forecast-risk { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:start; margin-top:12px; font-size:11px; letter-spacing:-.15px; }.forecast-heading .forecast-risk span { min-width:0; overflow-wrap:anywhere; }
+@media (max-width:760px) { .forecast-heading .forecast-risk { grid-template-columns:1fr; font-size:12px; } }
 .forecast-payout-quick-switch { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; margin-top:10px; }.forecast-payout-quick-switch button { min-width:0; padding:5px 3px; border:1px solid #DEE5EC; border-radius:5px; background:#fff; color:#748196; font-size:10px; white-space:nowrap; }.forecast-payout-quick-switch button:hover { border-color:#F3B2A2; color:#E85B3D; }.forecast-payout-quick-switch button.active { border-color:#E85B3D; background:#FFF0EB; color:#E85B3D; font-weight:700; }
