@@ -28,7 +28,7 @@ const commitments = {
 
 function getDividendCommitment(code, year) {
   const commitment = commitments[code]
-  if (!commitment || year < commitment.startYear || year > commitment.endYear) return null
+  if (!commitment || year < commitment.startYear || (commitment.endYear && year > commitment.endYear)) return null
   return commitment
 }
 

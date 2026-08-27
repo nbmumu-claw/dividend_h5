@@ -1,6 +1,19 @@
 const { ok, badRequest, upstreamError } = require('../utils/response')
 const { getDividendCommitment } = require('../data/dividendCommitments')
+const db = require('../utils/db')
 const EASTMONEY_URL = 'https://datacenter-web.eastmoney.com/api/data/v1/get'
+const COMMITMENT_COLLECTION = 'dividendCommitments'
+
+async function loadDividendCommitment(code, year) {
+  try {
+    const result = await db.collection(COMMITMENT_COLLECTION).where({ code }).limit(1).get()
+    const commitment = Array.isArray(result.data) ? result.data[0] : result.data
+    if (commitment?.code === code && year >= commitment.startYear && (!commitment.endYear || year <= commitment.endYear)) return commitment
+  } catch (error) {
+    console.warn(`[forecastData] 读取分红承诺 ${code} 失败:`, error.message)
+  }
+  return getDividendCommitment(code, year)
+}
 
 module.exports = async function forecastData(params) {
   const code = String(params.code || '')
@@ -17,6 +30,7 @@ module.exports = async function forecastData(params) {
     const latestShare = dividends.find(row => Number(row.TOTAL_SHARES) > 0) || null
     const interim = dividends.find(row => String(row.REPORT_DATE || '').startsWith('2026-06-30')) || null
     const priorInterim = dividends.find(row => String(row.REPORT_DATE || '').startsWith('2025-06-30')) || null
-    return ok(JSON.stringify({ code, name: reports[0]?.SECURITY_NAME_ABBR || code, reports, latestShare, interimDividend: interim, priorInterimDividend: priorInterim, dividendCommitment: getDividendCommitment(code, 2026) }), { 'Content-Type': 'application/json; charset=utf-8' })
+    const dividendCommitment = await loadDividendCommitment(code, 2026)
+    return ok(JSON.stringify({ code, name: reports[0]?.SECURITY_NAME_ABBR || code, reports, latestShare, interimDividend: interim, priorInterimDividend: priorInterim, dividendCommitment }), { 'Content-Type': 'application/json; charset=utf-8' })
   } catch (error) { return upstreamError(error.message) }
 }
