@@ -796,6 +796,14 @@ export default function YieldGrid() {
               <span className="yg-reportbtn-short">中报</span>
               <span className="yg-reportbtn-new">NEW</span>
             </button>
+            <a className="yg-reportbtn yg-forecastbtn" href="https://www.manmanbianfu.top/dividend-forecast">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                <path d="M4 18.5h16M6.5 16V10m5 6V5m5 11V8" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="m15.5 5 2-2 2 2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="yg-forecastbtn-full">分红预测</span>
+              <span className="yg-forecastbtn-short">预测</span>
+            </a>
             <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
           </div>
         </div>
@@ -1479,6 +1487,9 @@ const CSS = `
 .yg-page .yg-reportbtn svg { width: 14px; height: 14px; }
 .yg-page .yg-reportbtn:active { background: #ffedd5; }
 .yg-page .yg-reportbtn-short { display: none; }
+.yg-page .yg-forecastbtn { border-color: #f2c6bb; background: #fff8f6; color: #d8563b; text-decoration: none; }
+.yg-page .yg-forecastbtn:active { background: #ffede8; }
+.yg-page .yg-forecastbtn-short { display: none; }
 .yg-page .yg-reportbtn-new { position: absolute; top: -7px; right: -11px; padding: 1px 4px; border: 1px solid #fff;
   border-radius: 999px; background: #dc2626; color: #fff; font-size: 8px; font-weight: 700; line-height: 1.15; letter-spacing: .2px; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
@@ -1767,6 +1778,8 @@ const CSS = `
   .yg-page .yg-reportbtn { padding-inline: 8px; }
   .yg-page .yg-reportbtn-full { display: none; }
   .yg-page .yg-reportbtn-short { display: inline; }
+  .yg-page .yg-forecastbtn-full { display: none; }
+  .yg-page .yg-forecastbtn-short { display: inline; }
   .boll-filter-grid { gap: 3px; }
   .boll-filter-grid button { font-size: 11px; }
 }
