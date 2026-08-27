@@ -461,7 +461,7 @@ export default function DividendForecastEngine() {
                         <span>代码</span>
                         <span>有效期</span>
                         <span>承诺内容</span>
-                        <span>处理</span>
+                        <span>具体承诺</span>
                       </div>
                       {items.map((item) => {
                         const stock = YIELD_GRID_STOCKS.find(
@@ -492,7 +492,7 @@ export default function DividendForecastEngine() {
                               {item.startYear}–{item.endYear}
                             </span>
                             <b>{rule || item.basis || "查看公告"}</b>
-                            <em>{eligible ? "进入模型" : item.basis || "口径留档"}</em>
+                            <em>{commitmentRule(item)}</em>
                           </a>
                         );
                       })}
