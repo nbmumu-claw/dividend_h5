@@ -20,6 +20,7 @@ const HANDLERS = {
   dividendHistory: './handlers/dividendHistory',
   dividendPayout: './handlers/dividendPayout',
   forecastData: './handlers/forecastData',
+  dividendCommitmentSummary: './handlers/dividendCommitmentSummary',
   search: './handlers/search',
   weeklyBoll: './handlers/weeklyBoll',
   periodBoll: './handlers/periodBoll',

@@ -8,6 +8,7 @@ import { YIELD_GRID_STOCKS } from '../data/yieldGridStocks'
 type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number }
 type DividendCommitment = { code: string; startYear: number; endYear: number; minPayoutRatio?: number; minDps?: number; minCashAmount?: number; modelEligible?: boolean; basis?: string; includesInterim: boolean; conditional: boolean; conditions: string[]; announcementDate: string; sourceUrl: string; sourceName: string }
 type ForecastRemote = { name: string; reports: ReportRow[]; latestShare: { TOTAL_SHARES: number; REPORT_DATE?: string; NOTICE_DATE?: string } | null; interimDividend: { PRETAX_BONUS_RMB: number } | null; priorInterimDividend: { PRETAX_BONUS_RMB: number } | null; dividendCommitment: DividendCommitment | null }
+type CommitmentSummaryRemote = { year: number; commitments: DividendCommitment[] }
 type Seasonality = { year: number; h1Profit: number; annualProfit: number; ratio: number }
 type PayoutMethod = 'average' | 'median' | 'latest'
 type ForecastResult = { code: string; name: string; annualDps: number; terminalDps: number | null; yieldRate: number | null; price: number | null; annualProfit: number; h1Profit: number; payout: number; effectivePayout: number; appliedPayout: number; payoutAverage: number; payoutMedian: number; payoutLatest: number; payoutMethod: PayoutMethod; systemPayoutMethod: PayoutMethod; shares: number; shareSourceDate: string | null; interim: number | null; priorInterim: number | null; priorAnnualDps: number | null; profitDps: number; interimAnchor: number | null; usesInterimAnchor: boolean; commitment: DividendCommitment | null; policyDpsFloor: number | null; policyApplied: boolean; seasonality: Seasonality[]; payouts: DividendPayoutRecord[]; history: DividendYearRecord[]; interimExceedsModel: boolean }
@@ -43,6 +44,7 @@ export default function DividendForecastEngine() {
   const [activeSector, setActiveSector] = useState('全部')
   const [payoutChoice, setPayoutChoice] = useState<'auto' | PayoutMethod>('auto')
   const [payoutTipOpen, setPayoutTipOpen] = useState(false)
+  const [commitments, setCommitments] = useState<DividendCommitment[]>([])
 
   const runFor = async (keyword: string) => {
     let code = keyword.trim()
@@ -108,7 +110,13 @@ export default function DividendForecastEngine() {
     })
   }
 
-  useEffect(() => { void runFor('600941') }, [])
+  useEffect(() => {
+    void runFor('600941')
+    void fetch(`${gateway}?action=dividendCommitmentSummary`)
+      .then(request => request.ok ? request.json() as Promise<CommitmentSummaryRemote> : Promise.reject(new Error('承诺汇总请求失败')))
+      .then(response => setCommitments(response.commitments))
+      .catch(() => setCommitments([]))
+  }, [])
 
   const maxDps = result ? Math.max(result.annualDps, ...result.history.map(item => item.perShare), .01) : 1
   return <main className="forecast-page"><div className="forecast-shell">
@@ -116,6 +124,7 @@ export default function DividendForecastEngine() {
     <header className="forecast-heading"><p className="forecast-kicker">DIVIDEND FORECAST · 2026E</p><h1>分红预测引擎</h1><p>用中报利润、三年季节性、常规派息率和权益股本，生成可追溯的全年每股股息预测。</p><section className="forecast-risk"><b>⚠️ 风险提示</b><span>本页为基于已披露财报、历史分红与中期息的模型估算，不代表公司分红承诺。利润、派息率、股本及分红方案均可能变化；股价波动也会改变预期股息率。仅供研究参考，不构成任何投资建议。</span></section></header>
     <form className="forecast-search" onSubmit={run}><label htmlFor="forecast-code">证券代码 / 名称</label><input id="forecast-code" value={query} onChange={event => setQuery(event.target.value)} maxLength={20} placeholder="输入 6 位代码或股票名称" /><button type="submit" disabled={loading}>{loading ? '正在拉取数据' : '查询并计算'}</button><div className="forecast-examples"><span>试试</span><button type="button" onClick={() => setQuery('000423')}>东阿阿胶</button><button type="button" onClick={() => setQuery('601318')}>中国平安</button><button type="button" onClick={() => setQuery('600941')}>中国移动</button><button type="button" onClick={() => setQuery('601728')}>中国电信</button></div></form>
     <div className="forecast-rule"><b>本页规则</b><span>以利润模型、中期息同比锚定和有效期内的量化分红承诺三条路径交叉校验，取全年每股股息较高的可审计下限；缺少任一核心输入即暂不覆盖。</span></div>
+    {commitments.length > 0 && <section className="forecast-commitment-summary"><div className="forecast-commitment-summary-head"><div><span>2026 分红承诺库</span><strong>{commitments.length} 条有效量化承诺</strong><p>公告规划已入库；仅与“归母净利”口径一致的承诺会作为预测下限。</p></div><div className="forecast-commitment-counts"><b>{commitments.filter(item => item.modelEligible).length}<small>纳入模型</small></b><b>{commitments.filter(item => !item.modelEligible).length}<small>仅留档</small></b></div></div><details><summary>查看全部 {commitments.length} 条承诺 <span>展开</span></summary><div className="forecast-commitment-groups">{([true, false] as const).map(eligible => { const items = commitments.filter(item => Boolean(item.modelEligible) === eligible); return <div className="forecast-commitment-group" key={String(eligible)}><h3>{eligible ? '已纳入预测下限' : '已记录，暂不直接套用'} <small>{items.length} 条</small></h3>{items.map(item => { const stock = YIELD_GRID_STOCKS.find(candidate => candidate.code === item.code); const rule = [item.minPayoutRatio !== undefined ? `≥ ${(item.minPayoutRatio * 100).toFixed(0)}%` : null, item.minDps !== undefined ? `每股 ≥ ${item.minDps.toFixed(2)} 元` : null, item.minCashAmount !== undefined ? `现金 ≥ ${(item.minCashAmount / 1e8).toFixed(0)} 亿元` : null].filter(Boolean).join(' · '); return <a key={item.code} href={item.sourceUrl} target="_blank" rel="noreferrer"><strong>{stock?.name || item.code}</strong><span>{item.code} · {item.startYear}–{item.endYear}</span><b>{rule || item.basis || '查看公告'}</b><em>{eligible ? '进入模型' : item.basis || '口径留档'}</em></a> })}</div> })}</div></details></section>}
     <section className="forecast-sector-picker"><div className="forecast-sector-tabs">{forecastSectors.map(sector => <button type="button" key={sector} className={activeSector === sector ? 'active' : ''} onClick={() => setActiveSector(sector)}>{sector}</button>)}</div>{activeSector === '全部' ? <p>选择一个板块，快速带入网格页标的。</p> : <div className="forecast-sector-stocks">{YIELD_GRID_STOCKS.filter(stock => stock.sector === activeSector).map(stock => <button type="button" key={stock.code} onClick={() => { setQuery(stock.code); void runFor(stock.code) }}><strong>{stock.name}</strong><span>{stock.code}</span></button>)}</div>}</section>
     {matches.length > 0 && <section className="forecast-search-results"><b>找到多个 A 股标的，请选择：</b><div>{matches.map(item => <button key={item.code} type="button" onClick={() => { setQuery(item.code); void runFor(item.code) }}><strong>{item.name}</strong><span>{item.code}</span></button>)}</div></section>}
     {error && <section className="forecast-error"><b>暂不覆盖</b><span>{error}</span></section>}
