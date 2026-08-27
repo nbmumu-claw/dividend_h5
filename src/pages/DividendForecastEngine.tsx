@@ -493,7 +493,9 @@ export default function DividendForecastEngine() {
                             </span>
                             <b>{rule || item.basis || "查看公告"}</b>
                             <em>
-                              <small>{eligible ? "进入模型" : item.basis || "口径留档"}</small>
+                              <small title={eligible ? "进入模型" : item.basis || "口径留档"}>
+                                {eligible ? "进入模型" : item.basis || "口径留档"}
+                              </small>
                               <span>查看公告 <i aria-hidden="true">↗</i></span>
                             </em>
                           </a>

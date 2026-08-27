@@ -652,3 +652,29 @@ body {
   .forecast-commitment-group a,
   .forecast-commitment-group a em i { transition: none; }
 }
+
+/* Keep long policy bases inside their column; the announcement action always remains visible. */
+.forecast-commitment-table-head,
+.forecast-commitment-group a {
+  grid-template-columns: minmax(76px, 0.78fr) 58px 78px minmax(0, 1.25fr) minmax(118px, 0.95fr);
+}
+.forecast-commitment-group a > * { min-width: 0; }
+.forecast-commitment-group a em {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  white-space: normal;
+}
+.forecast-commitment-group a em small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.forecast-commitment-group a em > span { flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .forecast-commitment-table-head,
+  .forecast-commitment-group a { grid-template-columns: minmax(74px, 1fr) auto; }
+  .forecast-commitment-group a em { width: auto; }
+}
