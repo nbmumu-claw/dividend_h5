@@ -88,10 +88,9 @@ function calculateAnnualDps(
   interimAnchor: number | null,
   commitment: DividendCommitment | null,
 ) {
-  const policyRatio = commitment?.modelEligible ? (commitment.minPayoutRatio ?? 0) : 0;
   const policyReferenceRatio = commitment?.minPayoutRatio ?? 0;
-  const effectivePayout = Math.max(payout, policyRatio);
-  const profitDps = (annualProfit * effectivePayout) / shares;
+  const effectivePayout = payout;
+  const profitDps = (annualProfit * payout) / shares;
   const usesInterimAnchor = interimAnchor !== null && interimAnchor < profitDps * 0.9;
   const beforePolicy = usesInterimAnchor ? interimAnchor : profitDps;
   const policyCanApply = commitment?.modelEligible === true;
@@ -108,8 +107,7 @@ function calculateAnnualDps(
     effectivePayout,
     profitDps,
     policyDpsFloor,
-    policyApplied:
-      policyCanApply && (effectivePayout > payout || (policyDpsFloor ?? 0) > beforePolicy),
+    policyApplied: policyCanApply && (policyDpsFloor ?? 0) > beforePolicy,
     usesInterimAnchor,
   };
 }
@@ -883,7 +881,7 @@ export default function DividendForecastEngine() {
                   </span>
                   <i>×</i>
                   <span>
-                    有效派息率 <b>{percent(result.effectivePayout)}</b>
+                    选择派息率 <b>{percent(result.effectivePayout)}</b>
                   </span>
                   <i>÷</i>
                   <span>
@@ -1039,7 +1037,7 @@ export default function DividendForecastEngine() {
                         <b>{percent(median(result.seasonality.map((item) => item.ratio)))}</b>
                       </p>
                       <p>
-                        有效派息率 <b>{percent(result.effectivePayout)}</b>
+                        选择派息率 <b>{percent(result.effectivePayout)}</b>
                       </p>
                       <p>
                         权益分派股本 <b>{(result.shares / 1e8).toFixed(3)} 亿股</b>
