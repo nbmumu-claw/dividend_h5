@@ -678,3 +678,28 @@ body {
   .forecast-commitment-group a { grid-template-columns: minmax(74px, 1fr) auto; }
   .forecast-commitment-group a em { width: auto; }
 }
+
+/* The policy basis is the useful information: show it in full and use an underline for the link cue. */
+.forecast-commitment-group a em {
+  display: block;
+  width: auto;
+  overflow: visible;
+  padding: 0;
+  background: transparent !important;
+  color: inherit !important;
+  font-size: 12px;
+  line-height: 1.45;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: currentColor;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.forecast-commitment-group a:hover em,
+.forecast-commitment-group a:focus-visible em { text-decoration-thickness: 2px; }
+.forecast-commitment-group a b { overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .forecast-commitment-group a em { width: auto; }
+}

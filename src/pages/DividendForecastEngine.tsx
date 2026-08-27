@@ -492,12 +492,7 @@ export default function DividendForecastEngine() {
                               {item.startYear}–{item.endYear}
                             </span>
                             <b>{rule || item.basis || "查看公告"}</b>
-                            <em>
-                              <small title={eligible ? "进入模型" : item.basis || "口径留档"}>
-                                {eligible ? "进入模型" : item.basis || "口径留档"}
-                              </small>
-                              <span>查看公告 <i aria-hidden="true">↗</i></span>
-                            </em>
+                            <em>{eligible ? "进入模型" : item.basis || "口径留档"}</em>
                           </a>
                         );
                       })}
