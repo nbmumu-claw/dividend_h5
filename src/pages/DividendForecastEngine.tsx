@@ -402,7 +402,22 @@ export default function DividendForecastEngine() {
         </div>
         <header className="forecast-heading">
           <p className="forecast-kicker">DIVIDEND FORECAST · 2026E</p>
-          <h1>分红预测引擎</h1>
+          <div className="forecast-heading-title">
+            <h1>分红预测引擎</h1>
+            <button
+              type="button"
+              className={`forecast-like${liked ? " liked" : ""}`}
+              onClick={onLike}
+              disabled={liked || liking}
+              aria-pressed={liked}
+              aria-label={liked ? "已点赞" : "点赞"}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                <path d="M7 10v10H4V10h3Zm0 10h9.6a2 2 0 0 0 1.94-1.5l1.2-4.5A2 2 0 0 0 17.8 11H14l.45-3.1A2.4 2.4 0 0 0 12.08 5L7 10Z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>{likes === null ? "…" : likes}</span>
+            </button>
+          </div>
           <p>用中报利润、三年季节性、常规派息率和权益股本，生成可追溯的全年每股股息预测。</p>
           <section className="forecast-risk">
             <b>⚠️ 风险提示</b>
@@ -449,22 +464,7 @@ export default function DividendForecastEngine() {
           <section className="forecast-commitment-summary">
             <div className="forecast-commitment-summary-head">
               <div>
-                <div className="forecast-commitment-title">
-                  <span>2026 分红承诺库</span>
-                  <button
-                    type="button"
-                    className={`forecast-commitment-like${liked ? " liked" : ""}`}
-                    onClick={onLike}
-                    disabled={liked || liking}
-                    aria-pressed={liked}
-                    aria-label={liked ? "已点赞" : "点赞"}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-                      <path d="M7 10v10H4V10h3Zm0 10h9.6a2 2 0 0 0 1.94-1.5l1.2-4.5A2 2 0 0 0 17.8 11H14l.45-3.1A2.4 2.4 0 0 0 12.08 5L7 10Z" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span>{likes === null ? "…" : likes}</span>
-                  </button>
-                </div>
+                <span>2026 分红承诺库</span>
                 <strong>{commitments.length} 条有效量化承诺</strong>
                 <p>公告规划已入库；仅与“归母净利”口径一致的承诺会作为预测下限。</p>
               </div>
