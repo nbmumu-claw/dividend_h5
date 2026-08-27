@@ -387,6 +387,14 @@ export default function DividendForecastEngine() {
   const maxDps = result
     ? Math.max(result.annualDps, ...result.history.map((item) => item.perShare), 0.01)
     : 1;
+  const policyRatioDps =
+    result?.commitment?.minPayoutRatio !== undefined
+      ? (result.annualProfit * result.commitment.minPayoutRatio) / result.shares
+      : null;
+  const policyCashDps =
+    result?.commitment?.minCashAmount !== undefined
+      ? result.commitment.minCashAmount / result.shares
+      : null;
   return (
     <main className="forecast-page">
       <div className="forecast-shell">
@@ -917,33 +925,23 @@ export default function DividendForecastEngine() {
                   </div>
                 )}
                 {result.commitment?.modelEligible && (
-                  <div className={`forecast-equation ${result.policyApplied ? "is-selected" : ""}`}>
+                  <div className={`forecast-equation forecast-policy-equation ${result.policyApplied ? "is-selected" : ""}`}>
                     <b className="forecast-formula-label">政策下限</b>
-                    <span>
-                      政策派息率{" "}
-                      <b>
-                        {result.commitment.minPayoutRatio
-                          ? percent(result.commitment.minPayoutRatio)
-                          : "—"}
-                      </b>
-                    </span>
-                    <i>×</i>
-                    <span>
-                      26E 归母净利 <b>{billion(result.annualProfit)}</b>
-                    </span>
-                    <i>÷</i>
-                    <span>
-                      权益股本 <b>{(result.shares / 1e8).toFixed(3)} 亿股</b>
-                    </span>
-                    {result.commitment.minDps !== undefined && (
-                      <>
-                        <i>，至少</i>
-                        <span>
-                          <b>{result.commitment.minDps.toFixed(3)} 元/股</b>
-                        </span>
-                      </>
+                    {policyRatioDps !== null && (
+                      <span>
+                        比例下限 <b>{percent(result.commitment.minPayoutRatio!)}</b> × {billion(result.annualProfit)} ÷ {(result.shares / 1e8).toFixed(3)} 亿股 = <b>{policyRatioDps.toFixed(3)} 元/股</b>
+                      </span>
                     )}
-                    <i>=</i>
+                    {policyCashDps !== null && (
+                      <span>
+                        现金下限 <b>{billion(result.commitment.minCashAmount!)}</b> ÷ {(result.shares / 1e8).toFixed(3)} 亿股 = <b>{policyCashDps.toFixed(3)} 元/股</b>
+                      </span>
+                    )}
+                    {result.commitment.minDps !== undefined && (
+                      <span>每股下限 <b>{result.commitment.minDps.toFixed(3)} 元/股</b></span>
+                    )}
+                    <i>→</i>
+                    <span>取较高值</span>
                     <strong>{result.policyDpsFloor?.toFixed(3)} 元/股</strong>
                     <em>{result.policyApplied ? "已纳入" : "下限校验"}</em>
                   </div>
