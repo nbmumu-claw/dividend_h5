@@ -22,13 +22,15 @@ const forecastSectors = ['全部', ...new Set(YIELD_GRID_STOCKS.map(stock => sto
 
 function calculateAnnualDps(annualProfit: number, shares: number, payout: number, interimAnchor: number | null, commitment: DividendCommitment | null) {
   const policyRatio = commitment?.modelEligible ? commitment.minPayoutRatio ?? 0 : 0
+  const policyReferenceRatio = commitment?.minPayoutRatio ?? 0
   const effectivePayout = Math.max(payout, policyRatio)
   const profitDps = annualProfit * effectivePayout / shares
   const usesInterimAnchor = interimAnchor !== null && interimAnchor < profitDps * .9
   const beforePolicy = usesInterimAnchor ? interimAnchor : profitDps
-  const policyDpsFloor = commitment ? Math.max(commitment.minDps ?? 0, commitment.minCashAmount ? commitment.minCashAmount / shares : 0, policyRatio ? annualProfit * policyRatio / shares : 0) : null
-  const annualDps = Math.max(beforePolicy, policyDpsFloor ?? 0)
-  return { annualDps, effectivePayout, profitDps, policyDpsFloor, policyApplied: commitment !== null && (effectivePayout > payout || (policyDpsFloor ?? 0) > beforePolicy), usesInterimAnchor }
+  const policyDpsFloor = commitment ? Math.max(commitment.minDps ?? 0, commitment.minCashAmount ? commitment.minCashAmount / shares : 0, policyReferenceRatio ? annualProfit * policyReferenceRatio / shares : 0) : null
+  const policyCanApply = commitment?.modelEligible === true
+  const annualDps = Math.max(beforePolicy, policyCanApply ? policyDpsFloor ?? 0 : 0)
+  return { annualDps, effectivePayout, profitDps, policyDpsFloor, policyApplied: policyCanApply && (effectivePayout > payout || (policyDpsFloor ?? 0) > beforePolicy), usesInterimAnchor }
 }
 
 function commitmentRule(commitment: DividendCommitment) {
