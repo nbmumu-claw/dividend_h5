@@ -4,6 +4,11 @@ import { fetchStockPrices, searchStocks, type SearchResult } from "../utils/api"
 import { fetchDividendPayouts, type DividendPayoutRecord } from "../utils/dividendPayout";
 import { fetchDividendHistory, type DividendYearRecord } from "../utils/dividendHistory";
 import { YIELD_GRID_STOCKS } from "../data/yieldGridStocks";
+import {
+  addDividendForecastLike,
+  getDividendForecastLikes,
+  hasDividendForecastLiked,
+} from "../utils/gridLikes";
 
 type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number };
 type DividendCommitment = {
@@ -162,6 +167,9 @@ export default function DividendForecastEngine() {
   const [payoutChoice, setPayoutChoice] = useState<"auto" | PayoutMethod>("auto");
   const [payoutTipOpen, setPayoutTipOpen] = useState(false);
   const [commitments, setCommitments] = useState<DividendCommitment[]>([]);
+  const [likes, setLikes] = useState<number | null>(null);
+  const [liked, setLiked] = useState(hasDividendForecastLiked);
+  const [liking, setLiking] = useState(false);
 
   const runFor = async (keyword: string) => {
     let code = keyword.trim();
@@ -353,6 +361,7 @@ export default function DividendForecastEngine() {
 
   useEffect(() => {
     void runFor("600941");
+    void getDividendForecastLikes().then(setLikes).catch(() => {});
     void fetch(`${gateway}?action=dividendCommitmentSummary`)
       .then((request) =>
         request.ok
@@ -362,6 +371,20 @@ export default function DividendForecastEngine() {
       .then((response) => setCommitments(response.commitments))
       .catch(() => setCommitments([]));
   }, []);
+
+  const onLike = () => {
+    if (liked || liking) return;
+    setLiking(true);
+    setLiked(true);
+    setLikes((value) => (value ?? 0) + 1);
+    void addDividendForecastLike()
+      .then(setLikes)
+      .catch(() => {
+        setLiked(false);
+        setLikes((value) => (value === null ? value : value - 1));
+      })
+      .finally(() => setLiking(false));
+  };
 
   const maxDps = result
     ? Math.max(result.annualDps, ...result.history.map((item) => item.perShare), 0.01)
@@ -426,7 +449,22 @@ export default function DividendForecastEngine() {
           <section className="forecast-commitment-summary">
             <div className="forecast-commitment-summary-head">
               <div>
-                <span>2026 分红承诺库</span>
+                <div className="forecast-commitment-title">
+                  <span>2026 分红承诺库</span>
+                  <button
+                    type="button"
+                    className={`forecast-commitment-like${liked ? " liked" : ""}`}
+                    onClick={onLike}
+                    disabled={liked || liking}
+                    aria-pressed={liked}
+                    aria-label={liked ? "已点赞" : "点赞"}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                      <path d="M7 10v10H4V10h3Zm0 10h9.6a2 2 0 0 0 1.94-1.5l1.2-4.5A2 2 0 0 0 17.8 11H14l.45-3.1A2.4 2.4 0 0 0 12.08 5L7 10Z" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span>{likes === null ? "…" : likes}</span>
+                  </button>
+                </div>
                 <strong>{commitments.length} 条有效量化承诺</strong>
                 <p>公告规划已入库；仅与“归母净利”口径一致的承诺会作为预测下限。</p>
               </div>

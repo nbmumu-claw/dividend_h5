@@ -5,8 +5,9 @@ const COLLECTION = 'appStats'
 const DOC_ID = 'grid-likes'
 const LIKED_KEY = 'yg-liked'
 const INTERIM_LIKED_KEY = 'interim-report-liked'
+const DIVIDEND_FORECAST_LIKED_KEY = 'dividend-forecast-liked'
 
-type LikeField = 'count' | 'interimReportCount'
+type LikeField = 'count' | 'interimReportCount' | 'dividendForecastCount'
 type LikesDocument = Partial<Record<LikeField, number>>
 
 function readLikesDocument(data: LikesDocument | LikesDocument[] | undefined): LikesDocument | undefined {
@@ -50,4 +51,16 @@ export async function getInterimReportLikes(): Promise<number> {
 
 export async function addInterimReportLike(): Promise<number> {
   return addLikeCount('interimReportCount', INTERIM_LIKED_KEY)
+}
+
+export function hasDividendForecastLiked(): boolean {
+  try { return localStorage.getItem(DIVIDEND_FORECAST_LIKED_KEY) === '1' } catch { return false }
+}
+
+export async function getDividendForecastLikes(): Promise<number> {
+  return getLikeCount('dividendForecastCount')
+}
+
+export async function addDividendForecastLike(): Promise<number> {
+  return addLikeCount('dividendForecastCount', DIVIDEND_FORECAST_LIKED_KEY)
 }

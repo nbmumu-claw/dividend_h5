@@ -703,3 +703,28 @@ body {
 @media (max-width: 760px) {
   .forecast-commitment-group a em { width: auto; }
 }
+
+.forecast-commitment-title { display: flex; align-items: center; gap: 9px; }
+.forecast-commitment-title > span { margin: 0; }
+.forecast-commitment-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #f1cfcc;
+  border-radius: 13px;
+  background: #fffafa;
+  color: #c94d38;
+  font: 700 12px 'DIN Alternate', 'PingFang SC', sans-serif;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.forecast-commitment-like svg { width: 13px; height: 13px; }
+.forecast-commitment-like span { display: inline; color: inherit; font: inherit; letter-spacing: 0; }
+.forecast-commitment-like:hover:not(:disabled) { border-color: #ec8c7a; background: #fff3ef; transform: translateY(-1px); }
+.forecast-commitment-like:active:not(:disabled) { transform: translateY(0); }
+.forecast-commitment-like.liked { border-color: #ec8c7a; background: #fff3ef; cursor: default; }
+.forecast-commitment-like:disabled { cursor: default; }
+@media (prefers-reduced-motion: reduce) { .forecast-commitment-like { transition: none; } }
