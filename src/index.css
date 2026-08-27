@@ -536,7 +536,7 @@ body {
 .forecast-info-tip { display:flex; align-items:center; justify-content:center; }
 .forecast-info-tip > span small { display:block; line-height:1.55; }
 .forecast-info-tip > span { top:18px; }
-.forecast-payout-kpi > p::after { content:' · 点击 i 可切换'; color:#E85B3D; }
+.forecast-payout-kpi > p::after { content:' · 点击 i 看详情'; color:#E85B3D; }
 .forecast-payout-switch button.active { border-color:#E85B3D; background:#E85B3D; box-shadow:0 3px 8px rgba(232,91,61,.22); color:#fff; }.forecast-payout-switch button.active::after { content:'✓ 当前选择'; float:right; font-size:10px; }
 .forecast-info-tip:hover > span,.forecast-info-tip:focus > span { display:none; }.forecast-info-tip.is-open > span { display:block; }
 .forecast-heading .forecast-risk { margin-top:12px; white-space:nowrap; font-size:11px; letter-spacing:-.15px; }
