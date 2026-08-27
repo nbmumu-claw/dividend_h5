@@ -10,6 +10,7 @@ const commitments = {
     conditions: ['当年盈利且累计未分配利润为正', '无重大投资计划或其他重大现金支出'],
     announcementDate: '2025-08-19',
     sourceUrl: 'https://vip.stock.finance.sina.com.cn/corp/view/vCB_AllBulletinDetail.php?id=11310158&stockid=600795',
+    eastmoneySourceUrl: 'https://data.eastmoney.com/notices/detail/600795/AN202508181729874303.html',
     sourceName: '国电电力 2025–2027 年现金分红规划',
   },
   '600900': {
@@ -22,6 +23,7 @@ const commitments = {
     conditions: ['当年实现盈利'],
     announcementDate: '2025-08-15',
     sourceUrl: 'https://money.finance.sina.com.cn/corp/view/vCB_AllBulletinDetail.php?id=11301071&stockid=600900',
+    eastmoneySourceUrl: 'https://data.eastmoney.com/notices/detail/600900/AN202508141727457232.html',
     sourceName: '长江电力 2026–2030 年股东分红回报规划',
   },
 }
