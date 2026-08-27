@@ -803,6 +803,7 @@ export default function YieldGrid() {
               </svg>
               <span className="yg-forecastbtn-full">分红预测</span>
               <span className="yg-forecastbtn-short">预测</span>
+              <span className="yg-forecastbtn-new">NEW</span>
             </a>
             <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
           </div>
@@ -1490,6 +1491,8 @@ const CSS = `
 .yg-page .yg-forecastbtn { border-color: #f2c6bb; background: #fff8f6; color: #d8563b; text-decoration: none; }
 .yg-page .yg-forecastbtn:active { background: #ffede8; }
 .yg-page .yg-forecastbtn-short { display: none; }
+.yg-page .yg-forecastbtn-new { position: absolute; top: -7px; right: -11px; padding: 1px 4px; border: 1px solid #fff;
+  border-radius: 999px; background: #dc2626; color: #fff; font-size: 8px; font-weight: 700; line-height: 1.15; letter-spacing: .2px; }
 .yg-page .yg-reportbtn-new { position: absolute; top: -7px; right: -11px; padding: 1px 4px; border: 1px solid #fff;
   border-radius: 999px; background: #dc2626; color: #fff; font-size: 8px; font-weight: 700; line-height: 1.15; letter-spacing: .2px; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
