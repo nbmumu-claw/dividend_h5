@@ -484,6 +484,7 @@ export default function DividendForecastEngine() {
                             href={item.eastmoneySourceUrl || item.sourceUrl}
                             target="_blank"
                             rel="noreferrer"
+                            aria-label={`查看${stock?.name || item.code}的分红承诺公告（新窗口打开）`}
                           >
                             <strong>{stock?.name || item.code}</strong>
                             <span className="forecast-commitment-code">{item.code}</span>
@@ -491,7 +492,10 @@ export default function DividendForecastEngine() {
                               {item.startYear}–{item.endYear}
                             </span>
                             <b>{rule || item.basis || "查看公告"}</b>
-                            <em>{eligible ? "进入模型" : item.basis || "口径留档"}</em>
+                            <em>
+                              <small>{eligible ? "进入模型" : item.basis || "口径留档"}</small>
+                              <span>查看公告 <i aria-hidden="true">↗</i></span>
+                            </em>
                           </a>
                         );
                       })}

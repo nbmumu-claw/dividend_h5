@@ -557,3 +557,98 @@ body {
 .forecast-commitment-summary { order:99; }
 .forecast-commitment-summary { border-color:#F2D8D0!important; }.forecast-commitment-summary-head { background:#FFF9F7; }.forecast-commitment-summary-head span { color:#D8563B; }.forecast-commitment-summary-head strong { color:#39424C; }.forecast-commitment-summary-head p { color:#8E817D!important; }.forecast-commitment-counts b { border-color:#F4C8BC; color:#D8563B; }.forecast-commitment-counts small { color:#987C74; }.forecast-commitment-summary details { border-top-color:#F2E0DA; }.forecast-commitment-summary summary { color:#6E5851; }.forecast-commitment-summary summary span { color:#9B857D; }.forecast-commitment-group h3 { color:#A84C38; }.forecast-commitment-group h3 small { color:#B39B94; }.forecast-commitment-table-head { border-top-color:#F4E5E0; background:#FFF9F7; color:#9A827A; }.forecast-commitment-group a { border-top-color:#F5E9E5; color:#75655F; }.forecast-commitment-group a:hover { background:#FFF7F4; }.forecast-commitment-group a strong { color:#4C423F; }.forecast-commitment-group a span { color:#A9958E; }.forecast-commitment-period { border-left-color:#F0E1DC; }.forecast-commitment-group a b { color:#D8563B; }.forecast-commitment-group a em { background:#FFECE6; color:#D8563B; }.forecast-commitment-group:nth-child(2) a:hover { background:#F8FAFC; }.forecast-commitment-group:nth-child(2) a b { color:#687789; }.forecast-commitment-group:nth-child(2) a em { background:#EEF2F5; color:#738295; }
 @media (max-width:760px) { .forecast-commitment-summary-head { padding:9px 14px; }.forecast-commitment-summary-head p { display:none; }.forecast-commitment-table-head,.forecast-commitment-group a { grid-template-columns:minmax(74px,1fr) auto; } }
+
+/* Dividend commitment library: information-dense on desktop, clearly tappable on every device. */
+.forecast-commitment-summary {
+  margin-top: 14px;
+  border-color: #f0cdc3 !important;
+  box-shadow: 0 8px 24px rgba(98, 45, 31, 0.06);
+}
+.forecast-commitment-summary-head { padding: 15px 18px; }
+.forecast-commitment-summary-head span { font-size: 13px; letter-spacing: 0.02em; }
+.forecast-commitment-summary-head strong { margin-top: 4px; font-size: 20px; line-height: 1.25; }
+.forecast-commitment-summary-head p { margin-top: 6px !important; font-size: 13px; line-height: 1.5; }
+.forecast-commitment-counts { gap: 10px; }
+.forecast-commitment-counts b { min-width: 76px; padding: 8px 12px; border-radius: 10px; font-size: 22px; line-height: 1; }
+.forecast-commitment-counts small { margin-top: 4px; font-size: 11px; }
+.forecast-commitment-summary summary {
+  align-items: center;
+  padding: 13px 18px;
+  font-size: 14px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.forecast-commitment-summary summary:hover { background: #fff6f3; color: #c74d35; }
+.forecast-commitment-summary summary span { font-size: 12px; }
+.forecast-commitment-groups { gap: 20px; padding: 2px 18px 18px; }
+.forecast-commitment-group h3 { margin: 0 0 9px; font-size: 14px; }
+.forecast-commitment-group h3 small { font-size: 12px; }
+.forecast-commitment-table-head,
+.forecast-commitment-group a {
+  grid-template-columns: minmax(92px, 0.78fr) 66px 86px minmax(150px, 1.25fr) minmax(136px, 1.05fr);
+  gap: 10px;
+  padding: 0 12px;
+}
+.forecast-commitment-table-head { min-height: 32px; font-size: 11px; }
+.forecast-commitment-group a {
+  position: relative;
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-top-color: #f5e9e5;
+  border-radius: 7px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.forecast-commitment-group a:hover,
+.forecast-commitment-group a:focus-visible {
+  z-index: 1;
+  border-color: #efaa99;
+  background: #fff7f4;
+  box-shadow: 0 5px 14px rgba(184, 75, 48, 0.11);
+  outline: none;
+  transform: translateY(-1px);
+}
+.forecast-commitment-group a:active { transform: translateY(0); box-shadow: none; }
+.forecast-commitment-group a strong { font-size: 14px; }
+.forecast-commitment-group a span { font-size: 12px; }
+.forecast-commitment-group a b { font-size: 13px; line-height: 1.4; }
+.forecast-commitment-group a em {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 126px;
+  padding: 5px 7px 5px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.forecast-commitment-group a em small { font: inherit; white-space: nowrap; }
+.forecast-commitment-group a em > span { color: inherit; font: 700 11px 'PingFang SC', 'Microsoft YaHei', sans-serif; white-space: nowrap; }
+.forecast-commitment-group a em i { display: inline-block; margin-left: 2px; font-size: 13px; font-style: normal; transition: transform 160ms ease; }
+.forecast-commitment-group a:hover em i,
+.forecast-commitment-group a:focus-visible em i { transform: translate(2px, -2px); }
+.forecast-commitment-group:nth-child(2) a:hover,
+.forecast-commitment-group:nth-child(2) a:focus-visible { border-color: #cbd5df; background: #f8fafc; box-shadow: 0 5px 14px rgba(75, 93, 115, 0.1); }
+
+@media (max-width: 760px) {
+  .forecast-commitment-summary-head { padding: 14px; }
+  .forecast-commitment-summary-head strong { font-size: 18px; }
+  .forecast-commitment-counts b { min-width: 62px; padding: 7px 8px; font-size: 20px; }
+  .forecast-commitment-summary summary { padding: 13px 14px; font-size: 14px; }
+  .forecast-commitment-groups { gap: 18px; padding: 2px 14px 14px; }
+  .forecast-commitment-group h3 { font-size: 13px; }
+  .forecast-commitment-group a { min-height: 0; padding: 11px 0; border-right: 0; border-left: 0; border-radius: 0; }
+  .forecast-commitment-group a:hover,
+  .forecast-commitment-group a:focus-visible { box-shadow: none; transform: none; }
+  .forecast-commitment-group a strong { font-size: 15px; }
+  .forecast-commitment-group a span { font-size: 12px; }
+  .forecast-commitment-group a b { font-size: 13px; }
+  .forecast-commitment-group a em { min-width: 0; padding: 4px 6px; font-size: 11px; }
+  .forecast-commitment-group a em > span { font-size: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forecast-commitment-summary summary,
+  .forecast-commitment-group a,
+  .forecast-commitment-group a em i { transition: none; }
+}
