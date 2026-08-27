@@ -1,4 +1,5 @@
 const { ok, badRequest, upstreamError } = require('../utils/response')
+const { getDividendCommitment } = require('../data/dividendCommitments')
 const EASTMONEY_URL = 'https://datacenter-web.eastmoney.com/api/data/v1/get'
 
 module.exports = async function forecastData(params) {
@@ -16,6 +17,6 @@ module.exports = async function forecastData(params) {
     const latestShare = dividends.find(row => Number(row.TOTAL_SHARES) > 0) || null
     const interim = dividends.find(row => String(row.REPORT_DATE || '').startsWith('2026-06-30')) || null
     const priorInterim = dividends.find(row => String(row.REPORT_DATE || '').startsWith('2025-06-30')) || null
-    return ok(JSON.stringify({ code, name: reports[0]?.SECURITY_NAME_ABBR || code, reports, latestShare, interimDividend: interim, priorInterimDividend: priorInterim }), { 'Content-Type': 'application/json; charset=utf-8' })
+    return ok(JSON.stringify({ code, name: reports[0]?.SECURITY_NAME_ABBR || code, reports, latestShare, interimDividend: interim, priorInterimDividend: priorInterim, dividendCommitment: getDividendCommitment(code, 2026) }), { 'Content-Type': 'application/json; charset=utf-8' })
   } catch (error) { return upstreamError(error.message) }
 }
