@@ -13,6 +13,7 @@ import {
 type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number };
 type DividendCommitment = {
   code: string;
+  name?: string;
   startYear: number;
   endYear: number;
   minPayoutRatio?: number;
@@ -27,6 +28,7 @@ type DividendCommitment = {
   sourceUrl: string;
   eastmoneySourceUrl?: string;
   sourceName: string;
+  commitmentText?: string;
 };
 type ForecastRemote = {
   name: string;
@@ -122,7 +124,7 @@ function commitmentRule(commitment: DividendCommitment) {
       ? `现金分红总额不低于${(commitment.minCashAmount / 1e8).toFixed(0)}亿元`
       : null,
   ].filter(Boolean);
-  return rules.join("；") || "以原公告约定为准";
+  return rules.join("；") || commitment.commitmentText || "以原公告约定为准";
 }
 
 function BackIcon() {
@@ -528,14 +530,14 @@ export default function DividendForecastEngine() {
                             href={item.eastmoneySourceUrl || item.sourceUrl}
                             target="_blank"
                             rel="noreferrer"
-                            aria-label={`查看${stock?.name || item.code}的分红承诺公告（新窗口打开）`}
+                            aria-label={`查看${stock?.name || item.name || item.code}的分红承诺公告（新窗口打开）`}
                           >
-                            <strong>{stock?.name || item.code}</strong>
+                            <strong>{stock?.name || item.name || item.code}</strong>
                             <span className="forecast-commitment-code">{item.code}</span>
                             <span className="forecast-commitment-period">
                               {item.startYear}–{item.endYear}
                             </span>
-                            <b>{rule || item.basis || "查看公告"}</b>
+                            <b>{rule || item.commitmentText || item.basis || "查看公告"}</b>
                             <em>{commitmentRule(item)}</em>
                           </a>
                         );
