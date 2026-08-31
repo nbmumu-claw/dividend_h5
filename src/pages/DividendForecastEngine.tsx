@@ -166,6 +166,8 @@ export default function DividendForecastEngine() {
   const [activeSector, setActiveSector] = useState("全部");
   const [payoutChoice, setPayoutChoice] = useState<"auto" | PayoutMethod>("auto");
   const [payoutTipOpen, setPayoutTipOpen] = useState(false);
+  const [manualProfitInput, setManualProfitInput] = useState("");
+  const [manualProfitApplied, setManualProfitApplied] = useState(false);
   const [commitments, setCommitments] = useState<DividendCommitment[]>([]);
   const [likes, setLikes] = useState<number | null>(null);
   const [liked, setLiked] = useState(hasDividendForecastLiked);
@@ -183,6 +185,8 @@ export default function DividendForecastEngine() {
     setMatches([]);
     setPayoutChoice("auto");
     setPayoutTipOpen(false);
+    setManualProfitInput("");
+    setManualProfitApplied(false);
     try {
       if (!/^\d{6}$/.test(code)) {
         const candidates = (await searchStocks(code)).filter(
@@ -357,6 +361,71 @@ export default function DividendForecastEngine() {
         interimExceedsModel: current.interim !== null && current.interim > annualDps,
       };
     });
+  };
+
+  const applyManualProfit = () => {
+    const annualProfit = Number(manualProfitInput) * 1e8;
+    if (!Number.isFinite(annualProfit) || annualProfit <= 0) {
+      setError("请输入大于 0 的全年归母净利润（单位：亿元）。");
+      return;
+    }
+    setError("");
+    setResult((current) => {
+      if (!current) return current;
+      const calculation = calculateAnnualDps(
+        annualProfit,
+        current.shares,
+        current.payout,
+        current.interimAnchor,
+        current.commitment,
+      );
+      const { annualDps, effectivePayout, profitDps, policyDpsFloor, policyApplied, usesInterimAnchor } = calculation;
+      return {
+        ...current,
+        annualProfit,
+        annualDps,
+        effectivePayout,
+        profitDps,
+        appliedPayout: (annualDps * current.shares) / annualProfit,
+        policyDpsFloor,
+        policyApplied,
+        usesInterimAnchor,
+        terminalDps: current.interim === null ? null : Math.max(annualDps - current.interim, 0),
+        yieldRate: current.price && current.price > 0 ? annualDps / current.price : null,
+        interimExceedsModel: current.interim !== null && current.interim > annualDps,
+      };
+    });
+    setManualProfitApplied(true);
+  };
+
+  const restoreModelProfit = () => {
+    setResult((current) => {
+      if (!current) return current;
+      const annualProfit = current.h1Profit / median(current.seasonality.map((item) => item.ratio));
+      const calculation = calculateAnnualDps(
+        annualProfit,
+        current.shares,
+        current.payout,
+        current.interimAnchor,
+        current.commitment,
+      );
+      const { annualDps, effectivePayout, profitDps, policyDpsFloor, policyApplied, usesInterimAnchor } = calculation;
+      return {
+        ...current,
+        annualProfit,
+        annualDps,
+        effectivePayout,
+        profitDps,
+        appliedPayout: (annualDps * current.shares) / annualProfit,
+        policyDpsFloor,
+        policyApplied,
+        usesInterimAnchor,
+        terminalDps: current.interim === null ? null : Math.max(annualDps - current.interim, 0),
+        yieldRate: current.price && current.price > 0 ? annualDps / current.price : null,
+        interimExceedsModel: current.interim !== null && current.interim > annualDps,
+      };
+    });
+    setManualProfitApplied(false);
   };
 
   useEffect(() => {
@@ -818,7 +887,7 @@ export default function DividendForecastEngine() {
                   </div>
                   <div className="forecast-matrix-row forecast-matrix-forecast">
                     <b>
-                      2026E <small>预测</small>
+                      2026E <small>{manualProfitApplied ? "手动" : "预测"}</small>
                     </b>
                     <span>{billion(result.h1Profit)}</span>
                     <span>{billion(result.annualProfit)}</span>
@@ -866,6 +935,26 @@ export default function DividendForecastEngine() {
                       1.00 <small>无披露依据调整</small>
                     </b>
                   </div>
+                  <div className="forecast-manual-profit">
+                    <span>手动全年利润</span>
+                    <div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={manualProfitInput}
+                        onChange={(event) => setManualProfitInput(event.target.value)}
+                        placeholder="单位：亿元"
+                        aria-label="手动设定全年归母净利润，单位亿元"
+                      />
+                      <button type="button" onClick={applyManualProfit}>采用</button>
+                    </div>
+                    {manualProfitApplied ? (
+                      <button type="button" onClick={restoreModelProfit}>恢复模型值</button>
+                    ) : (
+                      <small>填写后点击“采用”才影响预测</small>
+                    )}
+                  </div>
                   <div>
                     <span>预测末期股息</span>
                     <b>
@@ -881,14 +970,22 @@ export default function DividendForecastEngine() {
                   className={`forecast-equation ${!result.usesInterimAnchor && !result.policyApplied ? "is-selected" : ""}`}
                 >
                   <b className="forecast-formula-label">利润模型</b>
-                  <span>
-                    26H1 利润 <b>{billion(result.h1Profit)}</b>
-                  </span>
-                  <i>÷</i>
-                  <span>
-                    季节性中位数{" "}
-                    <b>{percent(median(result.seasonality.map((item) => item.ratio)))}</b>
-                  </span>
+                  {manualProfitApplied ? (
+                    <span>
+                      手动全年利润 <b>{billion(result.annualProfit)}</b>
+                    </span>
+                  ) : (
+                    <>
+                      <span>
+                        26H1 利润 <b>{billion(result.h1Profit)}</b>
+                      </span>
+                      <i>÷</i>
+                      <span>
+                        季节性中位数{" "}
+                        <b>{percent(median(result.seasonality.map((item) => item.ratio)))}</b>
+                      </span>
+                    </>
+                  )}
                   <i>×</i>
                   <span>
                     选择派息率 <b>{percent(result.effectivePayout)}</b>
@@ -899,7 +996,7 @@ export default function DividendForecastEngine() {
                   </span>
                   <i>=</i>
                   <strong>{result.profitDps.toFixed(3)} 元/股</strong>
-                  <em>{!result.usesInterimAnchor && !result.policyApplied ? "已采用" : "参考"}</em>
+                  <em>{!result.usesInterimAnchor && !result.policyApplied ? manualProfitApplied ? "手动采用" : "已采用" : "参考"}</em>
                 </div>
                 {result.interimAnchor !== null && (
                   <div
@@ -948,8 +1045,11 @@ export default function DividendForecastEngine() {
                     <em>{result.policyApplied ? "已纳入" : "下限校验"}</em>
                   </div>
                 )}
-                <p>
-                  {result.commitment?.modelEligible === false
+                  <p>
+                    手动全年利润仅影响本次预测，不会修改历史季节性中位数。{" "}
+                  </p>
+                  <p>
+                    {result.commitment?.modelEligible === false
                     ? `该承诺为“${result.commitment.basis || "公告指定"}”口径或累计期间约束，无法可靠拆分为单年下限，已留档但不参与 2026E 计算。`
                     : result.policyApplied
                       ? `已纳入 ${result.commitment?.sourceName} 的有效期内量化下限；该承诺${result.commitment?.conditional ? "存在公告列明的适用条件，" : ""}不代表公司分红承诺。`
@@ -1063,6 +1163,26 @@ export default function DividendForecastEngine() {
                         : `${result.terminalDps.toFixed(3)} 元/股`}
                     </b>
                   </p>
+                  <div className="forecast-mobile-manual-profit">
+                    <b>手动全年利润</b>
+                    <div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={manualProfitInput}
+                        onChange={(event) => setManualProfitInput(event.target.value)}
+                        placeholder="亿元"
+                        aria-label="手动设定全年归母净利润，单位亿元"
+                      />
+                      <button type="button" onClick={applyManualProfit}>采用</button>
+                    </div>
+                    {manualProfitApplied ? (
+                      <button type="button" onClick={restoreModelProfit}>恢复模型值</button>
+                    ) : (
+                      <small>填写后点击采用才影响预测</small>
+                    )}
+                  </div>
                 </div>
               </details>
               <details>
