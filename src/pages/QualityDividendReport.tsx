@@ -80,8 +80,8 @@ export default function QualityDividendReport() {
         >{filter.label}</button>)}
       </nav>
 
-      {QUALITY_DIVIDEND_SECTIONS.map(section => (
-        <section className="quality-report__section" key={section.title}>
+      {QUALITY_DIVIDEND_SECTIONS.map((section, index) => (
+        <section className={`quality-report__section quality-report__section--${index}`} key={section.title}>
           <h2>{section.title}</h2>
           <div className="quality-report__table-wrap">
             <table>

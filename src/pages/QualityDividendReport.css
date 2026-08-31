@@ -89,8 +89,11 @@
 .quality-report__filters button.is-active { border-color: #20252d; background: #20252d; color: #fff; }
 
 .quality-report__section { margin: 0 12px 18px; padding: 14px 0 0; border: 1px solid #e5e8ef; border-radius: 16px; background: #fff; overflow: hidden; }
-.quality-report__section h2 { margin: 0 14px 12px; color: #252a34; font: 700 16px 'PingFang SC'; }
-.quality-report__section h2::before { content: '⌄'; display: inline-block; margin-right: 8px; color: #8a94a6; }
+.quality-report__section h2 { margin: 0 14px 12px; padding: 9px 12px; border-radius: 10px; color: #fff; font: 700 16px 'PingFang SC'; }
+.quality-report__section h2::before { content: '⌄'; display: inline-block; margin-right: 8px; color: rgba(255, 255, 255, 0.72); }
+.quality-report__section--0 h2 { background: #252a34; }
+.quality-report__section--1 h2 { background: #c94a3c; }
+.quality-report__section--2 h2 { background: #af7a25; }
 .quality-report__table-wrap { overflow-x: auto; border-top: 1px solid #edf0f4; background: #fff; }
 .quality-report table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
 .quality-report th, .quality-report td { white-space: nowrap; padding: 9px 10px; border-right: 1px solid #edf0f4; border-bottom: 1px solid #edf0f4; text-align: right; font-variant-numeric: tabular-nums; }
