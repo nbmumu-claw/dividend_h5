@@ -106,8 +106,7 @@
 .quality-report__live-price { color: #1a9a68; font-weight: 800; }
 .quality-report__current-yield { color: #252a34; font-weight: 800; }
 .quality-report__unavailable { color: #a8b0be; }
-.quality-report__target-hit { background: #fff0ed; color: #e23d31; font-weight: 800; }
-.quality-report__target-hit small { display: block; margin-top: 2px; color: #f04438; font-size: 9px; font-weight: 700; line-height: 1; }
+.quality-report__pdf-highlight { background: #fff200; color: #24272d; font-weight: 800; }
 .quality-report__empty { padding: 20px; color: #8a94a6; text-align: center !important; }
 
 .quality-report__footer {

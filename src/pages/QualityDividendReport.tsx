@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { QUALITY_DIVIDEND_SECTIONS } from '../data/qualityDividendReport'
+import { QUALITY_DIVIDEND_HIGHLIGHTED_YIELDS, QUALITY_DIVIDEND_SECTIONS } from '../data/qualityDividendReport'
 import { fetchStockPrices } from '../utils/api'
 import type { PriceMap } from '../types'
 import './QualityDividendReport.css'
@@ -105,9 +105,9 @@ export default function QualityDividendReport() {
                     <td className={liveYield ? 'quality-report__current-yield' : 'quality-report__unavailable'}>{liveYield == null ? '—' : `${liveYield.toFixed(2)}%`}</td>
                     {TARGET_YIELDS.map(yieldPct => {
                       const target = targetPrice(row.dividend, yieldPct)
-                      const reached = quote != null && quote.price <= target
-                      return <td className={reached ? 'quality-report__target-hit' : ''} title={reached ? '已达：现价不高于该目标价' : undefined} key={yieldPct}>
-                        {fmtPrice(target, row.isHK)}{reached && <small>已达</small>}
+                      const highlighted = QUALITY_DIVIDEND_HIGHLIGHTED_YIELDS[row.name]?.includes(yieldPct)
+                      return <td className={highlighted ? 'quality-report__pdf-highlight' : ''} title={highlighted ? 'PDF 标注区间' : undefined} key={yieldPct}>
+                        {fmtPrice(target, row.isHK)}
                       </td>
                     })}
                   </tr>
