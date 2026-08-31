@@ -4,6 +4,7 @@ export type QualityDividendRow = {
   dividend: number
   expectedYield: number
   isHK?: boolean
+  featured?: boolean
 }
 
 export type QualityDividendSection = {
@@ -81,13 +82,13 @@ export const QUALITY_DIVIDEND_SECTIONS: QualityDividendSection[] = [
       { name: '渤海轮渡', code: '603167', dividend: 0.75, expectedYield: 9.3 },
       { name: '国电电力', code: '600795', dividend: 0.22, expectedYield: 4.3 },
       { name: '内蒙华电', code: '600863', dividend: 0.22, expectedYield: 4.7 },
-      { name: '华能国际', code: '600011', dividend: 0.35, expectedYield: 5.1 },
+      { name: '华能国际', code: '600011', dividend: 0.35, expectedYield: 5.1, featured: true },
       { name: '新能泰山', code: '000720', dividend: 0.3, expectedYield: 6.1 },
-      { name: '中国宏桥', code: '1378', dividend: 2.2, expectedYield: 8.4, isHK: true },
-      { name: '神火股份', code: '000933', dividend: 1.6, expectedYield: 5.8 },
+      { name: '中国宏桥', code: '1378', dividend: 2.2, expectedYield: 8.4, isHK: true, featured: true },
+      { name: '神火股份', code: '000933', dividend: 1.6, expectedYield: 5.8, featured: true },
       { name: '紫金矿业', code: '2899', dividend: 1.1, expectedYield: 3.2, isHK: true },
       { name: '藏格矿业', code: '000408', dividend: 3.2, expectedYield: 4.1 },
-      { name: '云铝股份', code: '000807', dividend: 1.7, expectedYield: 6.3 },
+      { name: '云铝股份', code: '000807', dividend: 1.56, expectedYield: 6.3, featured: true },
       { name: '中谷物流', code: '603565', dividend: 0.7, expectedYield: 5.3 },
       { name: '中金黄金', code: '600489', dividend: 1, expectedYield: 3.7 },
       { name: '中国神华H', code: '1088', dividend: 2.5, expectedYield: 4.9, isHK: true },

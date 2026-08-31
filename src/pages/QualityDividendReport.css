@@ -98,6 +98,7 @@
 .quality-report th:first-child, .quality-report td:first-child { position: sticky; left: 0; z-index: 2; text-align: left; background: #fff; font-weight: 600; }
 .quality-report th:first-child { z-index: 3; background: #f7f8fb; }
 .quality-report td:nth-child(2) { color: #8a94a6; font-size: 11px; }
+.quality-report__featured { display: inline-block; margin-left: 5px; border-radius: 4px; background: #fff0ed; color: #f04438; padding: 2px 4px; font-size: 9px; font-weight: 700; vertical-align: 1px; }
 .quality-report__dividend { color: #f04438; font-weight: 700; }
 .quality-report__live-price { color: #1a9a68; font-weight: 800; }
 .quality-report__unavailable { color: #a8b0be; }

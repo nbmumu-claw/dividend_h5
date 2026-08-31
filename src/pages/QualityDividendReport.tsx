@@ -94,7 +94,7 @@ export default function QualityDividendReport() {
                 {section.rows.filter(row => matchesYieldFilter(row.expectedYield, yieldFilter)).map(row => {
                   const quote = prices[row.code]
                   return <tr key={`${row.isHK ? 'hk' : 'cn'}-${row.code}`}>
-                    <td>{row.name}</td><td>{row.isHK ? `HK${row.code.padStart(4, '0')}` : row.code}</td>
+                    <td>{row.name}{row.featured && <span className="quality-report__featured">特别关注</span>}</td><td>{row.isHK ? `HK${row.code.padStart(4, '0')}` : row.code}</td>
                     <td className="quality-report__dividend">{row.dividend.toFixed(2)}</td>
                     <td className={quote ? 'quality-report__live-price' : 'quality-report__unavailable'}>{quote ? fmtPrice(quote.price, row.isHK) : '—'}</td>
                     <td>{row.expectedYield.toFixed(1)}%</td>
