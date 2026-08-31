@@ -11,6 +11,7 @@ const YIELD_FILTERS = [
   { value: 6, label: '6%-7%' },
   { value: 5, label: '5%-6%' },
   { value: 4, label: '4%-5%' },
+  { value: '3-4', label: '3%-4%' },
   { value: 3, label: '3%以下' },
 ] as const
 
@@ -22,6 +23,7 @@ const matchesYieldFilter = (yieldRate: number, filter: YieldFilter) => {
   if (filter === 'all') return true
   if (filter === 7) return yieldRate >= 7
   if (filter === 3) return yieldRate < 3
+  if (filter === '3-4') return yieldRate >= 3 && yieldRate < 4
   return yieldRate >= filter && yieldRate < filter + 1
 }
 
