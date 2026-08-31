@@ -19,8 +19,9 @@ type YieldFilter = (typeof YIELD_FILTERS)[number]['value']
 
 const fmtPrice = (price: number, isHK?: boolean) => `${isHK ? 'HK$' : '¥'}${price.toFixed(2)}`
 const targetPrice = (dividend: number, yieldPct: number) => dividend / (yieldPct / 100)
-const matchesYieldFilter = (yieldRate: number, filter: YieldFilter) => {
+const matchesYieldFilter = (yieldRate: number | null, filter: YieldFilter) => {
   if (filter === 'all') return true
+  if (yieldRate == null) return false
   if (filter === 7) return yieldRate >= 7
   if (filter === 3) return yieldRate < 3
   if (filter === '3-4') return yieldRate >= 3 && yieldRate < 4
@@ -86,22 +87,29 @@ export default function QualityDividendReport() {
             <table>
               <thead>
                 <tr>
-                  <th>企业</th><th>代码</th><th>预计分红</th><th>现价</th><th>预期股息率</th>
+                  <th>企业</th><th>代码</th><th>预计分红</th><th>现价</th><th>实时股息率</th>
                   {TARGET_YIELDS.map(yieldPct => <th key={yieldPct}>{yieldPct}%</th>)}
                 </tr>
               </thead>
               <tbody>
-                {section.rows.filter(row => matchesYieldFilter(row.expectedYield, yieldFilter)).map(row => {
+                {section.rows.filter(row => {
+                  const price = prices[row.code]?.price
+                  return matchesYieldFilter(price ? row.dividend / price * 100 : null, yieldFilter)
+                }).map(row => {
                   const quote = prices[row.code]
+                  const liveYield = quote?.price ? row.dividend / quote.price * 100 : null
                   return <tr key={`${row.isHK ? 'hk' : 'cn'}-${row.code}`}>
                     <td>{row.name}{row.featured && <span className="quality-report__featured">特别关注</span>}</td><td>{row.isHK ? `HK${row.code.padStart(4, '0')}` : row.code}</td>
                     <td className="quality-report__dividend">{row.dividend.toFixed(2)}</td>
                     <td className={quote ? 'quality-report__live-price' : 'quality-report__unavailable'}>{quote ? fmtPrice(quote.price, row.isHK) : '—'}</td>
-                    <td>{row.expectedYield.toFixed(1)}%</td>
-                    {TARGET_YIELDS.map(yieldPct => <td className={yieldPct === Math.round(row.expectedYield) ? 'quality-report__target' : ''} key={yieldPct}>{fmtPrice(targetPrice(row.dividend, yieldPct), row.isHK)}</td>)}
+                    <td className={liveYield ? 'quality-report__current-yield' : 'quality-report__unavailable'}>{liveYield == null ? '—' : `${liveYield.toFixed(2)}%`}</td>
+                    {TARGET_YIELDS.map(yieldPct => <td key={yieldPct}>{fmtPrice(targetPrice(row.dividend, yieldPct), row.isHK)}</td>)}
                   </tr>
                 })}
-                {!section.rows.some(row => matchesYieldFilter(row.expectedYield, yieldFilter)) && <tr><td className="quality-report__empty" colSpan={12}>该区间暂无标的</td></tr>}
+                {!section.rows.some(row => {
+                  const price = prices[row.code]?.price
+                  return matchesYieldFilter(price ? row.dividend / price * 100 : null, yieldFilter)
+                }) && <tr><td className="quality-report__empty" colSpan={12}>该区间暂无标的</td></tr>}
               </tbody>
             </table>
           </div>
