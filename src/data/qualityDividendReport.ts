@@ -110,7 +110,7 @@ export const QUALITY_DIVIDEND_SECTIONS: QualityDividendSection[] = [
       { name: '中谷物流', code: '603565', dividend: 0.7, expectedYield: 5.3 },
       { name: '中金黄金', code: '600489', dividend: 1, expectedYield: 3.7 },
       { name: '中国神华H', code: '1088', dividend: 2.5, expectedYield: 4.9, isHK: true },
-      { name: '中国海洋石油', code: '883', dividend: 1.85, expectedYield: 6.6 },
+      { name: '中国海洋石油', code: '883', dividend: 1.85, expectedYield: 6.6, isHK: true },
       { name: '中国移动H', code: '941', dividend: 5.2, expectedYield: 5.9, isHK: true },
       { name: '中国平安H', code: '2318', dividend: 3.3, expectedYield: 5.2, isHK: true },
       { name: '新华保险H', code: '1336', dividend: 3.1, expectedYield: 5.9, isHK: true },
