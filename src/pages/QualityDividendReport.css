@@ -1,0 +1,150 @@
+.quality-report {
+  min-height: 100vh;
+  overflow-y: auto;
+  background: #f4f5f0;
+  color: #18302c;
+  padding: 0 0 40px;
+}
+
+.quality-report__masthead {
+  position: relative;
+  overflow: hidden;
+  padding: 36px 24px 28px;
+  background: #0f2f2d;
+  color: #f7f6ec;
+}
+
+.quality-report__masthead::after {
+  position: absolute;
+  right: -38px;
+  bottom: -56px;
+  width: 180px;
+  height: 180px;
+  border: 1px solid rgba(215, 169, 56, 0.48);
+  border-radius: 50%;
+  content: '';
+}
+
+.quality-report__eyebrow {
+  margin: 0 0 10px;
+  color: #d7a938;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.quality-report h1 {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-family: 'Noto Serif SC', 'Songti SC', STSong, serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.quality-report__masthead > p:last-child {
+  position: relative;
+  z-index: 1;
+  margin: 10px 0 0;
+  color: #dbe8df;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.quality-report__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -1px 16px 12px;
+  padding: 14px 16px;
+  border-left: 4px solid #d7a938;
+  background: #fffdf5;
+  box-shadow: 0 5px 18px rgba(15, 47, 45, 0.08);
+}
+
+.quality-report__toolbar strong,
+.quality-report__toolbar span {
+  display: block;
+}
+
+.quality-report__toolbar strong {
+  color: #0f6256;
+  font-size: 13px;
+}
+
+.quality-report__toolbar span {
+  margin-top: 3px;
+  color: #66736e;
+  font-size: 11px;
+}
+
+.quality-report__toolbar button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #0f6256;
+  background: #fff;
+  color: #0f6256;
+  padding: 7px 9px;
+  font: 600 12px 'PingFang SC';
+}
+
+.quality-report__toolbar button:disabled { opacity: 0.62; }
+.quality-report__toolbar svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.quality-report__notice { margin: 0 16px 20px; color: #52615b; font-size: 12px; line-height: 1.6; }
+
+.quality-report__filters { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 16px; scrollbar-width: none; }
+.quality-report__filters::-webkit-scrollbar { display: none; }
+.quality-report__filters button { flex: none; border: 1px solid #c8d8d1; background: #fff; color: #46635a; padding: 7px 12px; font: 600 12px 'PingFang SC'; }
+.quality-report__filters button.is-active { border-color: #0f6256; background: #0f6256; color: #fff; }
+
+.quality-report__section { margin: 0 10px 22px; }
+.quality-report__section h2 { margin: 0; padding: 10px 14px; background: #0f6256; color: #fff; font: 700 16px 'Noto Serif SC', 'Songti SC', serif; }
+.quality-report__table-wrap { overflow-x: auto; border: 1px solid #dce0d7; background: #fff; }
+.quality-report table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
+.quality-report th, .quality-report td { white-space: nowrap; padding: 8px 10px; border-right: 1px solid #e2e6df; border-bottom: 1px solid #e2e6df; text-align: right; font-variant-numeric: tabular-nums; }
+.quality-report th { position: sticky; top: 0; z-index: 1; background: #e7f3ef; color: #12483f; font-weight: 700; }
+.quality-report th:first-child, .quality-report td:first-child { position: sticky; left: 0; z-index: 2; text-align: left; background: #fff; font-weight: 600; }
+.quality-report th:first-child { z-index: 3; background: #e7f3ef; }
+.quality-report td:nth-child(2) { color: #7a8882; font-size: 11px; }
+.quality-report__dividend { color: #bd2c25; font-weight: 700; }
+.quality-report__live-price { color: #0f6256; font-weight: 800; }
+.quality-report__unavailable { color: #9aa59f; }
+.quality-report__target { background: #fff3b0; font-weight: 800; }
+.quality-report__empty { padding: 20px; color: #7a8882; text-align: center !important; }
+
+.quality-report__footer {
+  margin: 24px 20px 0;
+  color: #5f6c67;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@media (min-width: 768px) {
+  .quality-report {
+    padding-bottom: 56px;
+  }
+
+  .quality-report__masthead,
+  .quality-report__toolbar,
+  .quality-report__notice,
+  .quality-report__filters,
+  .quality-report__section,
+  .quality-report__footer {
+    max-width: 960px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .quality-report__masthead {
+    margin-top: 28px;
+    padding: 46px 52px 36px;
+  }
+
+  .quality-report__toolbar { margin-top: 0; }
+}
