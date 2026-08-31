@@ -7,6 +7,7 @@ import './QualityDividendReport.css'
 const TARGET_YIELDS = [3, 4, 5, 6, 7, 8, 9]
 const YIELD_FILTERS = [
   { value: 'all', label: '全部' },
+  { value: 'watchlist', label: '自选' },
   { value: 7, label: '7%+' },
   { value: 6, label: '6%-7%' },
   { value: 5, label: '5%-6%' },
@@ -21,6 +22,7 @@ const fmtPrice = (price: number, isHK?: boolean) => `${isHK ? 'HK$' : '¥'}${pri
 const targetPrice = (dividend: number, yieldPct: number) => dividend / (yieldPct / 100)
 const matchesYieldFilter = (yieldRate: number | null, filter: YieldFilter) => {
   if (filter === 'all') return true
+  if (filter === 'watchlist') return true
   if (yieldRate == null) return false
   if (filter === 7) return yieldRate >= 7
   if (filter === 3) return yieldRate < 3
@@ -93,6 +95,7 @@ export default function QualityDividendReport() {
               </thead>
               <tbody>
                 {section.rows.filter(row => {
+                  if (yieldFilter === 'watchlist') return row.featured === true
                   const price = prices[row.code]?.price
                   return matchesYieldFilter(price ? row.dividend / price * 100 : null, yieldFilter)
                 }).map(row => {
@@ -113,6 +116,7 @@ export default function QualityDividendReport() {
                   </tr>
                 })}
                 {!section.rows.some(row => {
+                  if (yieldFilter === 'watchlist') return row.featured === true
                   const price = prices[row.code]?.price
                   return matchesYieldFilter(price ? row.dividend / price * 100 : null, yieldFilter)
                 }) && <tr><td className="quality-report__empty" colSpan={12}>该区间暂无标的</td></tr>}
