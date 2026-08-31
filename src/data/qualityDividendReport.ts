@@ -102,7 +102,7 @@ export const QUALITY_DIVIDEND_SECTIONS: QualityDividendSection[] = [
       { name: '内蒙华电', code: '600863', dividend: 0.22, expectedYield: 4.7 },
       { name: '华能国际', code: '600011', dividend: 0.35, expectedYield: 5.1, featured: true },
       { name: '新能泰山', code: '000720', dividend: 0.3, expectedYield: 6.1 },
-      { name: '中国宏桥', code: '1378', dividend: 2.2, expectedYield: 8.4, featured: true },
+      { name: '中国宏桥', code: '1378', dividend: 2.2, expectedYield: 8.4, isHK: true, featured: true },
       { name: '神火股份', code: '000933', dividend: 1.6, expectedYield: 5.8, featured: true },
       { name: '紫金矿业', code: '601899', dividend: 1.1, expectedYield: 3.2 },
       { name: '藏格矿业', code: '000408', dividend: 3.2, expectedYield: 4.1 },
