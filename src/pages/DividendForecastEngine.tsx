@@ -941,7 +941,7 @@ export default function DividendForecastEngine() {
                     </b>
                   </div>
                   <div className="forecast-manual-profit">
-                    <span>H1 / 全年利润比例</span>
+                    <span>H1 / 全年利润比例 <small>可调节</small></span>
                     <div>
                       <input
                         type="number"
@@ -1170,7 +1170,7 @@ export default function DividendForecastEngine() {
                     </b>
                   </p>
                   <div className="forecast-mobile-manual-profit">
-                    <b>H1 / 全年利润比例</b>
+                    <b>H1 / 全年利润比例（可调节）</b>
                     <div>
                       <input
                         type="number"

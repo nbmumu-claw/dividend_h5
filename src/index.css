@@ -732,3 +732,4 @@ body {
 
 .forecast-policy-equation { flex-wrap: wrap; min-height: 0; padding: 9px 14px !important; row-gap: 6px; }
 .forecast-policy-equation span { white-space: normal; }
+.forecast-manual-profit > span small { display:inline-block; margin:0 0 0 5px; padding:2px 4px; border-radius:3px; background:#FFF0EB; color:#E85B3D; font-size:10px; font-weight:700; }
