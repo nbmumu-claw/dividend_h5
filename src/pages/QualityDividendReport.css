@@ -98,6 +98,8 @@
 .quality-report table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
 .quality-report th, .quality-report td { white-space: nowrap; padding: 9px 10px; border-right: 1px solid #edf0f4; border-bottom: 1px solid #edf0f4; text-align: right; font-variant-numeric: tabular-nums; }
 .quality-report th { position: sticky; top: 0; z-index: 1; background: #f7f8fb; color: #7b8595; font-size: 11px; font-weight: 600; }
+.quality-report__sort-button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; font: inherit; font-weight: inherit; }
+.quality-report__sort-button:focus-visible { outline: 2px solid #f04438; outline-offset: 2px; border-radius: 2px; }
 .quality-report th:first-child, .quality-report td:first-child { position: sticky; left: 0; z-index: 2; text-align: left; background: #fff; font-weight: 600; }
 .quality-report th:first-child { z-index: 3; background: #f7f8fb; }
 .quality-report td:nth-child(2) { color: #8a94a6; font-size: 11px; }
