@@ -101,7 +101,8 @@
 .quality-report th:first-child, .quality-report td:first-child { position: sticky; left: 0; z-index: 2; text-align: left; background: #fff; font-weight: 600; }
 .quality-report th:first-child { z-index: 3; background: #f7f8fb; }
 .quality-report td:nth-child(2) { color: #8a94a6; font-size: 11px; }
-.quality-report__featured { display: inline-block; margin-left: 5px; border-radius: 4px; background: #fff0ed; color: #f04438; padding: 2px 4px; font-size: 9px; font-weight: 700; vertical-align: 1px; }
+.quality-report__watchlist { margin-left: 6px; border: 1px solid #d9dee7; border-radius: 4px; background: #fff; color: #7b8595; padding: 2px 4px; font: 700 9px 'PingFang SC'; vertical-align: 1px; }
+.quality-report__watchlist.is-watched { border-color: #f04438; background: #fff0ed; color: #f04438; }
 .quality-report__dividend { color: #f04438; font-weight: 700; }
 .quality-report__live-price { color: #1a9a68; font-weight: 800; }
 .quality-report__current-yield { color: #252a34; font-weight: 800; }

@@ -5,6 +5,7 @@ import type { PriceMap } from '../types'
 import './QualityDividendReport.css'
 
 const TARGET_YIELDS = [3, 4, 5, 6, 7, 8, 9]
+const WATCHLIST_STORAGE_KEY = 'quality-dividend-report-watchlist'
 const YIELD_FILTERS = [
   { value: 'all', label: '全部' },
   { value: 'watchlist', label: '自选' },
@@ -17,6 +18,23 @@ const YIELD_FILTERS = [
 ] as const
 
 type YieldFilter = (typeof YIELD_FILTERS)[number]['value']
+
+const stockKey = (code: string, isHK?: boolean) => `${isHK ? 'hk' : 'cn'}-${code}`
+const DEFAULT_WATCHLIST = QUALITY_DIVIDEND_SECTIONS
+  .flatMap(section => section.rows)
+  .filter(row => row.featured)
+  .map(row => stockKey(row.code, row.isHK))
+
+const loadWatchlist = () => {
+  try {
+    const saved = localStorage.getItem(WATCHLIST_STORAGE_KEY)
+    if (!saved) return DEFAULT_WATCHLIST
+    const parsed: unknown = JSON.parse(saved)
+    return Array.isArray(parsed) && parsed.every(item => typeof item === 'string') ? parsed : DEFAULT_WATCHLIST
+  } catch {
+    return DEFAULT_WATCHLIST
+  }
+}
 
 const fmtPrice = (price: number, isHK?: boolean) => `${isHK ? 'HK$' : '¥'}${price.toFixed(2)}`
 const targetPrice = (dividend: number, yieldPct: number) => dividend / (yieldPct / 100)
@@ -35,6 +53,7 @@ export default function QualityDividendReport() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [yieldFilter, setYieldFilter] = useState<YieldFilter>('all')
+  const [watchlist, setWatchlist] = useState<string[]>(loadWatchlist)
 
   const refreshPrices = useCallback(async () => {
     setRefreshing(true)
@@ -48,6 +67,11 @@ export default function QualityDividendReport() {
   }, [])
 
   useEffect(() => { void refreshPrices() }, [refreshPrices])
+  useEffect(() => { localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist)) }, [watchlist])
+
+  const toggleWatchlist = (key: string) => {
+    setWatchlist(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])
+  }
 
   return (
     <main className="quality-report">
@@ -95,14 +119,16 @@ export default function QualityDividendReport() {
               </thead>
               <tbody>
                 {section.rows.filter(row => {
-                  if (yieldFilter === 'watchlist') return row.featured === true
+                  if (yieldFilter === 'watchlist') return watchlist.includes(stockKey(row.code, row.isHK))
                   const price = prices[row.code]?.price
                   return matchesYieldFilter(price ? row.dividend / price * 100 : null, yieldFilter)
                 }).map(row => {
+                  const key = stockKey(row.code, row.isHK)
+                  const watched = watchlist.includes(key)
                   const quote = prices[row.code]
                   const liveYield = quote?.price ? row.dividend / quote.price * 100 : null
                   return <tr key={`${row.isHK ? 'hk' : 'cn'}-${row.code}`}>
-                    <td>{row.name}{row.featured && <span className="quality-report__featured">特别关注</span>}</td><td>{row.isHK ? `HK${row.code.padStart(4, '0')}` : row.code}</td>
+                    <td><span>{row.name}</span><button className={`quality-report__watchlist ${watched ? 'is-watched' : ''}`} type="button" onClick={() => toggleWatchlist(key)} aria-pressed={watched}>{watched ? '已自选' : '加入自选'}</button></td><td>{row.isHK ? `HK${row.code.padStart(4, '0')}` : row.code}</td>
                     <td className="quality-report__dividend">{row.dividend.toFixed(2)}</td>
                     <td className={quote ? 'quality-report__live-price' : 'quality-report__unavailable'}>{quote ? fmtPrice(quote.price, row.isHK) : '—'}</td>
                     <td className={liveYield ? 'quality-report__current-yield' : 'quality-report__unavailable'}>{liveYield == null ? '—' : `${liveYield.toFixed(2)}%`}</td>
@@ -116,7 +142,7 @@ export default function QualityDividendReport() {
                   </tr>
                 })}
                 {!section.rows.some(row => {
-                  if (yieldFilter === 'watchlist') return row.featured === true
+                  if (yieldFilter === 'watchlist') return watchlist.includes(stockKey(row.code, row.isHK))
                   const price = prices[row.code]?.price
                   return matchesYieldFilter(price ? row.dividend / price * 100 : null, yieldFilter)
                 }) && <tr><td className="quality-report__empty" colSpan={12}>该区间暂无标的</td></tr>}
