@@ -166,8 +166,8 @@ export default function DividendForecastEngine() {
   const [activeSector, setActiveSector] = useState("全部");
   const [payoutChoice, setPayoutChoice] = useState<"auto" | PayoutMethod>("auto");
   const [payoutTipOpen, setPayoutTipOpen] = useState(false);
-  const [manualProfitInput, setManualProfitInput] = useState("");
-  const [manualProfitApplied, setManualProfitApplied] = useState(false);
+  const [manualRatioInput, setManualRatioInput] = useState("");
+  const [manualRatioApplied, setManualRatioApplied] = useState(false);
   const [commitments, setCommitments] = useState<DividendCommitment[]>([]);
   const [likes, setLikes] = useState<number | null>(null);
   const [liked, setLiked] = useState(hasDividendForecastLiked);
@@ -185,8 +185,8 @@ export default function DividendForecastEngine() {
     setMatches([]);
     setPayoutChoice("auto");
     setPayoutTipOpen(false);
-    setManualProfitInput("");
-    setManualProfitApplied(false);
+    setManualRatioInput("");
+    setManualRatioApplied(false);
     try {
       if (!/^\d{6}$/.test(code)) {
         const candidates = (await searchStocks(code)).filter(
@@ -221,6 +221,7 @@ export default function DividendForecastEngine() {
       if (!response.latestShare?.TOTAL_SHARES) throw new Error("尚未取得最新权益分派股本。");
       if (payouts.length < 3) throw new Error("尚未取得连续三年的常规现金派息率。");
       const annualProfit = h1Profit / median(seasonality.map((item) => item.ratio));
+      setManualRatioInput((median(seasonality.map((item) => item.ratio)) * 100).toFixed(2));
       const payoutRates = payouts.map((item) => item.payoutRatio / 100);
       const payoutAverage = average(payoutRates),
         payoutMedian = median(payoutRates);
@@ -363,15 +364,16 @@ export default function DividendForecastEngine() {
     });
   };
 
-  const applyManualProfit = () => {
-    const annualProfit = Number(manualProfitInput) * 1e8;
-    if (!Number.isFinite(annualProfit) || annualProfit <= 0) {
-      setError("请输入大于 0 的全年归母净利润（单位：亿元）。");
+  const applyManualRatio = () => {
+    const ratio = Number(manualRatioInput) / 100;
+    if (!Number.isFinite(ratio) || ratio <= 0 || ratio > 1) {
+      setError("请输入大于 0 且不超过 100 的 H1 / 全年利润比例。");
       return;
     }
     setError("");
     setResult((current) => {
       if (!current) return current;
+      const annualProfit = current.h1Profit / ratio;
       const calculation = calculateAnnualDps(
         annualProfit,
         current.shares,
@@ -395,10 +397,13 @@ export default function DividendForecastEngine() {
         interimExceedsModel: current.interim !== null && current.interim > annualDps,
       };
     });
-    setManualProfitApplied(true);
+    setManualRatioApplied(true);
   };
 
-  const restoreModelProfit = () => {
+  const restoreMedianRatio = () => {
+    if (result) {
+      setManualRatioInput((median(result.seasonality.map((item) => item.ratio)) * 100).toFixed(2));
+    }
     setResult((current) => {
       if (!current) return current;
       const annualProfit = current.h1Profit / median(current.seasonality.map((item) => item.ratio));
@@ -425,7 +430,7 @@ export default function DividendForecastEngine() {
         interimExceedsModel: current.interim !== null && current.interim > annualDps,
       };
     });
-    setManualProfitApplied(false);
+    setManualRatioApplied(false);
   };
 
   useEffect(() => {
@@ -887,7 +892,7 @@ export default function DividendForecastEngine() {
                   </div>
                   <div className="forecast-matrix-row forecast-matrix-forecast">
                     <b>
-                      2026E <small>{manualProfitApplied ? "手动" : "预测"}</small>
+                      2026E <small>{manualRatioApplied ? "手动" : "预测"}</small>
                     </b>
                     <span>{billion(result.h1Profit)}</span>
                     <span>{billion(result.annualProfit)}</span>
@@ -936,23 +941,24 @@ export default function DividendForecastEngine() {
                     </b>
                   </div>
                   <div className="forecast-manual-profit">
-                    <span>手动全年利润</span>
+                    <span>H1 / 全年利润比例</span>
                     <div>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={manualProfitInput}
-                        onChange={(event) => setManualProfitInput(event.target.value)}
-                        placeholder="单位：亿元"
-                        aria-label="手动设定全年归母净利润，单位亿元"
+                        value={manualRatioInput}
+                        onChange={(event) => setManualRatioInput(event.target.value)}
+                        placeholder="百分比"
+                        aria-label="手动设定H1归母净利占全年利润比例，单位百分比"
                       />
-                      <button type="button" onClick={applyManualProfit}>采用</button>
+                      <b>%</b>
+                      <button type="button" onClick={applyManualRatio}>采用</button>
                     </div>
-                    {manualProfitApplied ? (
-                      <button type="button" onClick={restoreModelProfit}>恢复模型值</button>
+                    {manualRatioApplied ? (
+                      <button type="button" onClick={restoreMedianRatio}>恢复中位数</button>
                     ) : (
-                      <small>填写后点击“采用”才影响预测</small>
+                      <small>默认历史中位数；点击“采用”才影响预测</small>
                     )}
                   </div>
                   <div>
@@ -970,9 +976,9 @@ export default function DividendForecastEngine() {
                   className={`forecast-equation ${!result.usesInterimAnchor && !result.policyApplied ? "is-selected" : ""}`}
                 >
                   <b className="forecast-formula-label">利润模型</b>
-                  {manualProfitApplied ? (
+                  {manualRatioApplied ? (
                     <span>
-                      手动全年利润 <b>{billion(result.annualProfit)}</b>
+                      26H1 利润 <b>{billion(result.h1Profit)}</b> ÷ 手动比例 <b>{manualRatioInput}%</b>
                     </span>
                   ) : (
                     <>
@@ -996,7 +1002,7 @@ export default function DividendForecastEngine() {
                   </span>
                   <i>=</i>
                   <strong>{result.profitDps.toFixed(3)} 元/股</strong>
-                  <em>{!result.usesInterimAnchor && !result.policyApplied ? manualProfitApplied ? "手动采用" : "已采用" : "参考"}</em>
+                  <em>{!result.usesInterimAnchor && !result.policyApplied ? manualRatioApplied ? "手动采用" : "已采用" : "参考"}</em>
                 </div>
                 {result.interimAnchor !== null && (
                   <div
@@ -1046,7 +1052,7 @@ export default function DividendForecastEngine() {
                   </div>
                 )}
                   <p>
-                    手动全年利润仅影响本次预测，不会修改历史季节性中位数。{" "}
+                    手动比例仅影响本次预测，不会修改历史季节性中位数。{" "}
                   </p>
                   <p>
                     {result.commitment?.modelEligible === false
@@ -1164,23 +1170,24 @@ export default function DividendForecastEngine() {
                     </b>
                   </p>
                   <div className="forecast-mobile-manual-profit">
-                    <b>手动全年利润</b>
+                    <b>H1 / 全年利润比例</b>
                     <div>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={manualProfitInput}
-                        onChange={(event) => setManualProfitInput(event.target.value)}
-                        placeholder="亿元"
-                        aria-label="手动设定全年归母净利润，单位亿元"
+                        value={manualRatioInput}
+                        onChange={(event) => setManualRatioInput(event.target.value)}
+                        placeholder="百分比"
+                        aria-label="手动设定H1归母净利占全年利润比例，单位百分比"
                       />
-                      <button type="button" onClick={applyManualProfit}>采用</button>
+                      <b>%</b>
+                      <button type="button" onClick={applyManualRatio}>采用</button>
                     </div>
-                    {manualProfitApplied ? (
-                      <button type="button" onClick={restoreModelProfit}>恢复模型值</button>
+                    {manualRatioApplied ? (
+                      <button type="button" onClick={restoreMedianRatio}>恢复中位数</button>
                     ) : (
-                      <small>填写后点击采用才影响预测</small>
+                      <small>默认历史中位数；点击采用才影响预测</small>
                     )}
                   </div>
                 </div>
