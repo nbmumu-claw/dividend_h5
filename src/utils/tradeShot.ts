@@ -11,6 +11,11 @@ export function nameMatch(a: string, b: string): boolean {
   return !!a && !!b && (a.includes(b) || b.includes(a))
 }
 
+// 同名优先，避免“中国移动”被“中国移动H”等较长名称抢先匹配。
+export function findMatchedStock<T extends { name: string }>(name: string, stocks: T[]): T | undefined {
+  return stocks.find(stock => stock.name === name) ?? stocks.find(stock => nameMatch(name, stock.name))
+}
+
 // 由日期(+可选时间)构造交易时间戳；无时间默认按 15:00（收盘）
 export function buildTs(date: string | null, time?: string | null): number {
   if (!date) return Date.now()

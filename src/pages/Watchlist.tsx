@@ -11,7 +11,7 @@ import Modal from '../components/Modal'
 import DividendReminderCard from '../components/DividendReminderCard'
 import { usePendingDividends } from '../utils/dividendReminder'
 import { getCurrentUid } from '../utils/cloudSync'
-import { parseTradeScreenshot, nameMatch, buildTs, FISHERMAN_UID, type ParsedTrade } from '../utils/tradeShot'
+import { parseTradeScreenshot, findMatchedStock, buildTs, FISHERMAN_UID, type ParsedTrade } from '../utils/tradeShot'
 import { getShotUsage, bumpShotUsage, SHOT_DAILY_LIMIT } from '../utils/shotQuota'
 import { ensureTransactions, type Transaction } from '../utils/holdings'
 
@@ -144,7 +144,7 @@ export default function Watchlist() {
       const trades = await parseTradeScreenshot(file, uid)
       if (!trades.length) { showToast('未识别到买卖记录'); return }
       const items = trades.map(t => {
-        const stock = watchlist.find(w => nameMatch(t.name, w.name))
+        const stock = findMatchedStock(t.name, watchlist)
         return { trade: t, stock, dup: stock ? isDupTrade(stock, t) : false }
       })
       setBatch({ items, picked: items.map(it => !!it.stock && !it.dup) }) // 重复的默认不勾
