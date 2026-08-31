@@ -103,7 +103,13 @@ export default function QualityDividendReport() {
                     <td className="quality-report__dividend">{row.dividend.toFixed(2)}</td>
                     <td className={quote ? 'quality-report__live-price' : 'quality-report__unavailable'}>{quote ? fmtPrice(quote.price, row.isHK) : '—'}</td>
                     <td className={liveYield ? 'quality-report__current-yield' : 'quality-report__unavailable'}>{liveYield == null ? '—' : `${liveYield.toFixed(2)}%`}</td>
-                    {TARGET_YIELDS.map(yieldPct => <td key={yieldPct}>{fmtPrice(targetPrice(row.dividend, yieldPct), row.isHK)}</td>)}
+                    {TARGET_YIELDS.map(yieldPct => {
+                      const target = targetPrice(row.dividend, yieldPct)
+                      const reached = quote != null && quote.price <= target
+                      return <td className={reached ? 'quality-report__target-hit' : ''} title={reached ? '已达：现价不高于该目标价' : undefined} key={yieldPct}>
+                        {fmtPrice(target, row.isHK)}{reached && <small>已达</small>}
+                      </td>
+                    })}
                   </tr>
                 })}
                 {!section.rows.some(row => {
