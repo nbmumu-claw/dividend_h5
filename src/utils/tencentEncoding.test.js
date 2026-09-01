@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRequire } from 'node:module'
-import stockPriceProxy from '../../api/stock-price.js'
 import { searchStocks } from './api.ts'
 
 const require = createRequire(import.meta.url)
@@ -43,20 +42,4 @@ describe('Tencent response encoding', () => {
     await expect(cloudStockPrice.decodeTencentResponse(response)).resolves.toBe('红利')
   })
 
-  it('returns UTF-8 text from the Vercel stock-price proxy', async () => {
-    globalThis.fetch = vi.fn(async () => new Response(gbkHongLi(), {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain; charset=gbk' },
-    }))
-    const headers = new Map()
-    const send = vi.fn()
-
-    await stockPriceProxy(
-      { query: { codes: 'sh515300' } },
-      { setHeader: (name, value) => headers.set(name, value), send },
-    )
-
-    expect(headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
-    expect(send).toHaveBeenCalledWith('红利')
-  })
 })

@@ -6,7 +6,7 @@ import { fetchSearchApi } from './searchApi'
 const PRICE_TTL = 3 * 60 * 1000
 const RATE_TTL = 6 * 60 * 60 * 1000
 
-// CloudBase 云函数开关（默认走云函数；localStorage 设 'dh_use_vercel_stockprice=1' 切回 Vercel）
+// 实时行情由 CloudBase stockPrice 云函数承接；保留开关仅用于公司性质查询的旧代理回退。
 const CLOUDBASE_STOCK_PRICE_URL = 'https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice'
 function useCloudbaseStockPrice(): boolean {
   try { return localStorage.getItem('dh_use_vercel_stockprice') !== '1' } catch { return true }
@@ -110,11 +110,9 @@ async function fetchTxPrices(stocks: StockInput[], forceRefresh: boolean): Promi
   })
 
   try {
-    const useCloud = useCloudbaseStockPrice()
     const params = new URLSearchParams({ codes: txCodes.join(',') })
-    if (useCloud && forceRefresh) params.set('forceRefresh', 'true')
-    const baseUrl = useCloud ? CLOUDBASE_STOCK_PRICE_URL : '/api/stock-price'
-    const res = await fetch(`${baseUrl}?${params}`)
+    if (forceRefresh) params.set('forceRefresh', 'true')
+    const res = await fetch(`${CLOUDBASE_STOCK_PRICE_URL}?${params}`)
     const body = await res.text()
     const parsed = parseTxBody(body)
 
@@ -231,21 +229,16 @@ async function fetchFundPrices(stocks: StockInput[], forceRefresh: boolean): Pro
 export async function fetchStockPrices(stocks: StockInput[], forceRefresh = false): Promise<PriceMap> {
   if (!stocks.length) return {}
 
-  const useCloud = useCloudbaseStockPrice()
-  // 云函数模式下美股不分离，统一走 fetchTxPrices（云函数支持 us 前缀 + Yahoo 降级）
-  const usStocks = useCloud ? [] : stocks.filter(s => s.isUS)
+  // CloudBase 云函数支持 A 股、港股和美股；仅基金走独立数据源。
   const fundStocks = stocks.filter(s => !s.isUS && s.isFund)
-  const otherStocks = useCloud
-    ? stocks.filter(s => !s.isFund)   // 云函数模式：A/港/美 全部
-    : stocks.filter(s => !s.isUS && !s.isFund)
+  const otherStocks = stocks.filter(s => !s.isFund)
 
-  const [txResult, yfResult, fundResult] = await Promise.all([
+  const [txResult, fundResult] = await Promise.all([
     otherStocks.length ? fetchTxPrices(otherStocks, forceRefresh) : Promise.resolve({}),
-    usStocks.length ? fetchYfPrices(usStocks, forceRefresh) : Promise.resolve({}),
     fundStocks.length ? fetchFundPrices(fundStocks, forceRefresh) : Promise.resolve({}),
   ])
 
-  return { ...txResult, ...yfResult, ...fundResult }
+  return { ...txResult, ...fundResult }
 }
 
 /** 后台预热缓存：拉取价格存入内存缓存，不返回数据。用于全局定时轮询，让页面间切换秒开。 */

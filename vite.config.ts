@@ -69,15 +69,6 @@ export default defineConfig({
           return `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
         },
       },
-      '/api/stock-price': {
-        target: 'https://qt.gtimg.cn',
-        changeOrigin: true,
-        rewrite: (path) => {
-          const qs = path.includes('?') ? path.slice(path.indexOf('?') + 1) : ''
-          const codes = new URLSearchParams(qs).get('codes') || ''
-          return `/q=${codes}`
-        },
-      },
       '/api/stock-search-tx': {
         target: 'https://smartbox.gtimg.cn',
         changeOrigin: true,
