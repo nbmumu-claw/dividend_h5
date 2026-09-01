@@ -28,8 +28,8 @@ const fmtRelative = (date: string) => {
 
 export default function UpcomingDividendReminder({ items, loading = false }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const reminders = expanded ? items : items.slice(0, 3)
-  const canExpand = items.length > 3
+  const reminders = expanded ? items : []
+  const canExpand = items.length > 0
 
   return (
     <section className="upcoming-dividend" aria-label="近期除息日">
@@ -41,12 +41,12 @@ export default function UpcomingDividendReminder({ items, loading = false }: Pro
           {!loading && <b>{items.length} 项</b>}
         </div>
         {canExpand && <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
-          {expanded ? '收起' : '查看全部'} <span aria-hidden>{expanded ? '↑' : '→'}</span>
+          {expanded ? '收起' : `展开 ${items.length} 项`} <span aria-hidden>{expanded ? '↑' : '↓'}</span>
         </button>}
       </div>
       <div className="upcoming-dividend-list">
         {loading && <div className="upcoming-dividend-empty">正在核对已公告的除息日…</div>}
-        {!loading && !items.length && <div className="upcoming-dividend-empty">未来 30 天暂无已公告的 A 股除息日</div>}
+        {!loading && expanded && !items.length && <div className="upcoming-dividend-empty">未来 30 天暂无已公告的 A 股除息日</div>}
         {reminders.map(item => <div className="upcoming-dividend-row" key={`${item.code}-${item.exDate}`}>
           <span className={`upcoming-date ${item.urgency}`}><i aria-hidden>▣</i>{fmtDate(item.exDate)}</span>
           <div className="upcoming-stock"><strong>{item.name}</strong><span>¥{item.price.toFixed(2)}</span></div>
