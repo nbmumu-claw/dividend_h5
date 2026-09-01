@@ -17,6 +17,8 @@ import BollPeriodOverview from '../components/BollPeriodOverview'
 import { closeFinalizationDelayMs, hasSettledCloseQuote, isCloseSettled, shouldUsePriceCache } from '../utils/priceCachePolicy'
 import { YIELD_GRID_STOCKS } from '../data/yieldGridStocks'
 import { getSectorTrend } from '../utils/sectorTrend'
+import UpcomingDividendReminder from '../components/UpcomingDividendReminder'
+import { fetchUpcomingDividends } from '../utils/upcomingDividends'
 import {
   EMPTY_BOLL_FILTERS,
   getSingleActiveBollPeriod,
@@ -282,6 +284,8 @@ export default function YieldGrid() {
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
   const [priceRefreshKey, setPriceRefreshKey] = useState(0)
+  const [upcomingDividendRecords, setUpcomingDividendRecords] = useState<{ code: string; exDate: string; perShare: number }[]>([])
+  const [upcomingDividendLoading, setUpcomingDividendLoading] = useState(false)
   // 网格偏好全部从 store 读取（而非 useState 初始化），云同步后自动刷新
   const storedActive = useStore(s => s.gridPrefs.active || ALL)
   const active = LEGACY_SIGNAL_TABS.has(storedActive) ? ALL : storedActive
@@ -671,6 +675,34 @@ export default function YieldGrid() {
   useEffect(() => {
     if (!rows?.length) return
     let cancelled = false
+    setUpcomingDividendLoading(true)
+    fetchUpcomingDividends(rows.filter(row => !row.isHK).map(row => row.code))
+      .then(records => { if (!cancelled) setUpcomingDividendRecords(records) })
+      .catch(() => { if (!cancelled) setUpcomingDividendRecords([]) })
+      .finally(() => { if (!cancelled) setUpcomingDividendLoading(false) })
+    return () => { cancelled = true }
+  }, [rows])
+
+  const upcomingDividendItems = useMemo(() => upcomingDividendRecords.flatMap(record => {
+    const row = rows?.find(candidate => candidate.code === record.code)
+    const exPrice = row ? row.price - record.perShare : 0
+    if (!row || exPrice <= 0) return []
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const days = Math.round((new Date(`${record.exDate}T00:00:00`).getTime() - today.getTime()) / 86400000)
+    if (days < 0) return []
+    return [{
+      ...record,
+      name: row.name,
+      price: row.price,
+      currentYield: row.cy,
+      exYield: row.dive / exPrice,
+      urgency: (days <= 1 ? 'today' : days <= 3 ? 'soon' : 'normal') as 'today' | 'soon' | 'normal',
+    }]
+  }), [rows, upcomingDividendRecords])
+
+  useEffect(() => {
+    if (!rows?.length) return
+    let cancelled = false
     const aShareCodes = rows.filter(row => !row.isHK).map(row => row.code)
     fetchDividendPayoutsForCodes(aShareCodes)
       .then(payouts => { if (!cancelled) setDividendPayouts(previous => ({ ...previous, ...payouts })) })
@@ -811,6 +843,7 @@ export default function YieldGrid() {
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
         <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>｜<b className="g2">绿色卖出网格</b>。各标的起始股息率可在网格设置中单独调整。BOLL采用前复权日/周/月K、BOLL(20,2)、样本标准差；月线包含本月未完成月线。日/周/月 BOLL 数据采用缓存更新，盘中显示可能存在短暂延迟。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，不构成投资建议。</div>
+        <UpcomingDividendReminder items={upcomingDividendItems} loading={upcomingDividendLoading} />
         <button className="yg-addbar" onClick={() => setShowAdd(true)}>
           <span className="plus">＋</span> 添加标的{custom.length > 0 ? ` ${custom.length}/${MAX_CUSTOM}` : ''}{custom.length >= MAX_CUSTOM ? '（已满，删除后可再加）' : ''}
         </button>
@@ -1501,6 +1534,42 @@ const CSS = `
 .yg-page .legend b { font-weight: 700; }
 .yg-page .legend .o { color: #ea580c; }
 .yg-page .legend .g2 { color: #16a34a; }
+.yg-page .upcoming-dividend { margin: 0 0 14px; border: 1px solid #e5e7eb; border-left: 4px solid #8b5cf6; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
+.yg-page .upcoming-dividend-head { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #f0f1f4; }
+.yg-page .upcoming-dividend-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.yg-page .upcoming-dividend-kicker { color: #8b5cf6; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+.yg-page .upcoming-dividend-title strong { color: #1f2328; font-size: 15px; }
+.yg-page .upcoming-dividend-title span:not(.upcoming-dividend-kicker) { color: #9ca3af; font-size: 12px; }
+.yg-page .upcoming-dividend-title b { padding: 2px 7px; border-radius: 999px; background: #f5f3ff; color: #7c3aed; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.yg-page .upcoming-dividend-head button { flex: 0 0 auto; border: 0; background: none; color: #7c3aed; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.yg-page .upcoming-dividend-head button span { margin-left: 2px; }
+.yg-page .upcoming-dividend-list { padding: 0 14px; }
+.yg-page .upcoming-dividend-empty { padding: 16px 0; color: #9ca3af; font-size: 12px; text-align: center; }
+.yg-page .upcoming-dividend-row { min-height: 50px; display: grid; grid-template-columns: 70px 126px 58px 108px minmax(220px, 1fr); align-items: center; gap: 10px; border-bottom: 1px solid #f0f1f4; font-variant-numeric: tabular-nums; }
+.yg-page .upcoming-dividend-row:last-child { border-bottom: 0; }
+.yg-page .upcoming-date { color: #6b7280; font-size: 12px; font-weight: 700; }
+.yg-page .upcoming-date i { margin-right: 4px; color: #a78bfa; font-size: 11px; font-style: normal; }
+.yg-page .upcoming-date.today, .yg-page .upcoming-relative.today { color: #dc2626; }
+.yg-page .upcoming-date.soon, .yg-page .upcoming-relative.soon { color: #d97706; }
+.yg-page .upcoming-stock { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.yg-page .upcoming-stock strong { overflow: hidden; color: #1f2328; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.yg-page .upcoming-stock span { color: #6b7280; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.yg-page .upcoming-relative { font-size: 12px; white-space: nowrap; }
+.yg-page .upcoming-per-share { color: #6b7280; font-size: 12px; white-space: nowrap; }
+.yg-page .upcoming-per-share b { color: #8b5cf6; }
+.yg-page .upcoming-yield { color: #6b7280; font-size: 12px; text-align: right; white-space: nowrap; }
+.yg-page .upcoming-yield b { color: #374151; }.yg-page .upcoming-yield i { margin: 0 5px; color: #a78bfa; font-style: normal; }.yg-page .upcoming-yield em { color: #8b5cf6; font-style: normal; font-weight: 700; }
+.yg-page .upcoming-dividend-note { margin: 0; padding: 7px 14px 9px; border-top: 1px solid #f8fafc; color: #9ca3af; font-size: 10px; }
+@media (max-width: 719px) {
+  .yg-page .upcoming-dividend-head { padding-inline: 12px; }
+  .yg-page .upcoming-dividend-title { gap: 6px; }
+  .yg-page .upcoming-dividend-title strong { font-size: 14px; }
+  .yg-page .upcoming-dividend-list { padding: 0 12px; }
+  .yg-page .upcoming-dividend-row { grid-template-columns: 62px minmax(0, 1fr) 48px; grid-template-areas: 'date stock relative' 'per-share yield yield'; gap: 2px 6px; min-height: 57px; padding: 7px 0; }
+  .yg-page .upcoming-date { grid-area: date; }.yg-page .upcoming-stock { grid-area: stock; }.yg-page .upcoming-relative { grid-area: relative; text-align: right; }
+  .yg-page .upcoming-per-share { grid-area: per-share; }.yg-page .upcoming-yield { grid-area: yield; font-size: 11px; }
+  .yg-page .upcoming-dividend-note { padding-inline: 12px; }
+}
 .yg-page .yg-addbar { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
   margin: 0 0 14px; padding: 12px; border: 1px dashed #f0b4b0; border-radius: 12px; background: #fff;
   color: #e03025; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }

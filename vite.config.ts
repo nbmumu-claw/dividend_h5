@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import upcomingDividendsHandler from './api/upcoming-dividends.js'
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
@@ -36,8 +37,19 @@ function addFundHeaders() {
   }
 }
 
+function upcomingDividendsDevApi() {
+  return {
+    name: 'upcoming-dividends-dev-api',
+    configureServer(server: import('vite').ViteDevServer) {
+      server.middlewares.use('/api/upcoming-dividends', (req, res) => {
+        void upcomingDividendsHandler(req, res)
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), upcomingDividendsDevApi()],
   server: {
     host: '0.0.0.0',
     // 不监听本地索引/守护进程目录，避免 vercel dev 下 Vite 监听 .codegraph/daemon.sock 崩溃
