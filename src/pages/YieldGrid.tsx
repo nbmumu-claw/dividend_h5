@@ -1534,8 +1534,8 @@ const CSS = `
 .yg-page .legend b { font-weight: 700; }
 .yg-page .legend .o { color: #ea580c; }
 .yg-page .legend .g2 { color: #16a34a; }
-.yg-page .upcoming-dividend { margin: 0 0 14px; border: 1px solid #e5e7eb; border-left: 4px solid #8b5cf6; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
-.yg-page .upcoming-dividend-head { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #f0f1f4; }
+.yg-page .upcoming-dividend { margin: 0 0 10px; border: 1px solid #e5e7eb; border-left: 4px solid #8b5cf6; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
+.yg-page .upcoming-dividend-head { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 14px; border-bottom: 1px solid #f0f1f4; }
 .yg-page .upcoming-dividend-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .yg-page .upcoming-dividend-kicker { color: #8b5cf6; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .yg-page .upcoming-dividend-title strong { color: #1f2328; font-size: 15px; }
@@ -1545,7 +1545,7 @@ const CSS = `
 .yg-page .upcoming-dividend-head button span { margin-left: 2px; }
 .yg-page .upcoming-dividend-list { padding: 0 14px; }
 .yg-page .upcoming-dividend-empty { padding: 16px 0; color: #9ca3af; font-size: 12px; text-align: center; }
-.yg-page .upcoming-dividend-row { min-height: 50px; display: grid; grid-template-columns: 70px 126px 58px 108px minmax(220px, 1fr); align-items: center; gap: 10px; border-bottom: 1px solid #f0f1f4; font-variant-numeric: tabular-nums; }
+.yg-page .upcoming-dividend-row { min-height: 40px; display: grid; grid-template-columns: 64px 118px 52px 100px minmax(210px, 1fr); align-items: center; gap: 8px; border-bottom: 1px solid #f0f1f4; font-variant-numeric: tabular-nums; }
 .yg-page .upcoming-dividend-row:last-child { border-bottom: 0; }
 .yg-page .upcoming-date { color: #6b7280; font-size: 12px; font-weight: 700; }
 .yg-page .upcoming-date i { margin-right: 4px; color: #a78bfa; font-size: 11px; font-style: normal; }
@@ -1559,7 +1559,7 @@ const CSS = `
 .yg-page .upcoming-per-share b { color: #8b5cf6; }
 .yg-page .upcoming-yield { color: #6b7280; font-size: 12px; text-align: right; white-space: nowrap; }
 .yg-page .upcoming-yield b { color: #374151; }.yg-page .upcoming-yield i { margin: 0 5px; color: #a78bfa; font-style: normal; }.yg-page .upcoming-yield em { color: #8b5cf6; font-style: normal; font-weight: 700; }
-.yg-page .upcoming-dividend-note { margin: 0; padding: 7px 14px 9px; border-top: 1px solid #f8fafc; color: #9ca3af; font-size: 10px; }
+.yg-page .upcoming-dividend-note { margin: 0; padding: 4px 14px 5px; border-top: 1px solid #f8fafc; color: #9ca3af; font-size: 10px; line-height: 1.3; }
 @media (max-width: 719px) {
   .yg-page .upcoming-dividend-head { padding-inline: 12px; }
   .yg-page .upcoming-dividend-title { gap: 6px; }
