@@ -55,7 +55,6 @@ export default function UpcomingDividendReminder({ items, loading = false }: Pro
           <span className="upcoming-yield">现价股息率 <b>{(item.currentYield * 100).toFixed(2)}%</b><i>→</i><em>除息后 {(item.exYield * 100).toFixed(2)}%</em></span>
         </div>)}
       </div>
-      <p className="upcoming-dividend-note">数据源：东方财富 · 仅展示已公告的 A 股除息日</p>
     </section>
   )
 }

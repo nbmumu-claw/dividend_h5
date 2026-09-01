@@ -1559,7 +1559,6 @@ const CSS = `
 .yg-page .upcoming-per-share b { color: #8b5cf6; }
 .yg-page .upcoming-yield { color: #6b7280; font-size: 12px; text-align: right; white-space: nowrap; }
 .yg-page .upcoming-yield b { color: #374151; }.yg-page .upcoming-yield i { margin: 0 5px; color: #a78bfa; font-style: normal; }.yg-page .upcoming-yield em { color: #8b5cf6; font-style: normal; font-weight: 700; }
-.yg-page .upcoming-dividend-note { margin: 0; padding: 4px 14px 5px; border-top: 1px solid #f8fafc; color: #9ca3af; font-size: 10px; line-height: 1.3; }
 @media (max-width: 719px) {
   .yg-page .upcoming-dividend-head { padding-inline: 12px; }
   .yg-page .upcoming-dividend-title { gap: 6px; }
