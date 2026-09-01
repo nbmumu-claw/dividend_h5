@@ -35,7 +35,6 @@ export default function UpcomingDividendReminder({ items, loading = false }: Pro
     <section className="upcoming-dividend" aria-label="近期除息日">
       <div className="upcoming-dividend-head">
         <div className="upcoming-dividend-title">
-          <span className="upcoming-dividend-kicker">DIV</span>
           <strong>近期除息日</strong>
           <span>未来 30 天</span>
           {!loading && <b>{items.length} 项</b>}

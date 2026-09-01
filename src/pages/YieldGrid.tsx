@@ -1537,7 +1537,6 @@ const CSS = `
 .yg-page .upcoming-dividend { margin: 0 0 10px; border: 1px solid #e5e7eb; border-left: 4px solid #e03025; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
 .yg-page .upcoming-dividend-head { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 14px; border-bottom: 1px solid #f0f1f4; }
 .yg-page .upcoming-dividend-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.yg-page .upcoming-dividend-kicker { color: #e03025; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .yg-page .upcoming-dividend-title strong { color: #1f2328; font-size: 15px; }
 .yg-page .upcoming-dividend-title span:not(.upcoming-dividend-kicker) { color: #9ca3af; font-size: 12px; }
 .yg-page .upcoming-dividend-title b { padding: 2px 7px; border-radius: 999px; background: #fff0ef; color: #e03025; font-size: 11px; font-weight: 700; white-space: nowrap; }
