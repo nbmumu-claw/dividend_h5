@@ -234,7 +234,6 @@ export default function DividendForecastEngine() {
   const [activeSector, setActiveSector] = useState("全部");
   const [payoutChoice, setPayoutChoice] = useState<"auto" | PayoutMethod>("auto");
   const [forecastChoice, setForecastChoice] = useState<ForecastChoice>("auto");
-  const [payoutTipOpen, setPayoutTipOpen] = useState(false);
   const [manualRatioInput, setManualRatioInput] = useState("");
   const [manualRatioApplied, setManualRatioApplied] = useState(false);
   const [commitments, setCommitments] = useState<DividendCommitment[]>([]);
@@ -254,7 +253,6 @@ export default function DividendForecastEngine() {
     setMatches([]);
     setPayoutChoice("auto");
     setForecastChoice("auto");
-    setPayoutTipOpen(false);
     setManualRatioInput("");
     setManualRatioApplied(false);
     try {
@@ -873,10 +871,9 @@ export default function DividendForecastEngine() {
                   </button>
                 </div>
                 <div
-                  className={`forecast-info-tip ${payoutTipOpen ? "is-open" : ""}`}
+                  className="forecast-info-tip"
                   tabIndex={0}
                   aria-label="查看与切换近三年派息率"
-                  onClick={() => setPayoutTipOpen((open) => !open)}
                 >
                   i
                   <span role="tooltip">
@@ -891,10 +888,8 @@ export default function DividendForecastEngine() {
                       <button
                         type="button"
                         className={payoutChoice === "auto" ? "active" : ""}
-                        onClick={(event) => {
-                          event.stopPropagation();
+                        onClick={() => {
                           selectPayout("auto");
-                          setPayoutTipOpen(false);
                         }}
                       >
                         系统默认 ·{" "}
@@ -907,10 +902,8 @@ export default function DividendForecastEngine() {
                       <button
                         type="button"
                         className={payoutChoice === "average" ? "active" : ""}
-                        onClick={(event) => {
-                          event.stopPropagation();
+                        onClick={() => {
                           selectPayout("average");
-                          setPayoutTipOpen(false);
                         }}
                       >
                         平均值 {percent(result.payoutAverage)}
@@ -918,10 +911,8 @@ export default function DividendForecastEngine() {
                       <button
                         type="button"
                         className={payoutChoice === "median" ? "active" : ""}
-                        onClick={(event) => {
-                          event.stopPropagation();
+                        onClick={() => {
                           selectPayout("median");
-                          setPayoutTipOpen(false);
                         }}
                       >
                         中位数 {percent(result.payoutMedian)}
@@ -929,10 +920,8 @@ export default function DividendForecastEngine() {
                       <button
                         type="button"
                         className={payoutChoice === "latest" ? "active" : ""}
-                        onClick={(event) => {
-                          event.stopPropagation();
+                        onClick={() => {
                           selectPayout("latest");
-                          setPayoutTipOpen(false);
                         }}
                       >
                         最近一年 {percent(result.payoutLatest)}
