@@ -108,6 +108,9 @@
 .quality-report__dividend { color: #f04438; font-weight: 700; }
 .quality-report__live-price { color: #1a9a68; font-weight: 800; }
 .quality-report__current-yield { color: #252a34; font-weight: 800; }
+.quality-report__weekly-change { font-weight: 800; }
+.quality-report__weekly-change--up { color: #f04438; }
+.quality-report__weekly-change--down { color: #1a9a68; }
 .quality-report__unavailable { color: #a8b0be; }
 .quality-report__pdf-highlight { background: #fff200; color: #24272d; font-weight: 800; }
 .quality-report__empty { padding: 20px; color: #8a94a6; text-align: center !important; }

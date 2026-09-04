@@ -24,6 +24,7 @@ const HANDLERS = {
   search: './handlers/search',
   weeklyBoll: './handlers/weeklyBoll',
   periodBoll: './handlers/periodBoll',
+  weeklyChange: './handlers/weeklyChange',
 }
 
 // 懒加载，避免冷启动全量 require
