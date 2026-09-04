@@ -28,7 +28,8 @@ async function fetchOne(symbol) {
   })
   if (!upstream.ok) return null
   const payload = await upstream.json()
-  return parseWeeklyChange(payload?.data?.[symbol]?.qfqweek)
+  // A 股返回复权周线 qfqweek，港股接口仅返回 week。
+  return parseWeeklyChange(payload?.data?.[symbol]?.qfqweek || payload?.data?.[symbol]?.week)
 }
 
 async function readFromDB(symbols, now) {
