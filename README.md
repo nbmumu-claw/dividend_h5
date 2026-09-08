@@ -14,6 +14,7 @@
 ## 项目文档
 
 - [H5 与微信小程序账号绑定及数据互通工作归档（2026-07-16）](docs/cross-platform-account-sync-2026-07-16.md)
+- [独立股息预测云函数：接口、验证与发布状态（2026-09-08）](docs/dividend-forecast-function-2026-09-08.md)
 
 ## 技术栈
 

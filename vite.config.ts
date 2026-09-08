@@ -56,6 +56,14 @@ export default defineConfig({
     watch: { ignored: ['**/.codegraph/**'] },
     proxy: {
       // More specific routes first — Vite uses prefix matching
+      '/api/dividend-forecast': {
+        target: 'http://127.0.0.1:9000',
+        changeOrigin: true,
+        headers: process.env.FORECAST_PROXY_SECRET
+          ? { 'X-Forecast-Proxy-Secret': process.env.FORECAST_PROXY_SECRET }
+          : {},
+        rewrite: (path) => path.replace('/api/dividend-forecast', '/'),
+      },
       '/api/yahoo-chart': {
         target: 'https://query1.finance.yahoo.com',
         changeOrigin: true,

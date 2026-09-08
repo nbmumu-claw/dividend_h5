@@ -1,8 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchStockPrices, searchStocks, type SearchResult } from "../utils/api";
-import { fetchDividendPayouts, type DividendPayoutRecord } from "../utils/dividendPayout";
-import { fetchDividendHistory, type DividendYearRecord } from "../utils/dividendHistory";
+import { fetchDividendForecast, type DividendCommitment, type CommitmentSummaryRemote, type ForecastResult, type ForecastChoice, type PayoutMethod, type ForecastOptions } from "../utils/dividendForecast";
 import { YIELD_GRID_STOCKS } from "../data/yieldGridStocks";
 import {
   addDividendForecastLike,
@@ -10,80 +9,11 @@ import {
   hasDividendForecastLiked,
 } from "../utils/gridLikes";
 
-type ReportRow = { REPORTDATE: string; PARENT_NETPROFIT: number };
-type DividendCommitment = {
-  code: string;
-  name?: string;
-  startYear: number;
-  endYear: number;
-  minPayoutRatio?: number;
-  minDps?: number;
-  minCashAmount?: number;
-  modelEligible?: boolean;
-  basis?: string;
-  includesInterim: boolean;
-  conditional: boolean;
-  conditions: string[];
-  announcementDate: string;
-  sourceUrl: string;
-  eastmoneySourceUrl?: string;
-  sourceName: string;
-  commitmentText?: string;
-};
-type ForecastRemote = {
-  name: string;
-  reports: ReportRow[];
-  latestShare: { TOTAL_SHARES: number; REPORT_DATE?: string; NOTICE_DATE?: string } | null;
-  interimDividend: { PRETAX_BONUS_RMB: number } | null;
-  priorInterimDividend: { PRETAX_BONUS_RMB: number } | null;
-  dividendCommitment: DividendCommitment | null;
-};
-type CommitmentSummaryRemote = { year: number; commitments: DividendCommitment[] };
-type Seasonality = { year: number; h1Profit: number; annualProfit: number; ratio: number };
-type PayoutMethod = "average" | "median" | "latest";
-type ForecastChoice = "auto" | "profit" | "interim" | "policy";
-type ForecastMethod = Exclude<ForecastChoice, "auto">;
-type ForecastResult = {
-  code: string;
-  name: string;
-  annualDps: number;
-  terminalDps: number | null;
-  yieldRate: number | null;
-  price: number | null;
-  annualProfit: number;
-  h1Profit: number;
-  payout: number;
-  effectivePayout: number;
-  appliedPayout: number;
-  payoutAverage: number;
-  payoutMedian: number;
-  payoutLatest: number;
-  payoutMethod: PayoutMethod;
-  systemPayoutMethod: PayoutMethod;
-  shares: number;
-  shareSourceDate: string | null;
-  interim: number | null;
-  priorInterim: number | null;
-  priorAnnualDps: number | null;
-  profitDps: number;
-  forecastMethod: ForecastMethod;
-  interimAnchor: number | null;
-  usesInterimAnchor: boolean;
-  commitment: DividendCommitment | null;
-  policyDpsFloor: number | null;
-  policyApplied: boolean;
-  seasonality: Seasonality[];
-  payouts: DividendPayoutRecord[];
-  history: DividendYearRecord[];
-  interimExceedsModel: boolean;
-};
+type ForecastView = ForecastResult & { price: number | null; yieldRate: number | null };
 
 const gateway = "https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice";
 const percent = (value: number) => `${(value * 100).toFixed(2)}%`;
 const billion = (value: number) => `${(value / 1e8).toFixed(2)} 亿`;
-const median = (values: number[]) =>
-  [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
-const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
 const forecastSectors = ["全部", ...new Set(YIELD_GRID_STOCKS.map((stock) => stock.sector))];
 const MANUAL_PROFIT_RATIO_KEY = "dividend-forecast-manual-profit-ratios";
 const FORECAST_METHOD_KEY = "dividend-forecast-methods";
@@ -128,58 +58,6 @@ function saveForecastMethod(code: string, method: ForecastChoice) {
   } catch {
     // 本地存储不可用时仍保留当前页面的模型选择。
   }
-}
-
-function calculateAnnualDps(
-  annualProfit: number,
-  shares: number,
-  payout: number,
-  interimAnchor: number | null,
-  commitment: DividendCommitment | null,
-  choice: ForecastChoice,
-) {
-  const policyReferenceRatio = commitment?.minPayoutRatio ?? 0;
-  const effectivePayout = payout;
-  const profitDps = (annualProfit * payout) / shares;
-  const usesInterimAnchor = interimAnchor !== null && interimAnchor < profitDps * 0.9;
-  const beforePolicy = usesInterimAnchor ? interimAnchor : profitDps;
-  const policyCanApply = commitment?.modelEligible === true;
-  const policyDpsFloor = policyCanApply
-    ? Math.max(
-        commitment?.minDps ?? 0,
-        commitment?.minCashAmount ? commitment.minCashAmount / shares : 0,
-        policyReferenceRatio ? (annualProfit * policyReferenceRatio) / shares : 0,
-      )
-    : null;
-  const automaticMethod: ForecastMethod =
-    policyCanApply && (policyDpsFloor ?? 0) > beforePolicy
-      ? "policy"
-      : usesInterimAnchor
-        ? "interim"
-        : "profit";
-  const forecastMethod: ForecastMethod =
-    choice === "profit" ||
-    (choice === "interim" && interimAnchor !== null) ||
-    (choice === "policy" && policyCanApply)
-      ? choice
-      : automaticMethod;
-  const annualDps =
-    forecastMethod === "profit"
-      ? profitDps
-      : forecastMethod === "interim"
-        ? interimAnchor!
-        : forecastMethod === "policy"
-          ? policyDpsFloor!
-          : profitDps;
-  return {
-    annualDps,
-    effectivePayout,
-    profitDps,
-    policyDpsFloor,
-    forecastMethod,
-    policyApplied: forecastMethod === "policy",
-    usesInterimAnchor: forecastMethod === "interim",
-  };
 }
 
 function commitmentRule(commitment: DividendCommitment) {
@@ -227,9 +105,11 @@ function RefreshIcon() {
 export default function DividendForecastEngine() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("600941");
-  const [result, setResult] = useState<ForecastResult | null>(null);
+  const [result, setResult] = useState<ForecastView | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
+  const adjusting = useRef(false);
   const [matches, setMatches] = useState<SearchResult[]>([]);
   const [activeSector, setActiveSector] = useState("全部");
   const [payoutChoice, setPayoutChoice] = useState<"auto" | PayoutMethod>("auto");
@@ -247,6 +127,8 @@ export default function DividendForecastEngine() {
       setError("请输入 6 位 A 股代码或股票名称。");
       return;
     }
+    const id = ++requestId.current;
+    adjusting.current = false;
     setLoading(true);
     setError("");
     setResult(null);
@@ -260,6 +142,7 @@ export default function DividendForecastEngine() {
         const candidates = (await searchStocks(code)).filter(
           (item) => !item.isHK && !item.isUS && /^\d{6}$/.test(item.code),
         );
+        if (id !== requestId.current) return;
         if (candidates.length === 0) throw new Error(`未找到“${code}”对应的 A 股标的。`);
         if (candidates.length > 1) {
           setMatches(candidates.slice(0, 8));
@@ -267,127 +150,22 @@ export default function DividendForecastEngine() {
         }
         code = candidates[0].code;
       }
-      const [response, payouts, prices, history] = await Promise.all([
-        fetch(`${gateway}?action=forecastData&code=${code}`).then(async (request) => {
-          if (!request.ok) throw new Error(`财报数据请求失败（${request.status}）`);
-          return request.json() as Promise<ForecastRemote>;
-        }),
-        fetchDividendPayouts(code),
+      const savedRatio = readManualProfitRatio(code);
+      const savedMethod = readForecastMethod(code);
+      const [prediction, prices] = await Promise.all([
+        fetchDividendForecast(code, { profitRatio: savedRatio ?? undefined, forecastMethod: savedMethod }),
         fetchStockPrices([{ code }], true),
-        fetchDividendHistory(code),
       ]);
-      const report = (date: string) =>
-        response.reports.find((item) => item.REPORTDATE.startsWith(date))?.PARENT_NETPROFIT;
-      const h1Profit = report("2026-06-30");
-      const seasonality: Seasonality[] = [2025, 2024, 2023].map((year) => {
-        const h1 = report(`${year}-06-30`),
-          annual = report(`${year}-12-31`);
-        if (!h1 || !annual) throw new Error(`缺少 ${year} 年中报或年报归母净利润。`);
-        return { year, h1Profit: h1, annualProfit: annual, ratio: h1 / annual };
-      });
-      if (!h1Profit) throw new Error("尚未取得 2026 年中报归母净利润。");
-      if (!response.latestShare?.TOTAL_SHARES) throw new Error("尚未取得最新权益分派股本。");
-      if (payouts.length < 3) throw new Error("尚未取得连续三年的常规现金派息率。");
-      const medianRatio = median(seasonality.map((item) => item.ratio));
-      const savedManualRatio = readManualProfitRatio(code);
-      const appliedRatio = savedManualRatio ?? medianRatio;
-      const annualProfit = h1Profit / appliedRatio;
-      setManualRatioInput((appliedRatio * 100).toFixed(2));
-      setManualRatioApplied(savedManualRatio !== null);
-      const payoutRates = payouts.map((item) => item.payoutRatio / 100);
-      const payoutAverage = average(payoutRates),
-        payoutMedian = median(payoutRates);
-      const payoutLatest =
-        payouts.reduce((latest, item) => (item.year > latest.year ? item : latest)).payoutRatio /
-        100;
-      const profitSurge = annualProfit > seasonality[0].annualProfit * 1.15;
-      const payoutMethod =
-        profitSurge && payoutLatest < payoutAverage - 0.03
-          ? "latest"
-          : Math.max(...payoutRates) > 1 ||
-              Math.max(...payoutRates) - Math.min(...payoutRates) > 0.3
-            ? "median"
-            : "average";
-      const payout =
-        payoutMethod === "latest"
-          ? payoutLatest
-          : payoutMethod === "median"
-            ? payoutMedian
-            : payoutAverage;
-      const shares = response.latestShare.TOTAL_SHARES,
-        interim = response.interimDividend?.PRETAX_BONUS_RMB
-          ? response.interimDividend.PRETAX_BONUS_RMB / 10
-          : null;
-      const priorInterim = response.priorInterimDividend?.PRETAX_BONUS_RMB
-        ? response.priorInterimDividend.PRETAX_BONUS_RMB / 10
-        : null;
-      const priorAnnualDps = history?.records.find((item) => item.year === 2025)?.perShare ?? null;
-      const interimAnchor =
-        interim !== null && priorInterim !== null && priorAnnualDps !== null
-          ? (priorAnnualDps * interim) / priorInterim
-          : null;
-      const savedForecastChoice = readForecastMethod(code);
-      setForecastChoice(savedForecastChoice);
-      const calculation = calculateAnnualDps(
-        annualProfit,
-        shares,
-        payout,
-        interimAnchor,
-        response.dividendCommitment,
-        savedForecastChoice,
-      );
-      const {
-        annualDps,
-        effectivePayout,
-        profitDps,
-        forecastMethod,
-        policyDpsFloor,
-        policyApplied,
-        usesInterimAnchor,
-      } = calculation;
-      const appliedPayout = (annualDps * shares) / annualProfit;
+      if (id !== requestId.current) return;
       const price = prices[code]?.price ?? null;
-      setResult({
-        code,
-        name: response.name || code,
-        annualDps,
-        terminalDps: interim === null ? null : Math.max(annualDps - interim, 0),
-        yieldRate: price && price > 0 ? annualDps / price : null,
-        price,
-        annualProfit,
-        h1Profit,
-        payout,
-        effectivePayout,
-        appliedPayout,
-        payoutAverage,
-        payoutMedian,
-        payoutLatest,
-        payoutMethod,
-        systemPayoutMethod: payoutMethod,
-        shares,
-        shareSourceDate:
-          response.latestShare.REPORT_DATE || response.latestShare.NOTICE_DATE || null,
-        interim,
-        priorInterim,
-        priorAnnualDps,
-        profitDps,
-        forecastMethod,
-        interimAnchor,
-        usesInterimAnchor,
-        commitment: response.dividendCommitment,
-        policyDpsFloor,
-        policyApplied,
-        seasonality,
-        payouts: [...payouts].sort((a, b) => a.year - b.year),
-        history: (history?.records ?? [])
-          .filter((item) => item.year >= 2023 && item.year <= 2025)
-          .sort((a, b) => a.year - b.year),
-        interimExceedsModel: interim !== null && interim > annualDps,
-      });
+      setResult({ ...prediction, price, yieldRate: price && price > 0 ? prediction.annualDps / price : null });
+      setForecastChoice(savedMethod);
+      setManualRatioInput((prediction.profitRatio * 100).toFixed(2));
+      setManualRatioApplied(savedRatio !== null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "数据请求失败，请稍后重试。");
+      if (id === requestId.current) setError(reason instanceof Error ? reason.message : "数据请求失败，请稍后重试。");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
   };
 
@@ -396,82 +174,50 @@ export default function DividendForecastEngine() {
     await runFor(query);
   };
 
+  const recalculate = async (options: ForecastOptions, onSuccess: () => void) => {
+    if (!result || loading || adjusting.current) return;
+    const current = result;
+    const id = ++requestId.current;
+    adjusting.current = true;
+    setLoading(true);
+    setError("");
+    try {
+      const prediction = await fetchDividendForecast(current.code, {
+        profitRatio: current.profitRatio,
+        payoutMethod: current.payoutMethod,
+        forecastMethod: forecastChoice,
+        ...options,
+      });
+      if (id !== requestId.current) return;
+      setResult({
+        ...prediction,
+        // Manual edits retain the system choice made when this stock was first queried.
+        systemPayoutMethod: current.systemPayoutMethod,
+        price: current.price,
+        yieldRate: current.price && current.price > 0 ? prediction.annualDps / current.price : null,
+      });
+      onSuccess();
+    } catch (reason) {
+      if (id === requestId.current) setError(reason instanceof Error ? reason.message : "重新计算失败，请稍后重试。");
+    } finally {
+      if (id === requestId.current) {
+        adjusting.current = false;
+        setLoading(false);
+      }
+    }
+  };
+
   const selectPayout = (choice: "auto" | PayoutMethod) => {
-    setPayoutChoice(choice);
-    setResult((current) => {
-      if (!current) return current;
-      const method = choice === "auto" ? current.systemPayoutMethod : choice;
-      const payout =
-        method === "average"
-          ? current.payoutAverage
-          : method === "median"
-            ? current.payoutMedian
-            : current.payoutLatest;
-      const calculation = calculateAnnualDps(
-        current.annualProfit,
-        current.shares,
-        payout,
-        current.interimAnchor,
-        current.commitment,
-        forecastChoice,
-      );
-      const {
-        annualDps,
-        effectivePayout,
-        profitDps,
-        forecastMethod,
-        policyDpsFloor,
-        policyApplied,
-        usesInterimAnchor,
-      } = calculation;
-      const appliedPayout = (annualDps * current.shares) / current.annualProfit;
-      return {
-        ...current,
-        payout,
-        effectivePayout,
-        payoutMethod: method,
-        profitDps,
-        forecastMethod,
-        annualDps,
-        appliedPayout,
-        policyDpsFloor,
-        policyApplied,
-        usesInterimAnchor,
-        terminalDps: current.interim === null ? null : Math.max(annualDps - current.interim, 0),
-        yieldRate: current.price && current.price > 0 ? annualDps / current.price : null,
-        interimExceedsModel: current.interim !== null && current.interim > annualDps,
-      };
-    });
+    if (!result) return;
+    void recalculate({ payoutMethod: choice === "auto" ? result.systemPayoutMethod : choice }, () => setPayoutChoice(choice));
   };
 
   const selectForecastMethod = (choice: ForecastChoice) => {
-    setForecastChoice(choice);
-    if (result) saveForecastMethod(result.code, choice);
-    setResult((current) => {
-      if (!current) return current;
-      const calculation = calculateAnnualDps(
-        current.annualProfit,
-        current.shares,
-        current.payout,
-        current.interimAnchor,
-        current.commitment,
-        choice,
-      );
-      const { annualDps, effectivePayout, profitDps, forecastMethod, policyDpsFloor, policyApplied, usesInterimAnchor } = calculation;
-      return {
-        ...current,
-        annualDps,
-        effectivePayout,
-        profitDps,
-        forecastMethod,
-        appliedPayout: (annualDps * current.shares) / current.annualProfit,
-        policyDpsFloor,
-        policyApplied,
-        usesInterimAnchor,
-        terminalDps: current.interim === null ? null : Math.max(annualDps - current.interim, 0),
-        yieldRate: current.price && current.price > 0 ? annualDps / current.price : null,
-        interimExceedsModel: current.interim !== null && current.interim > annualDps,
-      };
+    if (!result) return;
+    const code = result.code;
+    void recalculate({ forecastMethod: choice }, () => {
+      setForecastChoice(choice);
+      saveForecastMethod(code, choice);
     });
   };
 
@@ -481,73 +227,22 @@ export default function DividendForecastEngine() {
       setError("请输入大于 0 且不超过 100 的 H1 / 全年利润比例。");
       return;
     }
-    setError("");
-    if (result) saveManualProfitRatio(result.code, ratio);
-    setResult((current) => {
-      if (!current) return current;
-      const annualProfit = current.h1Profit / ratio;
-      const calculation = calculateAnnualDps(
-        annualProfit,
-        current.shares,
-        current.payout,
-        current.interimAnchor,
-        current.commitment,
-        forecastChoice,
-      );
-      const { annualDps, effectivePayout, profitDps, forecastMethod, policyDpsFloor, policyApplied, usesInterimAnchor } = calculation;
-      return {
-        ...current,
-        annualProfit,
-        annualDps,
-        effectivePayout,
-        profitDps,
-        forecastMethod,
-        appliedPayout: (annualDps * current.shares) / annualProfit,
-        policyDpsFloor,
-        policyApplied,
-        usesInterimAnchor,
-        terminalDps: current.interim === null ? null : Math.max(annualDps - current.interim, 0),
-        yieldRate: current.price && current.price > 0 ? annualDps / current.price : null,
-        interimExceedsModel: current.interim !== null && current.interim > annualDps,
-      };
+    if (!result) return;
+    const code = result.code;
+    void recalculate({ profitRatio: ratio }, () => {
+      saveManualProfitRatio(code, ratio);
+      setManualRatioApplied(true);
     });
-    setManualRatioApplied(true);
   };
 
   const restoreMedianRatio = () => {
-    if (result) {
-      saveManualProfitRatio(result.code, null);
-      setManualRatioInput((median(result.seasonality.map((item) => item.ratio)) * 100).toFixed(2));
-    }
-    setResult((current) => {
-      if (!current) return current;
-      const annualProfit = current.h1Profit / median(current.seasonality.map((item) => item.ratio));
-      const calculation = calculateAnnualDps(
-        annualProfit,
-        current.shares,
-        current.payout,
-        current.interimAnchor,
-        current.commitment,
-        forecastChoice,
-      );
-      const { annualDps, effectivePayout, profitDps, forecastMethod, policyDpsFloor, policyApplied, usesInterimAnchor } = calculation;
-      return {
-        ...current,
-        annualProfit,
-        annualDps,
-        effectivePayout,
-        profitDps,
-        forecastMethod,
-        appliedPayout: (annualDps * current.shares) / annualProfit,
-        policyDpsFloor,
-        policyApplied,
-        usesInterimAnchor,
-        terminalDps: current.interim === null ? null : Math.max(annualDps - current.interim, 0),
-        yieldRate: current.price && current.price > 0 ? annualDps / current.price : null,
-        interimExceedsModel: current.interim !== null && current.interim > annualDps,
-      };
+    if (!result) return;
+    const { code, medianProfitRatio } = result;
+    void recalculate({ profitRatio: medianProfitRatio }, () => {
+      saveManualProfitRatio(code, null);
+      setManualRatioInput((medianProfitRatio * 100).toFixed(2));
+      setManualRatioApplied(false);
     });
-    setManualRatioApplied(false);
   };
 
   useEffect(() => {
@@ -561,6 +256,7 @@ export default function DividendForecastEngine() {
       )
       .then((response) => setCommitments(response.commitments))
       .catch(() => setCommitments([]));
+    return () => { requestId.current++; };
   }, []);
 
   const onLike = () => {
@@ -589,7 +285,7 @@ export default function DividendForecastEngine() {
       ? result.commitment.minCashAmount / result.shares
       : null;
   return (
-    <main className="forecast-page">
+    <main className="forecast-page" aria-busy={loading}>
       <div className="forecast-shell">
         <div className="forecast-toolbar">
           <button className="forecast-back" onClick={() => navigate("/yield-grid")}>
@@ -635,7 +331,7 @@ export default function DividendForecastEngine() {
             placeholder="输入 6 位代码或股票名称"
           />
           <button type="submit" disabled={loading}>
-            {loading ? "正在拉取数据" : "查询并计算"}
+            {loading ? (result ? "正在重新计算" : "正在拉取数据") : "查询并计算"}
           </button>
           <div className="forecast-examples">
             <span>试试</span>
@@ -808,7 +504,7 @@ export default function DividendForecastEngine() {
                   <h2>{result.name}</h2>
                   <em>中报锚定 · B级</em>
                 </div>
-                <p>数据按查询时实时拉取；每股预测不随盘中行情变动，预期股息率随现价更新。</p>
+                <p>财报与分红数据可能有 5 分钟更新延迟；每股预测不随盘中行情变动，预期股息率随现价更新。</p>
               </div>
               <button className="forecast-refresh" onClick={() => run()} disabled={loading}>
                 <RefreshIcon /> 刷新数据
@@ -849,21 +545,21 @@ export default function DividendForecastEngine() {
                 </p>
                 <div className="forecast-payout-quick-switch">
                   <button
-                    type="button"
+                    type="button" disabled={loading}
                     className={result.payoutMethod === "average" ? "active" : ""}
                     onClick={() => selectPayout("average")}
                   >
                     平均 {percent(result.payoutAverage)}
                   </button>
                   <button
-                    type="button"
+                    type="button" disabled={loading}
                     className={result.payoutMethod === "median" ? "active" : ""}
                     onClick={() => selectPayout("median")}
                   >
                     中位 {percent(result.payoutMedian)}
                   </button>
                   <button
-                    type="button"
+                    type="button" disabled={loading}
                     className={result.payoutMethod === "latest" ? "active" : ""}
                     onClick={() => selectPayout("latest")}
                   >
@@ -886,7 +582,7 @@ export default function DividendForecastEngine() {
                     ))}
                     <div className="forecast-payout-switch">
                       <button
-                        type="button"
+                        type="button" disabled={loading}
                         className={payoutChoice === "auto" ? "active" : ""}
                         onClick={() => {
                           selectPayout("auto");
@@ -900,7 +596,7 @@ export default function DividendForecastEngine() {
                             : "最近一年"}
                       </button>
                       <button
-                        type="button"
+                        type="button" disabled={loading}
                         className={payoutChoice === "average" ? "active" : ""}
                         onClick={() => {
                           selectPayout("average");
@@ -909,7 +605,7 @@ export default function DividendForecastEngine() {
                         平均值 {percent(result.payoutAverage)}
                       </button>
                       <button
-                        type="button"
+                        type="button" disabled={loading}
                         className={payoutChoice === "median" ? "active" : ""}
                         onClick={() => {
                           selectPayout("median");
@@ -918,7 +614,7 @@ export default function DividendForecastEngine() {
                         中位数 {percent(result.payoutMedian)}
                       </button>
                       <button
-                        type="button"
+                        type="button" disabled={loading}
                         className={payoutChoice === "latest" ? "active" : ""}
                         onClick={() => {
                           selectPayout("latest");
@@ -1004,7 +700,7 @@ export default function DividendForecastEngine() {
                     </b>
                     <span>{billion(result.h1Profit)}</span>
                     <span>{billion(result.annualProfit)}</span>
-                    <strong>{percent(median(result.seasonality.map((item) => item.ratio)))}</strong>
+                    <strong>{percent(result.medianProfitRatio)}</strong>
                   </div>
                   {result.seasonality.map((item) => (
                     <div className="forecast-matrix-row" key={item.year}>
@@ -1018,7 +714,7 @@ export default function DividendForecastEngine() {
                     <b>中位数</b>
                     <span>—</span>
                     <span>—</span>
-                    <strong>{percent(median(result.seasonality.map((item) => item.ratio)))}</strong>
+                    <strong>{percent(result.medianProfitRatio)}</strong>
                   </div>
                 </div>
                 <div className="forecast-input-list">
@@ -1062,10 +758,10 @@ export default function DividendForecastEngine() {
                         aria-label="手动设定H1归母净利占全年利润比例，单位百分比"
                       />
                       <b>%</b>
-                      <button type="button" onClick={applyManualRatio}>采用</button>
+                      <button type="button" disabled={loading} onClick={applyManualRatio}>采用</button>
                     </div>
                     {manualRatioApplied ? (
-                      <button type="button" onClick={restoreMedianRatio}>恢复中位数</button>
+                      <button type="button" disabled={loading} onClick={restoreMedianRatio}>恢复中位数</button>
                     ) : (
                       <small>默认历史中位数；上下箭头每次调整 1%，也可直接输入</small>
                     )}
@@ -1108,7 +804,7 @@ export default function DividendForecastEngine() {
                       <i>÷</i>
                       <span>
                         季节性中位数{" "}
-                        <b>{percent(median(result.seasonality.map((item) => item.ratio)))}</b>
+                        <b>{percent(result.medianProfitRatio)}</b>
                       </span>
                     </>
                   )}
@@ -1261,7 +957,7 @@ export default function DividendForecastEngine() {
                 <div className="forecast-mobile-detail">
                   <div className="forecast-mobile-method-switch" aria-label="预测模型选择">
                     <button
-                      type="button"
+                      type="button" disabled={loading}
                       className={result.forecastMethod === "profit" ? "active" : ""}
                       onClick={() => selectForecastMethod("profit")}
                     >
@@ -1269,7 +965,7 @@ export default function DividendForecastEngine() {
                     </button>
                     {result.interimAnchor !== null && (
                       <button
-                        type="button"
+                        type="button" disabled={loading}
                         className={result.forecastMethod === "interim" ? "active" : ""}
                         onClick={() => selectForecastMethod("interim")}
                       >
@@ -1278,7 +974,7 @@ export default function DividendForecastEngine() {
                     )}
                     {result.commitment?.modelEligible && (
                       <button
-                        type="button"
+                        type="button" disabled={loading}
                         className={result.forecastMethod === "policy" ? "active" : ""}
                         onClick={() => selectForecastMethod("policy")}
                       >
@@ -1311,7 +1007,7 @@ export default function DividendForecastEngine() {
                       </p>
                       <p>
                         季节性中位数{" "}
-                        <b>{percent(median(result.seasonality.map((item) => item.ratio)))}</b>
+                        <b>{percent(result.medianProfitRatio)}</b>
                       </p>
                       <p>
                         选择派息率 <b>{percent(result.effectivePayout)}</b>
@@ -1354,10 +1050,10 @@ export default function DividendForecastEngine() {
                         aria-label="手动设定H1归母净利占全年利润比例，单位百分比"
                       />
                       <b>%</b>
-                      <button type="button" onClick={applyManualRatio}>采用</button>
+                      <button type="button" disabled={loading} onClick={applyManualRatio}>采用</button>
                     </div>
                     {manualRatioApplied ? (
-                      <button type="button" onClick={restoreMedianRatio}>恢复中位数</button>
+                      <button type="button" disabled={loading} onClick={restoreMedianRatio}>恢复中位数</button>
                     ) : (
                       <small>默认历史中位数；上下箭头每次调整 1%，也可直接输入</small>
                     )}
