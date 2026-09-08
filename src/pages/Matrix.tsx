@@ -198,21 +198,21 @@ export default function Matrix() {
     const simPrice = currentPrice
     const curYield = simPrice > 0 && dividend > 0 ? (dividend / simPrice) * 100 : 0
 
-    // 加仓档：首档 +「现价档之后 3 个默认整档」+「再 3 个可选整档（用户延长）」
-    //  · 现价股息率 < 门槛：尚未到价，首档=门槛档（等跌到 4%/5%）
-    //  · 现价股息率 ≥ 门槛：当下可买，首档=现价（按真实股息率/现价），之后取现价上方最近整档起每 +0.5%
+    // 加仓档：现价可手动加仓，之后是 3 个默认整档与 3 个可选整档。
+    //  · 现价股息率 < 门槛：现价档默认 0 股，首个默认买入档仍为 4%/5%
+    //  · 现价股息率 ≥ 门槛：现价档默认 100 股，之后取现价上方最近整档起每 +0.5%
     const base = simBaseYield(name) // 起步门槛：水电 4%，其余 5%
     const step = strat?.step === 0.25 ? 0.25 : 0.5 // 档间隔（步长），默认 0.5%
     const r2 = (x: number) => Math.round(x * 100) / 100 // 取两位小数，兼容 0.25 步长
     type Step = { key: string; rate: number; targetPrice: number; isCurrent: boolean; optional: boolean }
     const allSteps: Step[] = []
     if (curYield > 0) {
+      allSteps.push({ key: 'cur', rate: curYield, targetPrice: simPrice, isCurrent: true, optional: false })
       let firstCheckpoint: number
       if (curYield < base) {
         allSteps.push({ key: simKey(base), rate: base, targetPrice: dividend / (base / 100), isCurrent: false, optional: false })
         firstCheckpoint = r2(base + step)
       } else {
-        allSteps.push({ key: 'cur', rate: curYield, targetPrice: simPrice, isCurrent: true, optional: false })
         firstCheckpoint = r2(Math.floor(curYield / step + 1e-9) * step + step) // 严格上方最近档
       }
       // 前 3 档默认显示，后 3 档可选（用户延长）
@@ -230,8 +230,9 @@ export default function Matrix() {
     let cumShares = hasHolding ? shares : 0
     let cumAmount = hasHolding ? shares * cost : 0
     const ladder = steps.map((s, i) => {
-      // 默认：首档（现价 / 5%）100 股，其余档 0 股，用户按需填
-      const stepShares = strat?.shares?.[s.key] ?? (i === 0 ? 100 : 0)
+      // 现价未到门槛时保留为手动档，默认买入仍落在首个目标价档。
+      const defaultShares = s.isCurrent ? (curYield >= base ? 100 : 0) : (curYield < base && i === 1 ? 100 : 0)
+      const stepShares = strat?.shares?.[s.key] ?? defaultShares
       cumShares += stepShares
       cumAmount += stepShares * s.targetPrice
       return { ...s, stepShares, cumShares, avgCost: cumShares > 0 ? cumAmount / cumShares : 0 }
@@ -456,19 +457,6 @@ export default function Matrix() {
                           <td className="py-2 text-right text-gray-300">—</td>
                         </tr>
                       )}
-                      {!sim.rows[0]?.isCurrent && (
-                        <tr className="border-b border-gray-100 bg-red-50/40">
-                          <td className="py-2 text-gray-700">
-                            <div>{sim.curYield.toFixed(2)}%</div>
-                            <div className="text-[10px] text-gray-400 leading-none mt-0.5">现价</div>
-                          </td>
-                          <td className="py-2 text-right text-gray-700">{cs}{currentPrice.toFixed(2)}</td>
-                          <td className="py-2 text-right text-gray-300">—</td>
-                          <td className="py-2 text-right text-gray-300">—</td>
-                          <td className="py-2 text-right text-gray-300">—</td>
-                          <td className="py-2 text-right text-gray-300">—</td>
-                        </tr>
-                      )}
                       {sim.rows.map(r => (
                         <tr key={r.key} className={`border-b border-gray-50 last:border-0 ${r.isCurrent ? 'bg-red-50/60' : ''}`}>
                           <td className="py-2 text-gray-700">
@@ -541,7 +529,7 @@ export default function Matrix() {
                   </div>
 
                   <p className="text-xs text-gray-400 mt-3">
-                    首档为现价（现价股息率 ≥ {sim.base}% 时可当下买入，否则等跌到 {sim.base}%），之后每 {sim.step}% 股息率为一档（目标价 = 每股红利 ÷ 股息率）；默认 3 档，可再加 3 档。每档股数可改，仅用于推演，不含手续费、不影响真实持仓。
+                    现价也可手动模拟加仓；现价股息率低于 {sim.base}% 时默认 0 股，首个默认买入档为 {sim.base}%。之后每 {sim.step}% 股息率为一档（目标价 = 每股红利 ÷ 股息率）；默认 3 档，可再加 3 档。每档股数可改，仅用于推演，不含手续费、不影响真实持仓。
                   </p>
                 </>
               )}
