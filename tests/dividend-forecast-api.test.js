@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import handler, { validatedQuery } from './dividend-forecast.js'
+import handler, { validatedQuery } from '../api/dividend-forecast.js'
 
 function responseRecorder() {
-  const output = { statusCode: 200, headers: {} as Record<string, string>, body: '' }
+  const output = { statusCode: 200, headers: {}, body: '' }
   const res = {
-    status(code: number) { output.statusCode = code; return res },
-    setHeader(name: string, value: string) { output.headers[name] = value },
-    json(value: unknown) { output.body = JSON.stringify(value) },
-    send(value: string) { output.body = value },
+    status(code) { output.statusCode = code; return res },
+    setHeader(name, value) { output.headers[name] = value },
+    json(value) { output.body = JSON.stringify(value) },
+    send(value) { output.body = value },
   }
   return { output, res }
 }
