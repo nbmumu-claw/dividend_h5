@@ -25,16 +25,20 @@ const fakeStore = vi.hoisted(() => ({
   state: {
     watchlist: [] as unknown[], accounts: [] as unknown[], manualStocks: [] as unknown[],
     staticEdits: {} as Record<string, unknown>, hiddenStocks: [] as unknown[], customSectors: [] as unknown[],
-    gridPrefs: {}, simStrategy: {}, gatherAccounts: () => [] as unknown[],
+    gridPrefs: { forecastOverrides: {} } as { forecastOverrides: Record<string, number> }, simStrategy: {}, gatherAccounts: () => [] as unknown[],
+    setGridPrefs(patch: { forecastOverrides?: Record<string, number> }) {
+      fakeStore.state.gridPrefs = { ...fakeStore.state.gridPrefs, ...patch }
+    },
     importBackup(data: Record<string, unknown>) {
       fakeStore.state.watchlist = (data.watchlist as unknown[]) || []
       fakeStore.state.accounts = (data.accounts as unknown[]) || []
       fakeStore.state.manualStocks = (data.discoveryManualStocks as unknown[]) || []
+      if (data.gridPrefs) fakeStore.state.gridPrefs = { ...fakeStore.state.gridPrefs, ...(data.gridPrefs as { forecastOverrides?: Record<string, number> }) }
     },
   },
 }))
 
-vi.mock('../store', () => ({ useStore: { getState: () => fakeStore.state } }))
+vi.mock('../store', () => ({ useStore: { getState: () => fakeStore.state, subscribe: () => () => {} } }))
 vi.mock('./cloudbase', () => {
   const collection = () => {
     const api: Record<string, unknown> = {
@@ -82,7 +86,7 @@ vi.mock('./cloudbase', () => {
   }
 })
 
-import { activateUserStorage, deactivateUserStorage, loadFromCloud, saveToCloud, shouldBlockEmptyOverwrite, shouldPullRemote, syncOnLogin } from './cloudSync'
+import { activateUserStorage, deactivateUserStorage, loadFromCloud, saveToCloud, shouldBlockEmptyOverwrite, shouldPullRemote, startAutoPush, stopAutoPush, syncOnLogin } from './cloudSync'
 
 const META = 'cloud-sync-meta'
 
@@ -94,9 +98,21 @@ beforeEach(() => {
   for (const k of Object.keys(mem)) delete mem[k]
   fakeStore.state.watchlist = []
   fakeStore.state.accounts = []
+  fakeStore.state.gridPrefs = { forecastOverrides: {} }
 })
 
 describe('浏览器多登录账号隔离', () => {
+  it('登录后把旧版本机手动股息合并进账号偏好，并清除公共副本', () => {
+    fakeStore.state.gridPrefs = { forecastOverrides: { '601166': 1 } }
+    mem['yield-grid-2026-dividend-overrides'] = JSON.stringify({ '600941': 5 })
+
+    startAutoPush()
+
+    expect(fakeStore.state.gridPrefs.forecastOverrides).toEqual({ '601166': 1, '600941': 5 })
+    expect(mem['yield-grid-2026-dividend-overrides']).toBeUndefined()
+    stopAutoPush()
+  })
+
   it('事故 UID 的污染快照只清理一次，之后新产生的正常快照不再被删除', () => {
     const uid = '2077682590818500608'
     fakeStore.state.watchlist = [{ code: 'POISONED' }]
@@ -139,12 +155,15 @@ describe('浏览器多登录账号隔离', () => {
 
   it('退出保存本账号快照并清空公共页面，重新登录恢复自己的快照', () => {
     fakeStore.state.watchlist = [{ code: 'U1' }]
+    fakeStore.state.gridPrefs = { forecastOverrides: { '600941': 5 } }
     mem[META] = JSON.stringify({ updatedAt: 20, docId: 'u1' })
     mem['cloud-sync-active-uid'] = 'u1'
     deactivateUserStorage('u1')
     expect(fakeStore.state.watchlist).toEqual([])
+    expect(fakeStore.state.gridPrefs.forecastOverrides).toEqual({})
     activateUserStorage('u1')
     expect(fakeStore.state.watchlist).toEqual([{ code: 'U1' }])
+    expect(fakeStore.state.gridPrefs.forecastOverrides).toEqual({ '600941': 5 })
     expect(JSON.parse(mem[META]).docId).toBe('u1')
   })
 })

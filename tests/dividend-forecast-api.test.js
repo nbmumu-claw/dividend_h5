@@ -26,6 +26,8 @@ describe('dividend forecast site proxy', () => {
     expect(() => validatedForecastQuery({ code: '00700' })).toThrow(/6 位 A 股/)
     expect(() => validatedForecastQuery({ code: '600941', profitRatio: '0' })).toThrow(/利润比例/)
     expect(() => validatedForecastQuery({ code: '600941', payoutMethod: 'bad' })).toThrow(/派息率算法/)
+    expect(Object.fromEntries(validatedForecastQuery({ codes: '600941,601728,600941' }))).toEqual({ codes: '600941,601728', year: '2026' })
+    expect(() => validatedForecastQuery({ code: '600941', codes: '601728' })).toThrow(/不能同时使用/)
   })
 
   it('rejects other browser origins and requests without server credentials', async () => {

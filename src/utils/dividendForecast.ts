@@ -26,6 +26,7 @@ export type Seasonality = { year: number; h1Profit: number; annualProfit: number
 export type PayoutMethod = "average" | "median" | "latest";
 export type ForecastChoice = "auto" | "profit" | "interim" | "policy";
 export type ForecastMethod = Exclude<ForecastChoice, "auto">;
+export const DIVIDEND_FORECAST_MODEL_VERSION = "2026-v1";
 export type ForecastResult = {
   code: string;
   name: string;
@@ -71,6 +72,14 @@ export interface ForecastOptions {
   forecastMethod?: ForecastChoice;
 }
 
+export type ForecastBatchResult = {
+  year: number;
+  modelVersion: string;
+  calculatedAt: string;
+  results: Record<string, Pick<ForecastResult, "code" | "annualDps">>;
+  errors: Record<string, string>;
+};
+
 const endpoint = "/api/dividend-forecast";
 
 export async function fetchDividendForecast(code: string, options: ForecastOptions = {}): Promise<ForecastResult> {
@@ -84,4 +93,18 @@ export async function fetchDividendForecast(code: string, options: ForecastOptio
     throw new Error(body?.error || "预测请求失败（" + response.status + "）");
   }
   return response.json() as Promise<ForecastResult>;
+}
+
+export async function fetchDividendForecasts(codes: string[]): Promise<ForecastBatchResult> {
+  const uniqueCodes = [...new Set(codes)];
+  if (uniqueCodes.length === 0) {
+    return { year: 2026, modelVersion: "2026-v1", calculatedAt: new Date().toISOString(), results: {}, errors: {} };
+  }
+  const params = new URLSearchParams({ codes: uniqueCodes.join(","), year: "2026" });
+  const response = await fetch(endpoint + "?" + params, { signal: AbortSignal.timeout(45000) });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error || "批量预测请求失败（" + response.status + "）");
+  }
+  return response.json() as Promise<ForecastBatchResult>;
 }

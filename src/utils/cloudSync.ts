@@ -2,6 +2,7 @@ import { cbAuth, cbDb, USER_DATA_COLLECTION } from './cloudbase'
 import { pickLatest } from './dedup'
 import { useStore } from '../store'
 import { CASH_CURRENCIES, normalizeCash, normalizeCashFunding } from './cash'
+import { clearForecastOverrides, loadForecastOverrides } from './dividendForecastCache'
 
 // 当前账号的同步元信息；账号切换时会归档到 USER_META_PREFIX + uid。
 const META_KEY = 'cloud-sync-meta'
@@ -73,6 +74,7 @@ function applyPendingLocalPurge(uid: string) {
   // 这里已经由登录态确认了目标 uid。旧版本可能没有 ACTIVE_UID_KEY，或该键已被
   // 跨账号缓存污染；定向事故清理不能依赖这个不可靠的旧标记，否则当前内存数据会再次上传。
   useStore.getState().importBackup(emptyBackup() as unknown as Record<string, unknown>)
+  useStore.getState().setGridPrefs({ forecastOverrides: {} })
   localStorage.removeItem(META_KEY)
   localStorage.removeItem(ACTIVE_UID_KEY)
   localStorage.setItem(LOCAL_PURGE_PREFIX + uid, version)
@@ -103,6 +105,8 @@ export function activateUserStorage(uid: string) {
   if (savedBackup) {
     try { backup = JSON.parse(savedBackup) as Backup } catch { /* 损坏的单用户缓存按空数据处理，云端仍可恢复 */ }
   }
+  // 先清掉上一账号的手动股息；目标账号有快照时 importBackup 会恢复自己的值。
+  useStore.getState().setGridPrefs({ forecastOverrides: {} })
   useStore.getState().importBackup(backup as unknown as Record<string, unknown>)
   if (savedMeta) localStorage.setItem(META_KEY, savedMeta)
   else localStorage.removeItem(META_KEY)
@@ -116,6 +120,7 @@ export function deactivateUserStorage(uid: string) {
   localStorage.setItem(USER_BACKUP_PREFIX + uid, JSON.stringify(buildBackup()))
   localStorage.setItem(USER_META_PREFIX + uid, JSON.stringify(loadMeta()))
   useStore.getState().importBackup(emptyBackup() as unknown as Record<string, unknown>)
+  useStore.getState().setGridPrefs({ forecastOverrides: {} })
   localStorage.removeItem(META_KEY)
   localStorage.removeItem(ACTIVE_UID_KEY)
   lastPushedJson = ''
@@ -456,6 +461,14 @@ export function startAutoPush() {
     })
   }
   attachRemoteListeners()
+  // 旧版把手动股息放在公共 localStorage。登录同步完成后并入账号偏好，
+  // 再清掉公共副本，避免换账号时串用，同时由上面的订阅触发云端保存。
+  const legacyOverrides = loadForecastOverrides()
+  if (Object.keys(legacyOverrides).length > 0) {
+    const current = useStore.getState().gridPrefs.forecastOverrides ?? {}
+    useStore.getState().setGridPrefs({ forecastOverrides: { ...current, ...legacyOverrides } })
+    clearForecastOverrides()
+  }
 }
 export function stopAutoPush() {
   if (unsub) { unsub(); unsub = null }

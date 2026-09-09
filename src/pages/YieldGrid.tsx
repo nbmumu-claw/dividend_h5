@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import { fetchDividendPayoutsForCodes, type DividendPayoutRecord } from '../utils/dividendPayout'
+import { DIVIDEND_FORECAST_MODEL_VERSION, fetchDividendForecast, fetchDividendForecasts, type ForecastResult, type PayoutMethod } from '../utils/dividendForecast'
+import { loadForecastCache, loadForecastOverrides, saveForecastCache, saveForecastOverrides } from '../utils/dividendForecastCache'
+import { resolveGridDividend, type DividendBasis } from '../utils/dividendBasis'
 import { predictSector } from '../utils/sectorPredictor'
 import { pickDividendForFill } from '../utils/dividendFill'
 import Modal from '../components/Modal'
@@ -156,11 +159,36 @@ function PayoutValue({ records }: { records: DividendPayoutRecord[] | undefined 
   )
 }
 
+function ForecastDividendValue({
+  forecast,
+  manual,
+  isHK,
+  onEdit,
+}: {
+  forecast: number | null | undefined
+  manual: number | undefined
+  isHK: boolean
+  onEdit: () => void
+}) {
+  const value = manual ?? forecast
+  const text = typeof value === 'number' ? String(+value.toFixed(4)) : !isHK && forecast === undefined ? '···' : '--'
+  return (
+    <button
+      type="button"
+      className={`forecast-edit-value${manual !== undefined ? ' manual' : ''}`}
+      onClick={onEdit}
+      title={manual !== undefined ? '手动修改值，点击编辑' : '算法预测值，点击手动修改'}
+    >
+      <b>{text}</b><i>{manual !== undefined ? '手动' : '✎'}</i>
+    </button>
+  )
+}
+
 // 涨跌幅：A 股惯例涨红跌绿
 const chgClass = (p: number) => (p > 0 ? 'chg-up' : p < 0 ? 'chg-dn' : 'chg-flat')
 const chgText = (p: number) => `${p > 0 ? '+' : ''}${p.toFixed(2)}%`
 
-type Row = { sector: string; name: string; code: string; dive: number; price: number; cy: number; pctChg: number; isHK: boolean }
+type Row = { sector: string; name: string; code: string; dive: number; gridDividend: number; dividendFallback: boolean; price: number; cy: number; pctChg: number; isHK: boolean }
 type YieldStart = { code: string; buy: number; sell: number }
 // 币种符号：网格内港股使用 $，A 股 ¥
 const symOf = (isHK?: boolean, code?: string) => (isHK ? '$' : code && /^900/.test(String(code)) ? '$' : code && /^200/.test(String(code)) ? 'HK$' : '¥')
@@ -168,6 +196,23 @@ const symOf = (isHK?: boolean, code?: string) => (isHK ? '$' : code && /^900/.te
 // 网格页自选（独立于主自选页，纳入账号云同步）
 const FAV = '自选'
 type Custom = { sector: string; name: string; code: string; dive: number; isHK?: boolean }
+const EMPTY_FORECAST_OVERRIDES: Record<string, number> = {}
+type ProfitRatioChoice = 'median' | 'average' | '2023' | '2024' | '2025' | 'manual'
+
+const averageOf = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+const medianOf = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
+const toBillion = (value: number) => value / 1e8
+const compactNumber = (value: number, digits = 2) => Number.isFinite(value) ? String(+value.toFixed(digits)) : '--'
+const payoutFor = (detail: ForecastResult, choice: PayoutMethod) => (
+  choice === 'latest' ? detail.payoutLatest : choice === 'median' ? detail.payoutMedian : detail.payoutAverage
+)
+const profitRatioFor = (detail: ForecastResult, choice: ProfitRatioChoice) => {
+  const ratios = detail.seasonality.map(item => item.ratio)
+  if (choice === 'median') return medianOf(ratios)
+  if (choice === 'average') return averageOf(ratios)
+  if (choice === 'manual') return medianOf(ratios)
+  return detail.seasonality.find(item => item.year === Number(choice))?.ratio ?? medianOf(ratios)
+}
 
 // 从 store 读取/写入网格偏好（替代旧 localStorage 直读直写）
 const gp = () => useStore.getState().gridPrefs
@@ -186,7 +231,7 @@ type SortKey = 'cy' | 'chg' | 'consecutiveYears' | 'price' | 'bollPosition'
 type SortState = { key: SortKey; dir: 'asc' | 'desc' }
 const DEFAULT_SORT: SortState = { key: 'cy', dir: 'desc' }
 const SORT_OPTS: { key: SortKey; label: string }[] = [
-  { key: 'cy', label: '现股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'consecutiveYears', label: '连续分红年数' }, { key: 'bollPosition', label: '轨道下→上' }, { key: 'price', label: '现价' },
+  { key: 'cy', label: '股息率' }, { key: 'chg', label: '涨跌幅' }, { key: 'consecutiveYears', label: '连续分红年数' }, { key: 'bollPosition', label: '轨道下→上' }, { key: 'price', label: '现价' },
 ]
 const SORT_KEYS = new Set<string>(SORT_OPTS.map(o => o.key))
 function loadSort(): SortState { const s = gp().sort; return s?.key ? (s as SortState) : DEFAULT_SORT }
@@ -217,7 +262,7 @@ function fmtTs(ts: number): string {
 
 // 单档计算：买入「已达」= 现价≤目标价；卖出「已达」= 现价≥目标价
 function tier(r: Row, y: number, kind: 'buy' | 'sell') {
-  const target = r.dive / y
+  const target = r.gridDividend / y
   const reached = kind === 'buy' ? r.price <= target : r.price >= target
   const pct = Math.round((kind === 'buy' ? (r.price - target) : (target - r.price)) / r.price * 100)
   const label = reached ? '已达' : `${kind === 'buy' ? '↓' : '↑'}${pct}%`
@@ -280,6 +325,15 @@ export default function YieldGrid() {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [consecutiveDividendYears, setConsecutiveDividendYears] = useState<Record<string, number | null>>({})
   const [dividendPayouts, setDividendPayouts] = useState<Record<string, DividendPayoutRecord[]>>({})
+  const [forecastDividends, setForecastDividends] = useState<Record<string, number | null>>(() => loadForecastCache())
+  const [forecastEditor, setForecastEditor] = useState<{ code: string; name: string; input: string } | null>(null)
+  const [forecastDetail, setForecastDetail] = useState<ForecastResult | null>(null)
+  const [forecastDetailLoading, setForecastDetailLoading] = useState(false)
+  const [forecastDetailError, setForecastDetailError] = useState('')
+  const [profitRatioChoice, setProfitRatioChoice] = useState<ProfitRatioChoice>('median')
+  const [annualProfitInput, setAnnualProfitInput] = useState('')
+  const [editorPayoutChoice, setEditorPayoutChoice] = useState<PayoutMethod>('average')
+  const [infoModal, setInfoModal] = useState<'forecast' | 'boll' | 'data' | null>(null)
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
   const [error, setError] = useState('')
@@ -288,11 +342,19 @@ export default function YieldGrid() {
   const [upcomingDividendLoading, setUpcomingDividendLoading] = useState(false)
   // 网格偏好全部从 store 读取（而非 useState 初始化），云同步后自动刷新
   const storedActive = useStore(s => s.gridPrefs.active || ALL)
+  const storedForecastOverrides = useStore(s => s.gridPrefs.forecastOverrides)
+  const forecastOverrides = storedForecastOverrides ?? EMPTY_FORECAST_OVERRIDES
   const active = LEGACY_SIGNAL_TABS.has(storedActive) ? ALL : storedActive
   const switchActive = (v: string) => saveActive(v)
   useEffect(() => {
     if (LEGACY_SIGNAL_TABS.has(storedActive)) saveActive(ALL)
   }, [storedActive])
+  // 未登录用户继续使用本机数据；登录后 startAutoPush 会把这份旧缓存并入账号并清除。
+  useEffect(() => {
+    const localOverrides = loadForecastOverrides()
+    if (Object.keys(localOverrides).length === 0) return
+    saveGp({ forecastOverrides: { ...forecastOverrides, ...localOverrides } })
+  }, [])
   const favsArr = useStore(s => s.gridPrefs.favs)
   const favs = useMemo(() => new Set(favsArr), [favsArr])
   const toggleFav = (code: string) => {
@@ -420,7 +482,12 @@ export default function YieldGrid() {
 
   // 登录状态
   const [authUser, setAuthUser] = useState<{ email?: string; user_metadata?: { nickName?: string } } | null>(null)
-  useEffect(() => { cbAuth.getSession().then(({ data }) => setAuthUser(data?.session?.user ?? null)).catch(() => {}) }, [])
+  useEffect(() => {
+    cbAuth.getSession().then(({ data }) => {
+      const session = data?.session
+      setAuthUser(session && !session.user?.is_anonymous ? session.user : null)
+    }).catch(() => {})
+  }, [])
 
   // 登录用户的最近买入记录查找表（code → latest buy tx）
   const watchlist = useStore(s => s.watchlist)
@@ -464,10 +531,12 @@ export default function YieldGrid() {
   const storedYieldStarts = useStore(s => s.gridPrefs.yieldStarts)
   const yieldStarts = storedYieldStarts ?? DEFAULT_YIELD_STARTS
   const showBoll = useStore(s => s.gridPrefs.showBoll !== false)
+  const dividendBasis: DividendBasis = useStore(s => s.gridPrefs.dividendBasis === '2026' ? '2026' : '2025')
   const yieldStartMap = useMemo(() => new Map(yieldStarts.map(item => [item.code, item])), [yieldStarts])
   const [showCfg, setShowCfg] = useState(false)
   const updateCfg = (partial: Partial<GridCfg>) => { saveCfg({ ...cfg, ...partial }) }
   const updateShowBoll = (next: boolean) => saveGp({ showBoll: next })
+  const updateDividendBasis = (next: DividendBasis) => saveGp({ dividendBasis: next })
   const updateYieldStarts = (next: YieldStart[]) => saveGp({ yieldStarts: next })
   const [yieldFilter, setYieldFilter] = useState<YieldStatusFilter>('all')
   const [bollFilters, setBollFilters] = useState<BollFilters>({ ...EMPTY_BOLL_FILTERS })
@@ -587,7 +656,7 @@ export default function YieldGrid() {
         if (!q || !q.price) continue
         if (q.tradeDate && q.tradeDate > latest) latest = q.tradeDate
         if (q.tradeTime && q.tradeTime > latestTime) latestTime = q.tradeTime
-        out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0, isHK: !!s.isHK })
+        out.push({ sector: s.sector, name: s.name, code: s.code, dive: s.dive, gridDividend: s.dive, dividendFallback: false, price: q.price, cy: s.dive / q.price, pctChg: q.pctChg ?? 0, isHK: !!s.isHK })
       }
       if (!out.length) { setError('行情获取失败，请稍后刷新。'); return }
       setRows(out)
@@ -672,6 +741,127 @@ export default function YieldGrid() {
     return () => { cancelled = true }
   }, [rows])
 
+  const forecastCodeKey = useMemo(() => rows?.filter(row => !row.isHK).map(row => row.code).join(',') || '', [rows])
+  useEffect(() => {
+    const codes = forecastCodeKey ? forecastCodeKey.split(',') : []
+    const missingCodes = codes.filter(code => !(code in forecastDividends))
+    if (!missingCodes.length) return
+    let cancelled = false
+    fetchDividendForecasts(missingCodes)
+      .then(({ modelVersion, results }) => {
+        if (cancelled) return
+        setForecastDividends(previous => {
+          const next = { ...previous }
+          for (const code of missingCodes) {
+            const value = results[code]?.annualDps
+            next[code] = Number.isFinite(value) ? value : null
+          }
+          if (modelVersion === DIVIDEND_FORECAST_MODEL_VERSION) {
+            saveForecastCache(next)
+          }
+          return next
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setForecastDividends(previous => ({ ...previous, ...Object.fromEntries(missingCodes.map(code => [code, null])) }))
+      })
+    return () => { cancelled = true }
+  }, [forecastCodeKey])
+
+  useEffect(() => {
+    const code = forecastEditor?.code
+    if (!code) {
+      setForecastDetail(null)
+      setForecastDetailError('')
+      return
+    }
+    let cancelled = false
+    setForecastDetail(null)
+    setForecastDetailError('')
+    setForecastDetailLoading(true)
+    fetchDividendForecast(code)
+      .then(detail => {
+        if (cancelled) return
+        setForecastDetail(detail)
+        setProfitRatioChoice('median')
+        setAnnualProfitInput(compactNumber(toBillion(detail.annualProfit)))
+        setEditorPayoutChoice(detail.payoutMethod)
+      })
+      .catch(reason => {
+        if (!cancelled) setForecastDetailError(reason instanceof Error ? reason.message : '预测明细加载失败')
+      })
+      .finally(() => { if (!cancelled) setForecastDetailLoading(false) })
+    return () => { cancelled = true }
+  }, [forecastEditor?.code])
+
+  const editorAnnualProfit = Number(annualProfitInput) * 1e8
+  const editorProfitRatio = forecastDetail
+    ? profitRatioChoice === 'manual' && Number.isFinite(editorAnnualProfit) && editorAnnualProfit > 0
+      ? forecastDetail.h1Profit / editorAnnualProfit
+      : profitRatioFor(forecastDetail, profitRatioChoice)
+    : null
+  const editorPayout = forecastDetail ? payoutFor(forecastDetail, editorPayoutChoice) : null
+  const editorCalculatedDps = forecastDetail && editorPayout !== null && Number.isFinite(editorAnnualProfit) && editorAnnualProfit > 0
+    ? editorAnnualProfit * editorPayout / forecastDetail.shares
+    : null
+
+  const applyEditorCalculation = (annualProfit: number, payout: number) => {
+    if (!forecastDetail || !Number.isFinite(annualProfit) || annualProfit <= 0) return
+    const calculated = annualProfit * payout / forecastDetail.shares
+    setForecastEditor(current => current ? { ...current, input: compactNumber(calculated, 4) } : null)
+  }
+
+  const selectProfitRatio = (choice: ProfitRatioChoice) => {
+    if (!forecastDetail) return
+    const ratio = profitRatioFor(forecastDetail, choice)
+    const annualProfit = forecastDetail.h1Profit / ratio
+    setProfitRatioChoice(choice)
+    setAnnualProfitInput(compactNumber(toBillion(annualProfit)))
+    applyEditorCalculation(annualProfit, payoutFor(forecastDetail, editorPayoutChoice))
+  }
+
+  const changeAnnualProfit = (input: string) => {
+    setAnnualProfitInput(input)
+    setProfitRatioChoice('manual')
+    const annualProfit = Number(input) * 1e8
+    if (forecastDetail) applyEditorCalculation(annualProfit, payoutFor(forecastDetail, editorPayoutChoice))
+  }
+
+  const selectEditorPayout = (choice: PayoutMethod) => {
+    setEditorPayoutChoice(choice)
+    if (forecastDetail) applyEditorCalculation(Number(annualProfitInput) * 1e8, payoutFor(forecastDetail, choice))
+  }
+
+  const openForecastEditor = (row: Row) => {
+    const value = forecastOverrides[row.code] ?? forecastDividends[row.code]
+    setForecastEditor({ code: row.code, name: row.name, input: typeof value === 'number' ? String(+value.toFixed(4)) : '' })
+  }
+  const persistForecastOverrides = (next: Record<string, number>) => {
+    saveGp({ forecastOverrides: next })
+    cbAuth.getSession().then(({ data }) => {
+      const session = data?.session
+      if (!session || session.user?.is_anonymous) saveForecastOverrides(next)
+    }).catch(() => saveForecastOverrides(next))
+  }
+  const saveForecastOverride = () => {
+    if (!forecastEditor) return
+    const value = Number(forecastEditor.input)
+    if (!Number.isFinite(value) || value <= 0) { showToast('请输入大于 0 的每股股息'); return }
+    const next = { ...forecastOverrides, [forecastEditor.code]: value }
+    persistForecastOverrides(next)
+    setForecastEditor(null)
+    showToast(`${forecastEditor.name} 26年股息已保存`)
+  }
+  const restoreForecastValue = () => {
+    if (!forecastEditor) return
+    const next = { ...forecastOverrides }
+    delete next[forecastEditor.code]
+    persistForecastOverrides(next)
+    setForecastEditor(null)
+    showToast(`${forecastEditor.name} 已恢复算法预测`)
+  }
+
   useEffect(() => {
     if (!rows?.length) return
     let cancelled = false
@@ -687,6 +877,8 @@ export default function YieldGrid() {
     const row = rows?.find(candidate => candidate.code === record.code)
     const exPrice = row ? row.price - record.perShare : 0
     if (!row || exPrice <= 0) return []
+    const dividend2026 = forecastOverrides[row.code] ?? forecastDividends[row.code]
+    const selectedDividend = resolveGridDividend(dividendBasis, row.dive, dividend2026).dividend
     const today = new Date(); today.setHours(0, 0, 0, 0)
     const days = Math.round((new Date(`${record.exDate}T00:00:00`).getTime() - today.getTime()) / 86400000)
     if (days < 0) return []
@@ -694,11 +886,11 @@ export default function YieldGrid() {
       ...record,
       name: row.name,
       price: row.price,
-      currentYield: row.cy,
-      exYield: row.dive / exPrice,
+      currentYield: selectedDividend / row.price,
+      exYield: selectedDividend / exPrice,
       urgency: (days <= 1 ? 'today' : days <= 3 ? 'soon' : 'normal') as 'today' | 'soon' | 'normal',
     }]
-  }), [rows, upcomingDividendRecords])
+  }), [rows, upcomingDividendRecords, dividendBasis, forecastDividends, forecastOverrides])
 
   useEffect(() => {
     if (!rows?.length) return
@@ -710,9 +902,20 @@ export default function YieldGrid() {
     return () => { cancelled = true }
   }, [rows])
 
+  const calculatedRows = useMemo(() => rows?.map(row => {
+    const dividend2026 = forecastOverrides[row.code] ?? forecastDividends[row.code]
+    const resolved = resolveGridDividend(dividendBasis, row.dive, dividend2026)
+    return {
+      ...row,
+      gridDividend: resolved.dividend,
+      dividendFallback: resolved.fallbackTo2025,
+      cy: resolved.dividend / row.price,
+    }
+  }) ?? null, [rows, dividendBasis, forecastDividends, forecastOverrides])
+
   // 按板块分组（保持配置中板块出现顺序）
   const sectors: { sector: string; items: Row[] }[] = []
-  for (const r of rows || []) {
+  for (const r of calculatedRows || []) {
     let g = sectors.find(x => x.sector === r.sector)
     if (!g) { g = { sector: r.sector, items: [] }; sectors.push(g) }
     g.items.push(r)
@@ -842,7 +1045,19 @@ export default function YieldGrid() {
         </div>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
-        <div className="legend">买入/卖出价 = 25年股息 ÷ 目标股息率。<b className="o">橙色买入网格</b>｜<b className="g2">绿色卖出网格</b>。各标的起始股息率可在网格设置中单独调整。BOLL采用前复权日/周/月K、BOLL(20,2)、样本标准差；月线包含本月未完成月线。日/周/月 BOLL 数据采用缓存更新，盘中显示可能存在短暂延迟。颜色越深信号越强，「已达」=现价已触及该档，否则显示需涨/跌幅度。仅供参考，不构成投资建议。</div>
+        <div className="legend legend-compact">
+          <div className="legend-main">
+            <span>买卖价 = {dividendBasis === '2026' ? '26年预测股息（无值沿用25年）' : '25年股息'} ÷ 目标股息率</span>
+            <span><b className="o">橙色买入网格</b>｜<b className="g2">绿色卖出网格</b></span>
+            <span>颜色越深，信号越强</span>
+          </div>
+          <div className="legend-actions">
+            <button type="button" onClick={() => setInfoModal('forecast')}>26年股息说明</button>
+            <button type="button" onClick={() => setInfoModal('boll')}>BOLL说明</button>
+            <button type="button" onClick={() => setInfoModal('data')}>数据说明</button>
+            <span className="legend-disclaimer"><b aria-hidden="true">!</b>预测及行情数据仅供参考，不构成投资建议</span>
+          </div>
+        </div>
         <UpcomingDividendReminder items={upcomingDividendItems} loading={upcomingDividendLoading} />
         <button className="yg-addbar" onClick={() => setShowAdd(true)}>
           <span className="plus">＋</span> 添加标的{custom.length > 0 ? ` ${custom.length}/${MAX_CUSTOM}` : ''}{custom.length >= MAX_CUSTOM ? '（已满，删除后可再加）' : ''}
@@ -966,7 +1181,7 @@ export default function YieldGrid() {
           const isDenseGrid = sellOrdinalCount === 8 && buyOrdinalCount === 8
           // 窄屏或浏览器放大时保持列宽，以横向滚动代替文字重叠。
           const tableMinWidth = isNarrowDesktop || isDenseGrid
-            ? 120 + 328 + (showBoll ? (isMobile ? 264 : 268) : 0) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 56)
+            ? 120 + 384 + (showBoll ? (isMobile ? 264 : 268) : 0) + (sellOrdinalCount + buyOrdinalCount) * (isDenseGrid ? 64 : 56)
             : undefined
           const isCollapsed = groupBySector && collapsed.has(sector)
           // 折叠简介：均息率 / 最高息率个股 / 达买点只数（现息率 ≥ 该股买点门槛）
@@ -1015,9 +1230,13 @@ export default function YieldGrid() {
                           <small>25年股息</small>
                           <span className="value-line"><b>{+r.dive.toFixed(4)}</b></span>
                         </div>
+                        <div className="quote-metric forecast-dividend">
+                          <small>26年股息</small>
+                          <span className="value-line"><ForecastDividendValue forecast={forecastDividends[r.code]} manual={forecastOverrides[r.code]} isHK={r.isHK} onEdit={() => openForecastEditor(r)} /></span>
+                        </div>
                         <div className="quote-metric">
-                          <small>现股息率</small>
-                          <span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span>
+                          <small>{dividendBasis === '2026' ? '26年股息率' : '25年股息率'}</small>
+                          <span className={`value-line yield-reading ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b>{r.dividendFallback && <em className="dividend-fallback-mark">沿用25年</em>}</span>
                         </div>
                         <div className="quote-metric">
                           <small>连续分红</small>
@@ -1036,7 +1255,7 @@ export default function YieldGrid() {
                         </div>
                         <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} />
                         {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
-                        <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.dive} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
+                        <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.gridDividend} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                       </div>}
                       {sellOrdinalCount > 0 && <>
                         <div className="glabel sell">卖出网格</div>
@@ -1062,7 +1281,7 @@ export default function YieldGrid() {
                           <th rowSpan={2}>股票</th>
                           <th rowSpan={2} className="quote-summary-head">
                             <span className="quote-summary-title">价格与股息</span>
-                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>现股息率</i></span>
+                            <span className="quote-summary-labels"><i>现价</i><i>25年股息</i><i>26年股息 <button type="button" className="forecast-help-icon" aria-label="查看26年股息预测算法" onClick={() => setInfoModal('forecast')}>?</button></i><i>{dividendBasis === '2026' ? '26年股息率' : '25年股息率'}</i></span>
                           </th>
                           <th rowSpan={2} className="dividend-quality-head">
                             <span className="quote-summary-title">分红质量</span>
@@ -1097,7 +1316,8 @@ export default function YieldGrid() {
                                 <span className="value-line"><b>{symOf(r.isHK, r.code)}{r.price.toFixed(2)}</b><i className={chgClass(r.pctChg)}>{chgText(r.pctChg)}</i></span>
                               </div>
                               <div className="quote-metric"><span className="value-line"><b>{+r.dive.toFixed(4)}</b></span></div>
-                              <div className="quote-metric"><span className={`value-line ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b></span></div>
+                              <div className="quote-metric forecast-dividend"><span className="value-line"><ForecastDividendValue forecast={forecastDividends[r.code]} manual={forecastOverrides[r.code]} isHK={r.isHK} onEdit={() => openForecastEditor(r)} /></span></div>
+                              <div className="quote-metric"><span className={`value-line yield-reading ${cyClass(r.cy)}`}><b>{(r.cy * 100).toFixed(2)}%</b>{r.dividendFallback && <em className="dividend-fallback-mark">沿用25年</em>}</span></div>
                             </div>
                           </td>
                           <td className="dividend-quality-cell">
@@ -1109,7 +1329,7 @@ export default function YieldGrid() {
                           {showBoll && <td className="boll-position-cell" data-testid={`yield-grid-boll-${r.code}`}>
                             <BollPeriodOverview values={{ day: bollByPeriod.day[r.code], week: bollByPeriod.week[r.code], month: bollByPeriod.month[r.code] }} currentPrice={r.price} loading={bollLoading} unsupported={r.isHK} compact />
                             {bollPeriod === 'month' && !r.isHK && <div className="boll-month-note">{bollByCode[r.code]?.periodDate ? `截至 ${bollByCode[r.code].periodDate.slice(5)} · ` : ''}本月未完</div>}
-                            <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.dive} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
+                            <WeeklyBollPosition boll={bollByCode[r.code]} symbol={symOf(r.isHK, r.code)} currentPrice={r.price} dividend={r.gridDividend} loading={Boolean(bollLoading[bollPeriod]) && !r.isHK} compact period={bollPeriod} unavailableText={r.isHK ? '港股暂不支持 BOLL' : undefined} />
                           </td>}
                           {Array.from({ length: sellOrdinalCount }, (_, i) => <OrdinalCell key={'os' + i} r={r} y={sellGridFor(r, cfg, yieldStartMap)[i]} kind="sell" cfg={cfg} starts={yieldStartMap} />)}
                           {Array.from({ length: buyOrdinalCount }, (_, i) => <OrdinalCell key={'ob' + i} r={r} y={buyGridFor(r, cfg, yieldStartMap)[i]} kind="buy" sep={i === 0} cfg={cfg} starts={yieldStartMap} />)}
@@ -1142,6 +1362,170 @@ export default function YieldGrid() {
             </button>
           </div>
         )}
+
+        <Modal open={forecastEditor !== null} onClose={() => setForecastEditor(null)} title="修改 26 年股息">
+          {forecastEditor && (
+            <div className="forecast-editor pb-2">
+              <div className="forecast-editor-head">
+                <div className="text-base font-semibold text-gray-800">{forecastEditor.name}</div>
+                <div className="mt-1 text-xs text-gray-400">
+                  原算法预测：{typeof forecastDividends[forecastEditor.code] === 'number' ? +forecastDividends[forecastEditor.code]!.toFixed(4) : '暂无'} 元/股 · 版本 {DIVIDEND_FORECAST_MODEL_VERSION}
+                </div>
+              </div>
+
+              {forecastDetailLoading && <div className="forecast-editor-loading">正在加载近三年预测明细…</div>}
+              {forecastDetailError && <div className="forecast-editor-error">{forecastDetailError}，仍可在下方直接修改最终股息。</div>}
+
+              {forecastDetail && <div className="forecast-assumptions">
+                <section className="forecast-assumption-card">
+                  <div className="forecast-assumption-title"><b>1</b><span>预计全年利润</span></div>
+                  <div className="forecast-data-table profit-table">
+                    <div className="forecast-data-head"><span>年度</span><span>上半年</span><span>全年</span><span>上半年占比</span></div>
+                    {[...forecastDetail.seasonality].sort((a, b) => a.year - b.year).map(item => (
+                      <div className="forecast-data-row" key={item.year}>
+                        <b>{item.year}</b>
+                        <span>{compactNumber(toBillion(item.h1Profit))}亿</span>
+                        <span>{compactNumber(toBillion(item.annualProfit))}亿</span>
+                        <strong>{compactNumber(item.ratio * 100)}%</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="forecast-control-row">
+                    <label>比例取值
+                      <select value={profitRatioChoice} onChange={event => selectProfitRatio(event.target.value as ProfitRatioChoice)}>
+                        {profitRatioChoice === 'manual' && <option value="manual">手动反推（{compactNumber((editorProfitRatio ?? 0) * 100)}%）</option>}
+                        <option value="median">中位数（{compactNumber(medianOf(forecastDetail.seasonality.map(item => item.ratio)) * 100)}%，推荐）</option>
+                        <option value="average">平均值（{compactNumber(averageOf(forecastDetail.seasonality.map(item => item.ratio)) * 100)}%）</option>
+                        {[...forecastDetail.seasonality].sort((a, b) => b.year - a.year).map(item => (
+                          <option value={String(item.year)} key={item.year}>{item.year} 年（{compactNumber(item.ratio * 100)}%）</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>预计全年利润
+                      <div className="forecast-number-input"><input type="number" inputMode="decimal" min="0.01" step="0.01" value={annualProfitInput} onChange={event => changeAnnualProfit(event.target.value)} /><i>亿元</i></div>
+                    </label>
+                  </div>
+                  <div className="forecast-inline-formula">
+                    <span>2026 上半年利润 {compactNumber(toBillion(forecastDetail.h1Profit))} 亿元</span>
+                    <i>÷</i><span>{compactNumber((editorProfitRatio ?? 0) * 100)}%</span>
+                    <i>=</i><strong>{compactNumber(Number(annualProfitInput))} 亿元</strong>
+                  </div>
+                </section>
+
+                <section className="forecast-assumption-card">
+                  <div className="forecast-assumption-title"><b>2</b><span>预计股息支付率</span></div>
+                  <div className="forecast-payout-years">
+                    {[...forecastDetail.payouts].sort((a, b) => a.year - b.year).map(item => (
+                      <div key={item.year}><span>{item.year}</span><strong>{compactNumber(item.payoutRatio)}%</strong></div>
+                    ))}
+                  </div>
+                  <div className="forecast-choice-grid">
+                    {([
+                      ['average', '平均值', forecastDetail.payoutAverage],
+                      ['median', '中位数', forecastDetail.payoutMedian],
+                      ['latest', '最近一年', forecastDetail.payoutLatest],
+                    ] as [PayoutMethod, string, number][]).map(([key, label, value]) => (
+                      <button type="button" key={key} className={editorPayoutChoice === key ? 'active' : ''} onClick={() => selectEditorPayout(key)}>
+                        <span>{label}{forecastDetail.systemPayoutMethod === key ? <em>推荐</em> : null}</span>
+                        <b>{compactNumber(value * 100)}%</b>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <div className="forecast-result-formula">
+                  <small>利润法计算</small>
+                  <div><span>{compactNumber(Number(annualProfitInput))} 亿元</span><i>×</i><span>{compactNumber((editorPayout ?? 0) * 100)}%</span><i>÷</i><span>{compactNumber(toBillion(forecastDetail.shares))} 亿股</span></div>
+                  <strong>= {editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股</strong>
+                  {forecastDetail.forecastMethod !== 'profit' && (
+                    <p>原算法另采用{forecastDetail.forecastMethod === 'interim' ? '中期息锚定' : '分红政策下限'}，得到 {compactNumber(forecastDetail.annualDps, 4)} 元/股；调整上方参数后，最终值按利润法联动重算。</p>
+                  )}
+                </div>
+              </div>}
+
+              <section className="forecast-final-card">
+                <div><strong>最终采用的 26 年每股股息</strong><span>可直接修改绝对值</span></div>
+                <div className="forecast-final-input">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0.0001"
+                    step="0.0001"
+                    value={forecastEditor.input}
+                    onChange={event => setForecastEditor(current => current ? { ...current, input: event.target.value } : null)}
+                    onKeyDown={event => { if (event.key === 'Enter') saveForecastOverride() }}
+                  />
+                  <i>元/股</i>
+                </div>
+              </section>
+
+              <div className="forecast-editor-actions">
+                {forecastOverrides[forecastEditor.code] !== undefined && (
+                  <button type="button" className="restore" onClick={restoreForecastValue}>恢复算法预测</button>
+                )}
+                <button type="button" className="save" onClick={saveForecastOverride}>保存最终值</button>
+              </div>
+              <div className="forecast-editor-note">手动值优先于算法预测；登录后会同步到账号，未登录时保存在当前浏览器。<button type="button" className="forecast-help-link ml-1" onClick={() => { setForecastEditor(null); setInfoModal('forecast') }}>查看算法说明</button></div>
+            </div>
+          )}
+        </Modal>
+
+        <Modal
+          open={infoModal !== null}
+          onClose={() => setInfoModal(null)}
+          title={infoModal === 'forecast' ? '26 年股息如何预测' : infoModal === 'boll' ? 'BOLL 如何计算' : '数据与信号说明'}
+        >
+          {infoModal === 'forecast' && <div className="forecast-method-info">
+            <section>
+              <strong>1. 估算全年利润</strong>
+              <p>使用 2026 年中报归母净利润，并参考 2023—2025 年“上半年利润 ÷ 全年利润”的中位数，推算 2026 年全年利润。</p>
+            </section>
+            <section>
+              <strong>2. 选择派息率</strong>
+              <p>读取最近三年的常规现金派息率。通常采用平均值；历史波动较大时采用中位数；利润明显增长且最新派息率偏低时采用最近一年值。</p>
+            </section>
+            <section>
+              <strong>3. 比较三种预测</strong>
+              <p><b>利润法：</b>预计全年利润 × 派息率 ÷ 最新股本。</p>
+              <p><b>中期息法：</b>按中期股息同比变化推算全年股息；当结果比利润法低 10% 以上时，自动采用这一较保守结果。</p>
+              <p><b>政策法：</b>公司存在可量化且适用的分红承诺时，计算承诺下限；若高于前述预测，则采用政策下限。</p>
+            </section>
+            <div className="forecast-method-meta">
+              <span>当前算法版本：{DIVIDEND_FORECAST_MODEL_VERSION}</span>
+              <span>金额口径：人民币税前元/股</span>
+            </div>
+            <p className="forecast-method-risk">预测依赖已披露数据和历史规律，可能因下半年业绩、股本变化、特别分红及分红政策调整而与实际派息存在差异，仅供参考。</p>
+          </div>}
+          {infoModal === 'boll' && <div className="forecast-method-info">
+            <section>
+              <strong>计算口径</strong>
+              <p>采用前复权日线、周线和月线，参数为 BOLL(20,2)，标准差使用样本标准差。</p>
+            </section>
+            <section>
+              <strong>周期说明</strong>
+              <p>可切换日、周、月周期查看价格所处位置。月线包含本月尚未完成的月 K 线，因此盘中位置可能继续变化。</p>
+            </section>
+            <section>
+              <strong>位置含义</strong>
+              <p>页面展示现价相对上轨、中轨和下轨的位置及距离，用于辅助观察价格区间，不代表趋势一定延续或反转。</p>
+            </section>
+          </div>}
+          {infoModal === 'data' && <div className="forecast-method-info">
+            <section>
+              <strong>行情与缓存</strong>
+              <p>行情、BOLL 和股息数据分别更新并使用本地缓存。盘中显示可能短暂落后于最新成交数据。</p>
+            </section>
+            <section>
+              <strong>网格信号</strong>
+              <p>“已达”表示现价已触及对应档位；未触及时显示到达该档位仍需上涨或下跌的幅度。颜色越深，表示触及的档位越深。</p>
+            </section>
+            <section>
+              <strong>个性化设置</strong>
+              <p>每只股票的起始股息率可在“网格设置”中单独调整；登录后相关设置和 26 年股息修改值会同步到账号。</p>
+            </section>
+            <p className="forecast-method-risk">页面数据和信号仅供参考，不构成任何投资建议。</p>
+          </div>}
+        </Modal>
 
         <Modal
           open={showAdd}
@@ -1290,6 +1674,24 @@ export default function YieldGrid() {
 
         <Modal open={showCfg} onClose={() => setShowCfg(false)} title="网格设置">
           <div className="space-y-4 pb-2">
+            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3">
+              <div className="text-sm font-semibold text-violet-800">股息计算基准</div>
+              <div className="mt-1 text-xs leading-relaxed text-violet-600/80">同步用于股息率、排序筛选、买卖网格价格及“已达”判定。</div>
+              <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-white p-1">
+                {(['2025', '2026'] as DividendBasis[]).map(year => (
+                  <button
+                    key={year}
+                    type="button"
+                    aria-pressed={dividendBasis === year}
+                    onClick={() => updateDividendBasis(year)}
+                    className={`rounded-md px-2 py-2 text-sm font-semibold transition-colors ${dividendBasis === year ? 'bg-violet-600 text-white shadow-sm' : 'text-gray-500'}`}
+                  >
+                    {year === '2025' ? '25年股息' : '26年预测股息'}
+                  </button>
+                ))}
+              </div>
+              {dividendBasis === '2026' && <div className="mt-2 text-[11px] leading-relaxed text-amber-700">没有 26 年预测值的股票会自动沿用 25 年股息，并在股息率下方标记。</div>}
+            </div>
             <div className="space-y-3 bg-orange-50/60 rounded-xl p-3">
               <div className="text-sm font-semibold text-orange-700">买入网格</div>
               <div>
@@ -1534,6 +1936,16 @@ const CSS = `
 .yg-page .legend b { font-weight: 700; }
 .yg-page .legend .o { color: #ea580c; }
 .yg-page .legend .g2 { color: #16a34a; }
+.yg-page .legend-compact { display: grid; gap: 7px; margin-bottom: 18px; }
+.yg-page .legend-main, .yg-page .legend-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.yg-page .legend-main span + span { padding-left: 10px; border-left: 1px solid #d1d5db; }
+.yg-page .legend-actions button { padding: 3px 9px; border: 1px solid #ddd6fe; border-radius: 999px; background: #faf5ff;
+  color: #6d28d9; font-family: inherit; font-size: 11px; line-height: 1.4; cursor: pointer; }
+.yg-page .legend-actions button:hover { border-color: #c4b5fd; background: #f5f3ff; }
+.yg-page .legend-actions .legend-disclaimer { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding: 4px 9px;
+  border: 1px solid #fde68a; border-radius: 999px; background: #fffbeb; color: #92400e; font-size: 11px; font-weight: 600; }
+.yg-page .legend-disclaimer b { display: inline-grid; width: 14px; height: 14px; place-items: center; border-radius: 50%;
+  background: #f59e0b; color: #fff; font-size: 9px; line-height: 1; }
 .yg-page .upcoming-dividend { margin: 0 0 10px; border: 1px solid #e5e7eb; border-left: 4px solid #e03025; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
 .yg-page .upcoming-dividend-head { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 14px; border-bottom: 1px solid #f0f1f4; }
 .yg-page .upcoming-dividend-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -1559,6 +1971,11 @@ const CSS = `
 .yg-page .upcoming-yield { color: #6b7280; font-size: 12px; text-align: right; white-space: nowrap; }
 .yg-page .upcoming-yield b { color: #374151; }.yg-page .upcoming-yield i { margin: 0 5px; color: #ef8c82; font-style: normal; }.yg-page .upcoming-yield em { color: #ea580c; font-style: normal; font-weight: 700; }
 @media (max-width: 719px) {
+  .yg-page .legend-compact { gap: 8px; margin-bottom: 16px; }
+  .yg-page .legend-main { gap: 4px 8px; line-height: 1.5; }
+  .yg-page .legend-main span + span { padding-left: 8px; }
+  .yg-page .legend-actions { gap: 6px; }
+  .yg-page .legend-actions .legend-disclaimer { flex-basis: 100%; justify-content: center; margin-left: 0; border-radius: 8px; }
   .yg-page .upcoming-dividend-head { padding-inline: 12px; }
   .yg-page .upcoming-dividend-title { gap: 6px; }
   .yg-page .upcoming-dividend-title strong { font-size: 14px; }
@@ -1687,11 +2104,14 @@ const CSS = `
 .yg-page thead th.ordinal-slot { padding: 8px 5px; font-size: 11.5px; }
 .yg-page thead th.ordinal-slot.sell { color: #16a34a; background: #fbfefb; }
 .yg-page thead th.ordinal-slot.buy { color: #ea580c; background: #fffcf8; }
-.yg-page thead th.quote-summary-head { width: 200px; min-width: 200px; padding: 6px 8px 7px; background: #f8fafc;
+.yg-page thead th.quote-summary-head { width: 256px; min-width: 256px; padding: 6px 8px 7px; background: #f8fafc;
   border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 8px 0 0 0; }
 .yg-page .quote-summary-title { display: block; margin-bottom: 4px; color: #374151; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
-.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.3fr .8fr .9fr; align-items: center; }
+.yg-page .quote-summary-labels { display: grid; grid-template-columns: 1.3fr .8fr .8fr .9fr; align-items: center; }
 .yg-page .quote-summary-labels i { font-style: normal; font-size: 10px; font-weight: 500; color: #94a3b8; }
+.yg-page .forecast-help-icon { display: inline-grid; width: 14px; height: 14px; margin-left: 2px; padding: 0; place-items: center;
+  border: 1px solid #c4b5fd; border-radius: 50%; background: #faf5ff; color: #7c3aed; font-family: inherit; font-size: 9px;
+  font-weight: 700; line-height: 1; cursor: pointer; vertical-align: 1px; }
 .yg-page thead th.dividend-quality-head { width: 128px; min-width: 128px; padding: 6px 8px 7px; background: #f8fafc;
   border-right: 1px solid #e2e8f0; border-radius: 0 8px 0 0; }
 .yg-page .dividend-quality-labels { display: grid; grid-template-columns: .85fr 1.15fr; align-items: center; }
@@ -1723,9 +2143,9 @@ const CSS = `
 .yg-page .chg-dn { color: #16a34a; }
 .yg-page .chg-flat { color: #9ca3af; }
 .yg-page td.dv { color: #6b7280; font-variant-numeric: tabular-nums; }
-.yg-page td.quote-summary-cell { min-width: 200px; padding: 8px; background: #fbfcfd;
+.yg-page td.quote-summary-cell { min-width: 256px; padding: 8px; background: #fbfcfd;
   border-left: 1px solid #e2e8f0; vertical-align: middle; }
-.yg-page .quote-summary { display: grid; grid-template-columns: 1.3fr .8fr .9fr; align-items: stretch; overflow: visible;
+.yg-page .quote-summary { display: grid; grid-template-columns: 1.3fr .8fr .8fr .9fr; align-items: stretch; overflow: visible;
   border: 1px solid #e8edf3; border-radius: 8px; background: #fff; font-variant-numeric: tabular-nums; }
 .yg-page td.dividend-quality-cell { min-width: 128px; padding: 8px; background: #fbfcfd;
   border-right: 1px solid #e2e8f0; vertical-align: middle; }
@@ -1739,6 +2159,14 @@ const CSS = `
   gap: 3px; white-space: nowrap; color: #374151; }
 .yg-page .quote-metric:first-child .value-line { flex-direction: column; align-items: center; gap: 1px; line-height: 1.1; }
 .yg-page .quote-metric .value-line b { font-size: 12.5px; font-weight: 700; }
+.yg-page .quote-metric .yield-reading { flex-direction: column; align-items: center; gap: 2px; }
+.yg-page .dividend-fallback-mark { padding: 1px 4px; border-radius: 999px; background: #fff7ed; color: #c2410c;
+  font-size: 8px; font-style: normal; font-weight: 650; line-height: 1.25; }
+.yg-page .forecast-dividend .value-line { color: #7c3aed; }
+.yg-page .forecast-edit-value { display: inline-flex; min-width: 0; flex-direction: column; align-items: center; border: 0; padding: 0;
+  background: transparent; color: inherit; font: inherit; line-height: 1.05; cursor: pointer; }
+.yg-page .forecast-edit-value i { margin-top: 3px; color: #a78bfa; font-size: 8px; font-style: normal; font-weight: 600; }
+.yg-page .forecast-edit-value.manual i { color: #ea580c; }
 .yg-page .quote-metric .value-line i { font-size: 9px; font-style: normal; font-weight: 500; }
 .yg-page .payout-popover { position: relative; display: inline-flex; }
 .yg-page .payout-trigger { display: inline-flex; flex-direction: column; align-items: center; border: 0; padding: 0; background: transparent;
@@ -1792,7 +2220,7 @@ const CSS = `
 .yg-page .quote-summary-mobile { margin-top: 7px; background: #f8fafc; }
 .yg-page .quote-summary-mobile { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .yg-page .quote-summary-mobile .quote-metric:nth-child(-n+3) { grid-column: span 2; }
-.yg-page .quote-summary-mobile .quote-metric:nth-child(n+4) { grid-column: span 3; }
+.yg-page .quote-summary-mobile .quote-metric:nth-child(n+4) { grid-column: span 2; }
 .yg-page .quote-summary-mobile .quote-metric:nth-child(4) { border-left: 0; }
 .yg-page .quote-summary-mobile .quote-metric { min-height: 52px; padding: 6px 3px; }
 .yg-page .quote-summary-mobile .quote-metric .value-line b { font-size: 12px; }
@@ -1821,6 +2249,75 @@ const CSS = `
 .yg-page .tier.sell.hit i { color: #14532d; }
 
 /* 筛选面板通过 portal 挂载到 body，样式不使用 .yg-page 前缀。 */
+.forecast-editor { display: grid; gap: 14px; color: #374151; }
+.forecast-editor-head { padding-bottom: 2px; }
+.forecast-editor-loading, .forecast-editor-error { padding: 18px; border-radius: 12px; background: #f8fafc; color: #64748b;
+  font-size: 13px; text-align: center; }
+.forecast-editor-error { border: 1px solid #fed7aa; background: #fff7ed; color: #c2410c; }
+.forecast-assumptions { display: grid; gap: 12px; }
+.forecast-assumption-card { padding: 14px; border: 1px solid #e5e7eb; border-radius: 14px; background: #fff; }
+.forecast-assumption-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #111827; font-size: 14px; font-weight: 700; }
+.forecast-assumption-title b { display: inline-grid; width: 21px; height: 21px; place-items: center; border-radius: 7px; background: #f3e8ff;
+  color: #7e22ce; font-size: 11px; }
+.forecast-data-table { overflow: hidden; border: 1px solid #eef0f3; border-radius: 10px; font-variant-numeric: tabular-nums; }
+.forecast-data-head, .forecast-data-row { display: grid; grid-template-columns: .65fr 1fr 1fr 1.15fr; align-items: center; min-height: 34px; }
+.forecast-data-head { background: #f8fafc; color: #94a3b8; font-size: 10px; }
+.forecast-data-row { border-top: 1px solid #f1f5f9; color: #64748b; font-size: 12px; }
+.forecast-data-head > *, .forecast-data-row > * { padding: 0 8px; text-align: right; }
+.forecast-data-head > :first-child, .forecast-data-row > :first-child { text-align: left; }
+.forecast-data-row b { color: #475569; font-weight: 650; }
+.forecast-data-row strong { color: #6d28d9; font-weight: 700; }
+.forecast-control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.forecast-control-row label { display: grid; gap: 5px; color: #64748b; font-size: 11px; }
+.forecast-control-row select, .forecast-number-input { height: 40px; border: 1px solid #dbe1e8; border-radius: 9px; background: #fff; }
+.forecast-control-row select { width: 100%; padding: 0 10px; color: #1f2937; font: inherit; font-size: 13px; }
+.forecast-number-input { display: flex; align-items: center; overflow: hidden; }
+.forecast-number-input input { width: 100%; min-width: 0; height: 100%; border: 0; padding: 0 8px 0 10px; outline: none; color: #111827; font: inherit; font-size: 13px; }
+.forecast-number-input i { padding-right: 10px; color: #94a3b8; font-size: 11px; font-style: normal; white-space: nowrap; }
+.forecast-inline-formula { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 10px; padding: 9px 10px; border-radius: 9px;
+  background: #faf5ff; color: #7e22ce; font-size: 11px; font-variant-numeric: tabular-nums; }
+.forecast-inline-formula i { color: #c084fc; font-style: normal; }.forecast-inline-formula strong { color: #581c87; }
+.forecast-payout-years { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.forecast-payout-years div { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-radius: 9px; background: #f8fafc; }
+.forecast-payout-years span { color: #94a3b8; font-size: 10px; }.forecast-payout-years strong { color: #475569; font-size: 12px; }
+.forecast-choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 10px; }
+.forecast-choice-grid button { min-width: 0; padding: 8px 5px; border: 1px solid #e5e7eb; border-radius: 9px; background: #fff; color: #64748b;
+  font-family: inherit; cursor: pointer; }
+.forecast-choice-grid button.active { border-color: #a78bfa; background: #faf5ff; color: #6d28d9; box-shadow: 0 0 0 1px #ddd6fe; }
+.forecast-choice-grid button span, .forecast-choice-grid button b { display: block; }.forecast-choice-grid button span { font-size: 10px; }
+.forecast-choice-grid button b { margin-top: 2px; font-size: 13px; }.forecast-choice-grid button em { margin-left: 3px; color: #ea580c; font-size: 8px; font-style: normal; }
+.forecast-result-formula { padding: 13px 14px; border-radius: 14px; background: #111827; color: #d1d5db; text-align: center; font-variant-numeric: tabular-nums; }
+.forecast-result-formula small { display: block; margin-bottom: 7px; color: #9ca3af; font-size: 10px; }
+.forecast-result-formula div { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px; font-size: 12px; }
+.forecast-result-formula div i { color: #6b7280; font-style: normal; }.forecast-result-formula > strong { display: block; margin-top: 6px; color: #fff; font-size: 17px; }
+.forecast-result-formula p { margin: 9px 0 0; padding-top: 8px; border-top: 1px solid #374151; color: #9ca3af; font-size: 10px; line-height: 1.5; }
+.forecast-final-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .8fr); align-items: center; gap: 12px; padding: 14px;
+  border: 1px solid #fecaca; border-radius: 14px; background: #fffafa; }
+.forecast-final-card > div:first-child strong, .forecast-final-card > div:first-child span { display: block; }
+.forecast-final-card > div:first-child strong { color: #991b1b; font-size: 13px; }.forecast-final-card > div:first-child span { margin-top: 3px; color: #9ca3af; font-size: 10px; }
+.forecast-final-input { display: flex; height: 42px; align-items: center; overflow: hidden; border: 1.5px solid #ef4444; border-radius: 10px; background: #fff; }
+.forecast-final-input input { width: 100%; min-width: 0; height: 100%; border: 0; padding: 0 8px 0 11px; outline: none; color: #111827; font: inherit; font-size: 16px; font-weight: 700; }
+.forecast-final-input i { padding-right: 10px; color: #ef4444; font-size: 10px; font-style: normal; white-space: nowrap; }
+.forecast-editor-actions { display: flex; gap: 8px; }.forecast-editor-actions button { flex: 1; min-height: 42px; border-radius: 10px; font-family: inherit; font-size: 13px; font-weight: 650; }
+.forecast-editor-actions .restore { border: 1px solid #e5e7eb; background: #fff; color: #64748b; }.forecast-editor-actions .save { border: 0; background: #dc2626; color: #fff; }
+.forecast-editor-note { color: #9ca3af; font-size: 10px; line-height: 1.6; }
+@media (max-width: 560px) {
+  .forecast-assumption-card { padding: 12px; }.forecast-control-row { grid-template-columns: 1fr; }
+  .forecast-data-head > *, .forecast-data-row > * { padding-inline: 5px; }.forecast-data-row { font-size: 11px; }
+  .forecast-final-card { grid-template-columns: 1fr; }.forecast-choice-grid { gap: 5px; }
+}
+.forecast-help-link { border: 0; border-bottom: 1px dashed #a78bfa; padding: 0; background: transparent; color: #7c3aed;
+  font: inherit; cursor: pointer; }
+.forecast-help-link:hover { color: #6d28d9; border-bottom-color: #6d28d9; }
+.forecast-method-info { display: grid; gap: 14px; color: #4b5563; font-size: 13px; line-height: 1.65; }
+.forecast-method-info section { padding: 12px 14px; border: 1px solid #ede9fe; border-radius: 10px; background: #fafaff; }
+.forecast-method-info section strong { display: block; margin-bottom: 4px; color: #312e81; font-size: 13px; }
+.forecast-method-info section p { margin: 3px 0 0; }
+.forecast-method-info section p b { color: #5b21b6; font-weight: 650; }
+.forecast-method-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: #6b7280; font-size: 11px; }
+.forecast-method-meta span { padding: 4px 8px; border-radius: 999px; background: #f3f4f6; }
+.forecast-method-risk { margin: 0; padding: 10px 12px; border-left: 3px solid #f59e0b; border-radius: 4px 8px 8px 4px;
+  background: #fffbeb; color: #92400e; font-size: 11px; line-height: 1.6; }
 .filter-clear { border: 0; background: none; color: #6b7280; font-size: 12px; font-family: inherit; cursor: pointer; }
 .yield-filter-list { display: grid; gap: 4px; }
 .yield-filter-option { width: 100%; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px;

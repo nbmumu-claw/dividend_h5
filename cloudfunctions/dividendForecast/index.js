@@ -3,8 +3,11 @@ const { forecast } = require('./model')
 const { createDataLoader } = require('./data')
 
 function parseOptions(params) {
-  const code = params.get('code') || ''
-  if (!/^\d{6}$/.test(code)) throw new Error('code 必须为 6 位 A 股代码')
+  const rawCodes = params.has('codes') ? params.get('codes').split(',') : [params.get('code') || '']
+  const codes = [...new Set(rawCodes.map(code => code.trim()).filter(Boolean))]
+  if (!codes.length || codes.some(code => !/^\d{6}$/.test(code))) throw new Error('code 必须为 6 位 A 股代码')
+  if (codes.length > 100) throw new Error('单次最多预测 100 只股票')
+  if (params.has('code') && params.has('codes')) throw new Error('code 和 codes 不能同时使用')
   if (params.has('year') && params.get('year') !== '2026') throw new Error('目前仅支持 2026 财年预测')
   const payoutMethod = params.get('payoutMethod') || 'auto'
   const forecastMethod = params.get('forecastMethod') || 'auto'
@@ -14,7 +17,32 @@ function parseOptions(params) {
   if (profitRatio !== undefined && (!Number.isFinite(profitRatio) || profitRatio <= 0 || profitRatio > 1)) {
     throw new Error('H1 / 全年利润比例必须大于 0 且不超过 1')
   }
-  return { code, options: { profitRatio, payoutMethod, forecastMethod } }
+  return { codes, batch: params.has('codes'), options: { profitRatio, payoutMethod, forecastMethod } }
+}
+
+function validResult(result) {
+  return [result.annualDps, result.annualProfit, result.appliedPayout].every(Number.isFinite)
+}
+
+async function forecastBatch(codes, loader, options, concurrency = 4) {
+  const results = {}
+  const errors = {}
+  let next = 0
+  const worker = async () => {
+    while (next < codes.length) {
+      const code = codes[next++]
+      try {
+        const result = forecast(code, await loader(code), options)
+        if (!validResult(result)) throw new Error('基础数据无法形成有效预测')
+        results[code] = { code: result.code, annualDps: result.annualDps }
+      } catch (error) {
+        console.error('[dividendForecast]', code, error.message)
+        errors[code] = error.message || '预测失败，请稍后重试'
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, codes.length) }, worker))
+  return { results, errors }
 }
 
 function createServer(loader = createDataLoader()) {
@@ -40,19 +68,24 @@ function createServer(loader = createDataLoader()) {
     let input
     try { input = parseOptions(url.searchParams) }
     catch (error) { return send(400, { error: error.message }) }
+    if (input.batch) {
+      const output = await forecastBatch(input.codes, loader, input.options)
+      return send(200, { year: 2026, modelVersion: '2026-v1', calculatedAt: new Date().toISOString(), ...output })
+    }
+    const code = input.codes[0]
     try {
-      const data = await loader(input.code)
-      const result = forecast(input.code, data, input.options)
-      if (![result.annualDps, result.annualProfit, result.appliedPayout].every(Number.isFinite)) {
+      const data = await loader(code)
+      const result = forecast(code, data, input.options)
+      if (!validResult(result)) {
         return send(422, { error: '基础数据无法形成有效预测' })
       }
       send(200, result)
     } catch (error) {
-      console.error('[dividendForecast]', input.code, error.message)
+      console.error('[dividendForecast]', code, error.message)
       send(502, { error: error.message || '预测失败，请稍后重试' })
     }
   })
 }
 
 if (require.main === module) createServer().listen(9000)
-module.exports = { createServer, parseOptions }
+module.exports = { createServer, parseOptions, forecastBatch }

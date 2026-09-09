@@ -5,9 +5,14 @@ const ALLOWED_ORIGINS = new Set([
 ])
 
 function validatedForecastQuery(query) {
-  const code = String(query.code || '')
-  if (!/^\d{6}$/.test(code)) throw new Error('code 必须为 6 位 A 股代码')
-  const params = new URLSearchParams({ code, year: '2026' })
+  const hasBatch = query.codes !== undefined
+  if (hasBatch && query.code !== undefined) throw new Error('code 和 codes 不能同时使用')
+  const codes = hasBatch
+    ? [...new Set(String(query.codes).split(',').map(code => code.trim()).filter(Boolean))]
+    : [String(query.code || '')]
+  if (!codes.length || codes.some(code => !/^\d{6}$/.test(code))) throw new Error('code 必须为 6 位 A 股代码')
+  if (codes.length > 100) throw new Error('单次最多预测 100 只股票')
+  const params = new URLSearchParams({ [hasBatch ? 'codes' : 'code']: hasBatch ? codes.join(',') : codes[0], year: '2026' })
   if (query.year && String(query.year) !== '2026') throw new Error('目前仅支持 2026 财年预测')
   if (query.profitRatio !== undefined) {
     const ratio = Number(query.profitRatio)
