@@ -797,12 +797,12 @@ export default function YieldGrid() {
       applyDetail(cachedDetail)
       setForecastDetailError('')
       setForecastDetailLoading(false)
-      return
+      if (!cachedDetail.commitment || cachedDetail.commitment.commitmentText) return
     }
     let cancelled = false
-    setForecastDetail(null)
+    if (!cachedDetail) setForecastDetail(null)
     setForecastDetailError('')
-    setForecastDetailLoading(true)
+    setForecastDetailLoading(!cachedDetail)
     fetchDividendForecast(code)
       .then(detail => {
         if (cancelled) return
@@ -810,7 +810,7 @@ export default function YieldGrid() {
         applyDetail(detail)
       })
       .catch(reason => {
-        if (!cancelled) setForecastDetailError(reason instanceof Error ? reason.message : '预测明细加载失败')
+        if (!cancelled && !cachedDetail) setForecastDetailError(reason instanceof Error ? reason.message : '预测明细加载失败')
       })
       .finally(() => { if (!cancelled) setForecastDetailLoading(false) })
     return () => { cancelled = true }
