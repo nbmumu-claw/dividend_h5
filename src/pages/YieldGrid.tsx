@@ -40,6 +40,12 @@ const SECTOR_ORDER = ['电力', '水电', '银行', '保险', '能源', '有色'
 // 「其他」始终可用，作为预判不到板块时的兜底归属
 const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.sector === s))
 const NONFERROUS_CODES = new Set(['000408', '601899', '000933', '000807'])
+const ANNOUNCEMENT_EXCERPT_FALLBACKS: Record<string, { text: string; url: string }> = {
+  '600795': {
+    text: '每年以现金方式分配的利润……原则上不低于当年实现的归属于上市公司股东净利润的百分之六十，且每股派发现金红利不低于0.22元人民币（含税）。',
+    url: 'https://static.cninfo.com.cn/finalpage/2025-08-19/1224503270.PDF',
+  },
+}
 const ALL = '全部'
 const LEGACY_SIGNAL_TABS = new Set(['买点下轨', '卖点上轨', '近下轨', '近上轨'])
 const BOLL_PERIODS: BollPeriod[] = ['day', 'week', 'month']
@@ -207,18 +213,6 @@ const PAYOUT_METHOD_LABELS: Record<PayoutMethod, string> = { average: '三年平
 const profitRatioChoiceLabel = (choice: ProfitRatioChoice) => (
   choice === 'average' ? '三年平均值' : choice === 'median' ? '三年中位数' : choice === 'manual' ? '手动值' : `${choice} 年比例`
 )
-const commitmentRule = (commitment: NonNullable<ForecastResult['commitment']>) => {
-  const rules = [
-    commitment.minPayoutRatio !== undefined
-      ? `现金分红不低于${commitment.basis || '归母净利润'}的 ${compactNumber(commitment.minPayoutRatio * 100)}%`
-      : null,
-    commitment.minDps !== undefined ? `每股股息不低于 ${compactNumber(commitment.minDps, 4)} 元` : null,
-    commitment.minCashAmount !== undefined
-      ? `现金分红总额不低于 ${compactNumber(toBillion(commitment.minCashAmount))} 亿元`
-      : null,
-  ].filter((rule): rule is string => rule !== null)
-  return rules.join('；') || commitment.commitmentText || '以公告约定为准'
-}
 const payoutFor = (detail: ForecastResult, choice: PayoutMethod) => (
   choice === 'latest' ? detail.payoutLatest : choice === 'median' ? detail.payoutMedian : detail.payoutAverage
 )
@@ -844,6 +838,15 @@ export default function YieldGrid() {
     }
     return changes
   })() : []
+  const originalPolicyRatioDps = forecastDetail?.commitment?.minPayoutRatio !== undefined
+    ? forecastDetail.annualProfit * forecastDetail.commitment.minPayoutRatio / forecastDetail.shares
+    : null
+  const originalPolicyCashDps = forecastDetail?.commitment?.minCashAmount !== undefined
+    ? forecastDetail.commitment.minCashAmount / forecastDetail.shares
+    : null
+  const announcementFallback = forecastDetail ? ANNOUNCEMENT_EXCERPT_FALLBACKS[forecastDetail.code] : undefined
+  const announcementExcerpt = forecastDetail?.commitment?.commitmentText || announcementFallback?.text
+  const announcementUrl = announcementFallback?.url || forecastDetail?.commitment?.eastmoneySourceUrl || forecastDetail?.commitment?.sourceUrl
 
   const applyEditorCalculation = (annualProfit: number, payout: number) => {
     if (!forecastDetail || !Number.isFinite(annualProfit) || annualProfit <= 0) return
@@ -1472,18 +1475,50 @@ export default function YieldGrid() {
                   </div>
                 </section>
 
-                <div className="forecast-result-formula">
-                  <small>利润法计算</small>
-                  <div><span>{compactNumber(Number(annualProfitInput))} 亿元</span><i>×</i><span>{compactNumber((editorPayout ?? 0) * 100)}%</span><i>÷</i><span>{compactNumber(toBillion(forecastDetail.shares))} 亿股</span></div>
-                  <strong>= {editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股</strong>
+                <div className="forecast-result-summary">
                   {forecastDetail.forecastMethod === 'policy' && forecastDetail.commitment && (
-                    <p><b>原算法采用的分红政策：</b>{forecastDetail.commitment.startYear}–{forecastDetail.commitment.endYear} 年，{commitmentRule(forecastDetail.commitment)}{forecastDetail.commitment.conditions.length ? `；适用条件：${forecastDetail.commitment.conditions.join('；')}` : ''}。按本次预测折算的政策下限为 {compactNumber(forecastDetail.policyDpsFloor ?? 0, 4)} 元/股，高于利润法的 {compactNumber(forecastDetail.profitDps, 4)} 元/股，因此原算法最终采用 {compactNumber(forecastDetail.annualDps, 4)} 元/股。</p>
+                    <div className="forecast-announcement">
+                      <div className="forecast-announcement-head">
+                        <span>公告关键原文</span>
+                        <b>{forecastDetail.commitment.sourceName}</b>
+                        {announcementUrl && <a href={announcementUrl} target="_blank" rel="noreferrer">查看公告全文</a>}
+                      </div>
+                      <blockquote>{announcementExcerpt || '当前结构化数据未保存公告原文摘录，请点击“查看公告全文”核对原始公告。'}</blockquote>
+                      <small>{forecastDetail.commitment.startYear}–{forecastDetail.commitment.endYear} 年有效{forecastDetail.commitment.conditions.length ? ` · 适用条件：${forecastDetail.commitment.conditions.join('；')}` : ''}</small>
+                    </div>
                   )}
-                  {forecastDetail.forecastMethod === 'interim' && (
-                    <p><b>原算法采用中期息锚定：</b>中期分红与上年同期的变化折算为全年 {compactNumber(forecastDetail.interimAnchor ?? 0, 4)} 元/股，因此原算法最终采用 {compactNumber(forecastDetail.annualDps, 4)} 元/股。</p>
-                  )}
+
+                  <div className="forecast-calculation-lines">
+                    <div className="forecast-calculation-line profit">
+                      <b className="forecast-calculation-label">利润模型</b>
+                      <span>26H1 利润 {compactNumber(toBillion(forecastDetail.h1Profit))} 亿</span><i>÷</i>
+                      <span>{profitRatioChoiceLabel(profitRatioChoice)} {compactNumber((editorProfitRatio ?? 0) * 100)}%</span><i>×</i>
+                      <span>{PAYOUT_METHOD_LABELS[editorPayoutChoice]} {compactNumber((editorPayout ?? 0) * 100)}%</span><i>÷</i>
+                      <span>权益股本 {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股</span><em>=</em>
+                      <strong>{editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股</strong>
+                      <small>{editorAdjustments.length ? '当前联动' : forecastDetail.forecastMethod === 'profit' ? '原算法采用' : '参考'}</small>
+                    </div>
+
+                    {forecastDetail.forecastMethod === 'policy' && forecastDetail.commitment && (
+                      <div className="forecast-calculation-line policy">
+                        <b className="forecast-calculation-label">政策下限</b>
+                        {originalPolicyRatioDps !== null && <span>比例下限 {compactNumber(forecastDetail.commitment.minPayoutRatio! * 100)}% × {compactNumber(toBillion(forecastDetail.annualProfit))} 亿 ÷ {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股 = {compactNumber(originalPolicyRatioDps, 4)} 元/股</span>}
+                        {forecastDetail.commitment.minDps !== undefined && <span>每股下限 {compactNumber(forecastDetail.commitment.minDps, 4)} 元/股</span>}
+                        {originalPolicyCashDps !== null && <span>现金下限 {compactNumber(toBillion(forecastDetail.commitment.minCashAmount!))} 亿 ÷ {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股 = {compactNumber(originalPolicyCashDps, 4)} 元/股</span>}
+                        <em>→ 取较高值</em><strong>{compactNumber(forecastDetail.policyDpsFloor ?? 0, 4)} 元/股</strong><small>原算法采用</small>
+                      </div>
+                    )}
+
+                    {forecastDetail.forecastMethod === 'interim' && (
+                      <div className="forecast-calculation-line interim">
+                        <b className="forecast-calculation-label">中期息锚定</b>
+                        <span>按中期分红相对上年同期的变化折算全年</span><em>=</em><strong>{compactNumber(forecastDetail.interimAnchor ?? 0, 4)} 元/股</strong><small>原算法采用</small>
+                      </div>
+                    )}
+                  </div>
+
                   {forecastDetail.forecastMethod !== 'profit' && (
-                    <p><b>当前参数调整：</b>{editorAdjustments.length
+                    <p className="forecast-adjustment-note"><b>当前参数调整：</b>{editorAdjustments.length
                       ? `${editorAdjustments.join('；')}。最终值已按利润法联动重算为 ${editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股，本次联动不继续套用原政策下限或中期息锚定。`
                       : `尚未调整上方参数。修改上半年占比、预计全年利润或股息支付率后，最终值才会按利润法联动重算。`}</p>
                   )}
@@ -2333,11 +2368,22 @@ const CSS = `
 .forecast-choice-grid button.active { border-color: #a78bfa; background: #faf5ff; color: #6d28d9; box-shadow: 0 0 0 1px #ddd6fe; }
 .forecast-choice-grid button span, .forecast-choice-grid button b { display: block; }.forecast-choice-grid button span { font-size: 10px; }
 .forecast-choice-grid button b { margin-top: 2px; font-size: 13px; }.forecast-choice-grid button em { margin-left: 3px; color: #ea580c; font-size: 8px; font-style: normal; }
-.forecast-result-formula { padding: 13px 14px; border-radius: 14px; background: #111827; color: #d1d5db; text-align: center; font-variant-numeric: tabular-nums; }
-.forecast-result-formula small { display: block; margin-bottom: 7px; color: #9ca3af; font-size: 10px; }
-.forecast-result-formula div { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px; font-size: 12px; }
-.forecast-result-formula div i { color: #6b7280; font-style: normal; }.forecast-result-formula > strong { display: block; margin-top: 6px; color: #fff; font-size: 17px; }
-.forecast-result-formula p { margin: 9px 0 0; padding-top: 8px; border-top: 1px solid #374151; color: #9ca3af; font-size: 10px; line-height: 1.5; }
+.forecast-result-summary { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; font-variant-numeric: tabular-nums; }
+.forecast-announcement { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+.forecast-announcement-head { display: flex; align-items: center; gap: 7px; color: #475569; font-size: 10px; }
+.forecast-announcement-head > span { padding: 3px 6px; border-radius: 5px; background: #e2e8f0; font-weight: 700; }
+.forecast-announcement-head > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.forecast-announcement-head > a { margin-left: auto; color: #dc2626; white-space: nowrap; }
+.forecast-announcement blockquote { margin: 9px 0 6px; padding-left: 10px; border-left: 2px solid #cbd5e1; color: #334155; font-size: 11px; line-height: 1.65; }
+.forecast-announcement > small { color: #94a3b8; font-size: 9px; line-height: 1.5; }
+.forecast-calculation-lines { display: grid; }
+.forecast-calculation-line { display: flex; min-height: 48px; align-items: center; flex-wrap: wrap; gap: 6px; padding: 10px 14px; color: #64748b; font-size: 11px; line-height: 1.45; }
+.forecast-calculation-line + .forecast-calculation-line { border-top: 1px solid #fee2e2; }.forecast-calculation-line.policy { background: #fff7f5; }
+.forecast-calculation-label { padding: 4px 7px; border-radius: 5px; background: #eef2f7; color: #475569; font-size: 10px; white-space: nowrap; }
+.forecast-calculation-line.policy .forecast-calculation-label { background: #ffe4df; color: #dc3c2d; }.forecast-calculation-line.interim .forecast-calculation-label { background: #fff7ed; color: #c2410c; }
+.forecast-calculation-line i, .forecast-calculation-line em { color: #94a3b8; font-style: normal; }.forecast-calculation-line > strong { margin-left: 2px; color: #ef4e3a; font-size: 15px; white-space: nowrap; }
+.forecast-calculation-line > small { margin-left: auto; padding: 3px 6px; border-radius: 5px; background: #f1f5f9; color: #94a3b8; font-size: 9px; white-space: nowrap; }
+.forecast-calculation-line.policy > small, .forecast-calculation-line.interim > small { background: #ffe9e4; color: #dc3c2d; }
+.forecast-adjustment-note { margin: 0; padding: 9px 14px; border-top: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 10px; line-height: 1.55; }
 .forecast-final-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .8fr); align-items: center; gap: 12px; padding: 14px;
   border: 1px solid #fecaca; border-radius: 14px; background: #fffafa; }
 .forecast-final-card > div:first-child strong, .forecast-final-card > div:first-child span { display: block; }
@@ -2352,6 +2398,7 @@ const CSS = `
   .forecast-assumption-card { padding: 12px; }.forecast-control-row { grid-template-columns: 1fr; }
   .forecast-data-head > *, .forecast-data-row > * { padding-inline: 5px; }.forecast-data-row { font-size: 11px; }
   .forecast-final-card { grid-template-columns: 1fr; }.forecast-choice-grid { gap: 5px; }
+  .forecast-calculation-line { align-items: flex-start; }.forecast-calculation-line > small { margin-left: 0; }
 }
 .forecast-help-link { border: 0; border-bottom: 1px dashed #a78bfa; padding: 0; background: transparent; color: #7c3aed;
   font: inherit; cursor: pointer; }
