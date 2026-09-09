@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import { fetchDividendPayoutsForCodes, type DividendPayoutRecord } from '../utils/dividendPayout'
-import { DIVIDEND_FORECAST_MODEL_VERSION, fetchDividendForecast, fetchDividendForecasts, type ForecastResult, type PayoutMethod } from '../utils/dividendForecast'
+import { DIVIDEND_FORECAST_MODEL_VERSION, fetchDividendForecast, fetchDividendForecasts, type DividendCommitment, type ForecastResult, type PayoutMethod } from '../utils/dividendForecast'
 import { loadForecastCache, loadForecastDetail, loadForecastOverrides, saveForecastCache, saveForecastDetail, saveForecastOverrides } from '../utils/dividendForecastCache'
 import { resolveGridDividend, type DividendBasis } from '../utils/dividendBasis'
 import { predictSector } from '../utils/sectorPredictor'
@@ -40,12 +40,6 @@ const SECTOR_ORDER = ['电力', '水电', '银行', '保险', '能源', '有色'
 // 「其他」始终可用，作为预判不到板块时的兜底归属
 const SECTORS = SECTOR_ORDER.filter(s => s === '其他' || STOCKS.some(x => x.sector === s))
 const NONFERROUS_CODES = new Set(['000408', '601899', '000933', '000807'])
-const ANNOUNCEMENT_EXCERPT_FALLBACKS: Record<string, { text: string; url: string }> = {
-  '600795': {
-    text: '每年以现金方式分配的利润……原则上不低于当年实现的归属于上市公司股东净利润的百分之六十，且每股派发现金红利不低于0.22元人民币（含税）。',
-    url: 'https://static.cninfo.com.cn/finalpage/2025-08-19/1224503270.PDF',
-  },
-}
 const ALL = '全部'
 const LEGACY_SIGNAL_TABS = new Set(['买点下轨', '卖点上轨', '近下轨', '近上轨'])
 const BOLL_PERIODS: BollPeriod[] = ['day', 'week', 'month']
@@ -209,6 +203,14 @@ const averageOf = (values: number[]) => values.reduce((sum, value) => sum + valu
 const medianOf = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
 const toBillion = (value: number) => value / 1e8
 const compactNumber = (value: number, digits = 2) => Number.isFinite(value) ? String(+value.toFixed(digits)) : '--'
+const commitmentHighlights = (commitment: DividendCommitment) => {
+  const items: string[] = []
+  if (commitment.minPayoutRatio !== undefined) items.push(`2026 年现金分红比例 ≥ ${compactNumber(commitment.minPayoutRatio * 100)}%`)
+  if (commitment.minCashAmount !== undefined) items.push(`现金分红总额 ≥ ${compactNumber(toBillion(commitment.minCashAmount))} 亿元`)
+  if (commitment.minDps !== undefined) items.push(`每股现金红利 ≥ ${compactNumber(commitment.minDps, 4)} 元`)
+  if (commitment.includesInterim) items.push('包含中期分红安排')
+  return items
+}
 const PAYOUT_METHOD_LABELS: Record<PayoutMethod, string> = { average: '三年平均值', median: '三年中位数', latest: '最近一年' }
 const profitRatioChoiceLabel = (choice: ProfitRatioChoice) => (
   choice === 'average' ? '三年平均值' : choice === 'median' ? '三年中位数' : choice === 'manual' ? '手动值' : `${choice} 年比例`
@@ -797,12 +799,12 @@ export default function YieldGrid() {
       applyDetail(cachedDetail)
       setForecastDetailError('')
       setForecastDetailLoading(false)
-      if (!cachedDetail.commitment || cachedDetail.commitment.commitmentText) return
+      return
     }
     let cancelled = false
-    if (!cachedDetail) setForecastDetail(null)
+    setForecastDetail(null)
     setForecastDetailError('')
-    setForecastDetailLoading(!cachedDetail)
+    setForecastDetailLoading(true)
     fetchDividendForecast(code)
       .then(detail => {
         if (cancelled) return
@@ -810,7 +812,7 @@ export default function YieldGrid() {
         applyDetail(detail)
       })
       .catch(reason => {
-        if (!cancelled && !cachedDetail) setForecastDetailError(reason instanceof Error ? reason.message : '预测明细加载失败')
+        if (!cancelled) setForecastDetailError(reason instanceof Error ? reason.message : '预测明细加载失败')
       })
       .finally(() => { if (!cancelled) setForecastDetailLoading(false) })
     return () => { cancelled = true }
@@ -844,9 +846,6 @@ export default function YieldGrid() {
   const originalPolicyCashDps = forecastDetail?.commitment?.minCashAmount !== undefined
     ? forecastDetail.commitment.minCashAmount / forecastDetail.shares
     : null
-  const announcementFallback = forecastDetail ? ANNOUNCEMENT_EXCERPT_FALLBACKS[forecastDetail.code] : undefined
-  const announcementExcerpt = forecastDetail?.commitment?.commitmentText || announcementFallback?.text
-  const announcementUrl = announcementFallback?.url || forecastDetail?.commitment?.eastmoneySourceUrl || forecastDetail?.commitment?.sourceUrl
 
   const applyEditorCalculation = (annualProfit: number, payout: number) => {
     if (!forecastDetail || !Number.isFinite(annualProfit) || annualProfit <= 0) return
@@ -1479,11 +1478,13 @@ export default function YieldGrid() {
                   {forecastDetail.forecastMethod === 'policy' && forecastDetail.commitment && (
                     <div className="forecast-announcement">
                       <div className="forecast-announcement-head">
-                        <span>公告关键原文</span>
+                        <span>承诺重点</span>
                         <b>{forecastDetail.commitment.sourceName}</b>
-                        {announcementUrl && <a href={announcementUrl} target="_blank" rel="noreferrer">查看公告全文</a>}
+                        <a href={forecastDetail.commitment.eastmoneySourceUrl || forecastDetail.commitment.sourceUrl} target="_blank" rel="noreferrer">查看公告全文</a>
                       </div>
-                      <blockquote>{announcementExcerpt || '当前结构化数据未保存公告原文摘录，请点击“查看公告全文”核对原始公告。'}</blockquote>
+                      <div className="forecast-announcement-highlights">
+                        {commitmentHighlights(forecastDetail.commitment).map(item => <strong key={item}>{item}</strong>)}
+                      </div>
                       <small>{forecastDetail.commitment.startYear}–{forecastDetail.commitment.endYear} 年有效{forecastDetail.commitment.conditions.length ? ` · 适用条件：${forecastDetail.commitment.conditions.join('；')}` : ''}</small>
                     </div>
                   )}
@@ -2374,7 +2375,8 @@ const CSS = `
 .forecast-announcement-head { display: flex; align-items: center; gap: 7px; color: #475569; font-size: 10px; }
 .forecast-announcement-head > span { padding: 3px 6px; border-radius: 5px; background: #e2e8f0; font-weight: 700; }
 .forecast-announcement-head > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.forecast-announcement-head > a { margin-left: auto; color: #dc2626; white-space: nowrap; }
-.forecast-announcement blockquote { margin: 9px 0 6px; padding-left: 10px; border-left: 2px solid #cbd5e1; color: #334155; font-size: 11px; line-height: 1.65; }
+.forecast-announcement-highlights { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 7px; }
+.forecast-announcement-highlights strong { padding: 5px 8px; border-radius: 6px; background: #fff; color: #c24132; font-size: 11px; line-height: 1.4; }
 .forecast-announcement > small { color: #94a3b8; font-size: 9px; line-height: 1.5; }
 .forecast-calculation-lines { display: grid; }
 .forecast-calculation-line { display: flex; min-height: 48px; align-items: center; flex-wrap: wrap; gap: 6px; padding: 10px 14px; color: #64748b; font-size: 11px; line-height: 1.45; }
