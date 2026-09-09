@@ -4,7 +4,7 @@ import { fetchStockPrices, searchStocks, type SearchResult } from '../utils/api'
 import { fetchDividendHistory } from '../utils/dividendHistory'
 import { fetchDividendPayoutsForCodes, type DividendPayoutRecord } from '../utils/dividendPayout'
 import { DIVIDEND_FORECAST_MODEL_VERSION, fetchDividendForecast, fetchDividendForecasts, type ForecastResult, type PayoutMethod } from '../utils/dividendForecast'
-import { loadForecastCache, loadForecastOverrides, saveForecastCache, saveForecastOverrides } from '../utils/dividendForecastCache'
+import { loadForecastCache, loadForecastDetail, loadForecastOverrides, saveForecastCache, saveForecastDetail, saveForecastOverrides } from '../utils/dividendForecastCache'
 import { resolveGridDividend, type DividendBasis } from '../utils/dividendBasis'
 import { predictSector } from '../utils/sectorPredictor'
 import { pickDividendForFill } from '../utils/dividendFill'
@@ -203,6 +203,22 @@ const averageOf = (values: number[]) => values.reduce((sum, value) => sum + valu
 const medianOf = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
 const toBillion = (value: number) => value / 1e8
 const compactNumber = (value: number, digits = 2) => Number.isFinite(value) ? String(+value.toFixed(digits)) : '--'
+const PAYOUT_METHOD_LABELS: Record<PayoutMethod, string> = { average: '三年平均值', median: '三年中位数', latest: '最近一年' }
+const profitRatioChoiceLabel = (choice: ProfitRatioChoice) => (
+  choice === 'average' ? '三年平均值' : choice === 'median' ? '三年中位数' : choice === 'manual' ? '手动值' : `${choice} 年比例`
+)
+const commitmentRule = (commitment: NonNullable<ForecastResult['commitment']>) => {
+  const rules = [
+    commitment.minPayoutRatio !== undefined
+      ? `现金分红不低于${commitment.basis || '归母净利润'}的 ${compactNumber(commitment.minPayoutRatio * 100)}%`
+      : null,
+    commitment.minDps !== undefined ? `每股股息不低于 ${compactNumber(commitment.minDps, 4)} 元` : null,
+    commitment.minCashAmount !== undefined
+      ? `现金分红总额不低于 ${compactNumber(toBillion(commitment.minCashAmount))} 亿元`
+      : null,
+  ].filter((rule): rule is string => rule !== null)
+  return rules.join('；') || commitment.commitmentText || '以公告约定为准'
+}
 const payoutFor = (detail: ForecastResult, choice: PayoutMethod) => (
   choice === 'latest' ? detail.payoutLatest : choice === 'median' ? detail.payoutMedian : detail.payoutAverage
 )
@@ -776,6 +792,19 @@ export default function YieldGrid() {
       setForecastDetailError('')
       return
     }
+    const applyDetail = (detail: ForecastResult) => {
+      setForecastDetail(detail)
+      setProfitRatioChoice('median')
+      setAnnualProfitInput(compactNumber(toBillion(detail.annualProfit)))
+      setEditorPayoutChoice(detail.payoutMethod)
+    }
+    const cachedDetail = loadForecastDetail(code)
+    if (cachedDetail) {
+      applyDetail(cachedDetail)
+      setForecastDetailError('')
+      setForecastDetailLoading(false)
+      return
+    }
     let cancelled = false
     setForecastDetail(null)
     setForecastDetailError('')
@@ -783,10 +812,8 @@ export default function YieldGrid() {
     fetchDividendForecast(code)
       .then(detail => {
         if (cancelled) return
-        setForecastDetail(detail)
-        setProfitRatioChoice('median')
-        setAnnualProfitInput(compactNumber(toBillion(detail.annualProfit)))
-        setEditorPayoutChoice(detail.payoutMethod)
+        saveForecastDetail(detail)
+        applyDetail(detail)
       })
       .catch(reason => {
         if (!cancelled) setForecastDetailError(reason instanceof Error ? reason.message : '预测明细加载失败')
@@ -805,6 +832,18 @@ export default function YieldGrid() {
   const editorCalculatedDps = forecastDetail && editorPayout !== null && Number.isFinite(editorAnnualProfit) && editorAnnualProfit > 0
     ? editorAnnualProfit * editorPayout / forecastDetail.shares
     : null
+  const editorAdjustments = forecastDetail ? (() => {
+    const changes: string[] = []
+    if (profitRatioChoice === 'manual') {
+      changes.push(`预计全年利润从 ${compactNumber(toBillion(forecastDetail.annualProfit))} 亿元手动调整为 ${compactNumber(Number(annualProfitInput))} 亿元，对应上半年占比 ${compactNumber((editorProfitRatio ?? 0) * 100)}%`)
+    } else if (profitRatioChoice !== 'median') {
+      changes.push(`上半年占比从三年中位数 ${compactNumber(forecastDetail.medianProfitRatio * 100)}% 调整为${profitRatioChoiceLabel(profitRatioChoice)} ${compactNumber((editorProfitRatio ?? 0) * 100)}%，预计全年利润相应调整为 ${compactNumber(Number(annualProfitInput))} 亿元`)
+    }
+    if (editorPayoutChoice !== forecastDetail.payoutMethod) {
+      changes.push(`股息支付率从${PAYOUT_METHOD_LABELS[forecastDetail.payoutMethod]} ${compactNumber(forecastDetail.payout * 100)}% 调整为${PAYOUT_METHOD_LABELS[editorPayoutChoice]} ${compactNumber((editorPayout ?? 0) * 100)}%`)
+    }
+    return changes
+  })() : []
 
   const applyEditorCalculation = (annualProfit: number, payout: number) => {
     if (!forecastDetail || !Number.isFinite(annualProfit) || annualProfit <= 0) return
@@ -1437,8 +1476,16 @@ export default function YieldGrid() {
                   <small>利润法计算</small>
                   <div><span>{compactNumber(Number(annualProfitInput))} 亿元</span><i>×</i><span>{compactNumber((editorPayout ?? 0) * 100)}%</span><i>÷</i><span>{compactNumber(toBillion(forecastDetail.shares))} 亿股</span></div>
                   <strong>= {editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股</strong>
+                  {forecastDetail.forecastMethod === 'policy' && forecastDetail.commitment && (
+                    <p><b>原算法采用的分红政策：</b>{forecastDetail.commitment.startYear}–{forecastDetail.commitment.endYear} 年，{commitmentRule(forecastDetail.commitment)}{forecastDetail.commitment.conditions.length ? `；适用条件：${forecastDetail.commitment.conditions.join('；')}` : ''}。按本次预测折算的政策下限为 {compactNumber(forecastDetail.policyDpsFloor ?? 0, 4)} 元/股，高于利润法的 {compactNumber(forecastDetail.profitDps, 4)} 元/股，因此原算法最终采用 {compactNumber(forecastDetail.annualDps, 4)} 元/股。</p>
+                  )}
+                  {forecastDetail.forecastMethod === 'interim' && (
+                    <p><b>原算法采用中期息锚定：</b>中期分红与上年同期的变化折算为全年 {compactNumber(forecastDetail.interimAnchor ?? 0, 4)} 元/股，因此原算法最终采用 {compactNumber(forecastDetail.annualDps, 4)} 元/股。</p>
+                  )}
                   {forecastDetail.forecastMethod !== 'profit' && (
-                    <p>原算法另采用{forecastDetail.forecastMethod === 'interim' ? '中期息锚定' : '分红政策下限'}，得到 {compactNumber(forecastDetail.annualDps, 4)} 元/股；调整上方参数后，最终值按利润法联动重算。</p>
+                    <p><b>当前参数调整：</b>{editorAdjustments.length
+                      ? `${editorAdjustments.join('；')}。最终值已按利润法联动重算为 ${editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股，本次联动不继续套用原政策下限或中期息锚定。`
+                      : `尚未调整上方参数。修改上半年占比、预计全年利润或股息支付率后，最终值才会按利润法联动重算。`}</p>
                   )}
                 </div>
               </div>}
@@ -1494,7 +1541,7 @@ export default function YieldGrid() {
               <span>当前算法版本：{DIVIDEND_FORECAST_MODEL_VERSION}</span>
               <span>金额口径：人民币税前元/股</span>
             </div>
-            <p className="forecast-method-risk">预测依赖已披露数据和历史规律，可能因下半年业绩、股本变化、特别分红及分红政策调整而与实际派息存在差异，仅供参考。</p>
+            <p className="forecast-method-risk">预测依赖已披露数据和历史规律，可能因下半年业绩、股本变化、特别分红及分红政策调整而与实际派息存在差异。通用算法预测不一定准确，个人务必仔细分析、审核和校准，确认后再使用。仅供参考，不构成投资建议。</p>
           </div>}
           {infoModal === 'boll' && <div className="forecast-method-info">
             <section>

@@ -1,11 +1,13 @@
-import { DIVIDEND_FORECAST_MODEL_VERSION } from './dividendForecast'
+import { DIVIDEND_FORECAST_MODEL_VERSION, type ForecastResult } from './dividendForecast'
 
 const FORECAST_CACHE_KEY = 'yield-grid-2026-dividend-forecast'
+const FORECAST_DETAIL_CACHE_KEY = 'yield-grid-2026-dividend-forecast-details'
 const FORECAST_OVERRIDES_KEY = 'yield-grid-2026-dividend-overrides'
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'> & Partial<Pick<Storage, 'removeItem'>>
 export type ForecastCacheValues = Record<string, number | null>
 type ForecastCache = { modelVersion: string; values: ForecastCacheValues }
+type ForecastDetailCache = { modelVersion: string; values: Record<string, ForecastResult> }
 
 const storageOf = (): StorageLike | undefined => typeof localStorage === 'undefined' ? undefined : localStorage
 
@@ -35,6 +37,29 @@ export function saveForecastCache(values: ForecastCacheValues, storage = storage
   if (!storage) return
   try {
     storage.setItem(FORECAST_CACHE_KEY, JSON.stringify({ modelVersion: DIVIDEND_FORECAST_MODEL_VERSION, values: forecastValues(values) }))
+  } catch { /* localStorage unavailable or full */ }
+}
+
+function loadForecastDetailValues(storage: StorageLike | undefined): Record<string, ForecastResult> {
+  if (!storage) return {}
+  try {
+    const parsed = JSON.parse(storage.getItem(FORECAST_DETAIL_CACHE_KEY) || 'null') as ForecastDetailCache | null
+    return parsed?.modelVersion === DIVIDEND_FORECAST_MODEL_VERSION && parsed.values && typeof parsed.values === 'object'
+      ? parsed.values
+      : {}
+  } catch { return {} }
+}
+
+export function loadForecastDetail(code: string, storage = storageOf()): ForecastResult | null {
+  const detail = loadForecastDetailValues(storage)[code]
+  return detail?.code === code && detail.modelVersion === DIVIDEND_FORECAST_MODEL_VERSION ? detail : null
+}
+
+export function saveForecastDetail(detail: ForecastResult, storage = storageOf()) {
+  if (!storage || detail.modelVersion !== DIVIDEND_FORECAST_MODEL_VERSION) return
+  try {
+    const values = { ...loadForecastDetailValues(storage), [detail.code]: detail }
+    storage.setItem(FORECAST_DETAIL_CACHE_KEY, JSON.stringify({ modelVersion: DIVIDEND_FORECAST_MODEL_VERSION, values }))
   } catch { /* localStorage unavailable or full */ }
 }
 
