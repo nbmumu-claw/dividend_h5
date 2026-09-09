@@ -1576,7 +1576,8 @@ export default function YieldGrid() {
               <span>当前算法版本：{DIVIDEND_FORECAST_MODEL_VERSION}</span>
               <span>金额口径：人民币税前元/股</span>
             </div>
-            <p className="forecast-method-risk">预测依赖已披露数据和历史规律，可能因下半年业绩、股本变化、特别分红及分红政策调整而与实际派息存在差异。通用算法预测不一定准确，个人务必仔细分析、审核和校准，确认后再使用。仅供参考，不构成投资建议。</p>
+            <p className="forecast-method-caution">通用算法预测不一定准确，个人务必仔细分析、审核和校准，确认后再使用。</p>
+            <p className="forecast-method-risk">预测依赖已披露数据和历史规律，可能因下半年业绩、股本变化、特别分红及分红政策调整而与实际派息存在差异。仅供参考，不构成投资建议。</p>
           </div>}
           {infoModal === 'boll' && <div className="forecast-method-info">
             <section>
@@ -2410,6 +2411,8 @@ const CSS = `
 .forecast-method-info section p b { color: #5b21b6; font-weight: 650; }
 .forecast-method-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: #6b7280; font-size: 11px; }
 .forecast-method-meta span { padding: 4px 8px; border-radius: 999px; background: #f3f4f6; }
+.forecast-method-caution { margin: 0; padding: 12px 14px; border: 1px solid #fecaca; border-radius: 9px;
+  background: #fef2f2; color: #b91c1c; font-size: 13px; font-weight: 700; line-height: 1.65; }
 .forecast-method-risk { margin: 0; padding: 10px 12px; border-left: 3px solid #f59e0b; border-radius: 4px 8px 8px 4px;
   background: #fffbeb; color: #92400e; font-size: 11px; line-height: 1.6; }
 .filter-clear { border: 0; background: none; color: #6b7280; font-size: 12px; font-family: inherit; cursor: pointer; }
