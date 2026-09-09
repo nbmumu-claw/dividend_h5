@@ -19,7 +19,8 @@ const YIELD_FILTERS = [
 ] as const
 
 type YieldFilter = (typeof YIELD_FILTERS)[number]['value']
-type YieldSortOrder = 'desc' | 'asc' | null
+type SortColumn = 'yield' | 'weeklyChange'
+type SortOrder = 'desc' | 'asc'
 
 const stockKey = (code: string, isHK?: boolean) => `${isHK ? 'hk' : 'cn'}-${code}`
 const DEFAULT_WATCHLIST = QUALITY_DIVIDEND_SECTIONS
@@ -56,7 +57,7 @@ export default function QualityDividendReport() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [yieldFilter, setYieldFilter] = useState<YieldFilter>('all')
-  const [yieldSortOrder, setYieldSortOrder] = useState<YieldSortOrder>(null)
+  const [sort, setSort] = useState<{ column: SortColumn; order: SortOrder } | null>(null)
   const [watchlist, setWatchlist] = useState<string[]>(loadWatchlist)
 
   const refreshPrices = useCallback(async () => {
@@ -82,8 +83,8 @@ export default function QualityDividendReport() {
     setWatchlist(current => current.includes(key) ? current.filter(item => item !== key) : [...current, key])
   }
 
-  const toggleYieldSort = () => {
-    setYieldSortOrder(current => current === null ? 'desc' : current === 'desc' ? 'asc' : null)
+  const toggleSort = (column: SortColumn) => {
+    setSort(current => current?.column !== column ? { column, order: 'desc' } : current.order === 'desc' ? { column, order: 'asc' } : null)
   }
 
   return (
@@ -126,7 +127,9 @@ export default function QualityDividendReport() {
             <table>
               <thead>
                 <tr>
-                  <th>企业</th><th>代码</th><th>预计分红</th><th>现价</th><th>本周涨跌</th><th><button type="button" className="quality-report__sort-button" onClick={toggleYieldSort} aria-label="按实时股息率排序">实时股息率 {yieldSortOrder === 'desc' ? '↓' : yieldSortOrder === 'asc' ? '↑' : '↕'}</button></th>
+                  <th>企业</th><th>代码</th><th>预计分红</th><th>现价</th>
+                  <th aria-sort={sort?.column === 'weeklyChange' ? sort.order === 'desc' ? 'descending' : 'ascending' : 'none'}><button type="button" className="quality-report__sort-button" onClick={() => toggleSort('weeklyChange')} aria-label="按本周涨跌排序">本周涨跌 {sort?.column === 'weeklyChange' ? sort.order === 'desc' ? '↓' : '↑' : '↕'}</button></th>
+                  <th aria-sort={sort?.column === 'yield' ? sort.order === 'desc' ? 'descending' : 'ascending' : 'none'}><button type="button" className="quality-report__sort-button" onClick={() => toggleSort('yield')} aria-label="按实时股息率排序">实时股息率 {sort?.column === 'yield' ? sort.order === 'desc' ? '↓' : '↑' : '↕'}</button></th>
                   {TARGET_YIELDS.map(yieldPct => <th key={yieldPct}>{yieldPct}%</th>)}
                 </tr>
               </thead>
@@ -136,12 +139,13 @@ export default function QualityDividendReport() {
                   const price = prices[row.code]?.price
                   return matchesYieldFilter(price ? row.dividend / price * 100 : null, yieldFilter)
                 }).sort((a, b) => {
-                  if (!yieldSortOrder) return 0
-                  const aYield = prices[a.code]?.price ? a.dividend / prices[a.code]!.price * 100 : null
-                  const bYield = prices[b.code]?.price ? b.dividend / prices[b.code]!.price * 100 : null
-                  if (aYield == null) return 1
-                  if (bYield == null) return -1
-                  return yieldSortOrder === 'desc' ? bYield - aYield : aYield - bYield
+                  if (!sort) return 0
+                  const aValue = sort.column === 'weeklyChange' ? weeklyChanges[a.code]?.pctChg : prices[a.code]?.price ? a.dividend / prices[a.code]!.price * 100 : null
+                  const bValue = sort.column === 'weeklyChange' ? weeklyChanges[b.code]?.pctChg : prices[b.code]?.price ? b.dividend / prices[b.code]!.price * 100 : null
+                  if (aValue == null && bValue == null) return 0
+                  if (aValue == null) return 1
+                  if (bValue == null) return -1
+                  return sort.order === 'desc' ? bValue - aValue : aValue - bValue
                 }).map(row => {
                   const key = stockKey(row.code, row.isHK)
                   const watched = watchlist.includes(key)
