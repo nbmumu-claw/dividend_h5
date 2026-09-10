@@ -5,6 +5,7 @@ const payoutCacheKey = (code: string) => `dividendPayout:${code === '600519' ? '
 
 export interface DividendPayoutRecord {
   year: number
+  dividendPerShare?: number
   payoutRatio: number
   calculationBasis?: 'official' | 'estimated'
   pendingImplementation?: boolean
@@ -18,6 +19,7 @@ function isPayoutRecord(value: unknown): value is DividendPayoutRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
   return typeof record.year === 'number'
+    && (record.dividendPerShare == null || (typeof record.dividendPerShare === 'number' && Number.isFinite(record.dividendPerShare)))
     && typeof record.payoutRatio === 'number'
     && (record.calculationBasis == null || record.calculationBasis === 'official' || record.calculationBasis === 'estimated')
     && (record.pendingImplementation == null || typeof record.pendingImplementation === 'boolean')

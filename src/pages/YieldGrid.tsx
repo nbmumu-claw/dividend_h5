@@ -1463,7 +1463,11 @@ export default function YieldGrid() {
                   <div className="forecast-assumption-title"><b>2</b><span>预计股息支付率</span></div>
                   <div className="forecast-payout-years">
                     {[...forecastDetail.payouts].sort((a, b) => a.year - b.year).map(item => (
-                      <div key={item.year}><span>{item.year}</span><strong>{compactNumber(item.payoutRatio)}%</strong></div>
+                      <div key={item.year}>
+                        <span>{item.year}</span>
+                        <p><i>实际股息</i><b>{typeof item.dividendPerShare === 'number' ? item.dividendPerShare.toFixed(3) : '--'}<small>元/股</small></b></p>
+                        <p><i>派息率</i><strong>{compactNumber(item.payoutRatio)}%</strong></p>
+                      </div>
                     ))}
                   </div>
                   <div className="forecast-choice-grid">
@@ -2370,8 +2374,12 @@ const CSS = `
   background: #faf5ff; color: #7e22ce; font-size: 11px; font-variant-numeric: tabular-nums; }
 .forecast-inline-formula i { color: #c084fc; font-style: normal; }.forecast-inline-formula strong { color: #581c87; }
 .forecast-payout-years { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
-.forecast-payout-years div { display: flex; align-items: center; justify-content: space-between; padding: 8px 9px; border-radius: 9px; background: #f8fafc; }
-.forecast-payout-years span { color: #94a3b8; font-size: 10px; }.forecast-payout-years strong { color: #475569; font-size: 12px; }
+.forecast-payout-years > div { display: grid; gap: 5px; padding: 8px 9px; border-radius: 9px; background: #f8fafc; }
+.forecast-payout-years > div > span { color: #64748b; font-size: 11px; font-weight: 700; }
+.forecast-payout-years p { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; margin: 0; }
+.forecast-payout-years p > i { color: #94a3b8; font-size: 9px; font-style: normal; white-space: nowrap; }
+.forecast-payout-years p > b { color: #475569; font-size: 12px; white-space: nowrap; }.forecast-payout-years p > b small { margin-left: 2px; color: #94a3b8; font-size: 8px; font-weight: 400; }
+.forecast-payout-years p > strong { color: #6d28d9; font-size: 12px; white-space: nowrap; }
 .forecast-choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 10px; }
 .forecast-choice-grid button { min-width: 0; padding: 8px 5px; border: 1px solid #e5e7eb; border-radius: 9px; background: #fff; color: #64748b;
   font-family: inherit; cursor: pointer; }
