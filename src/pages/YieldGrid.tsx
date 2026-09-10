@@ -850,20 +850,9 @@ export default function YieldGrid() {
   const editorPolicyDpsFloor = forecastDetail?.commitment?.modelEligible === true
     ? Math.max(forecastDetail.commitment.minDps ?? 0, originalPolicyCashDps ?? 0, editorPolicyRatioDps ?? 0)
     : null
-
-  const applyEditorCalculation = (annualProfit: number, payout: number) => {
-    if (!forecastDetail || !Number.isFinite(annualProfit) || annualProfit <= 0) return
-    const profitDps = annualProfit * payout / forecastDetail.shares
-    const commitment = forecastDetail.commitment
-    const policyFloor = commitment?.modelEligible === true
-      ? Math.max(
-        commitment.minDps ?? 0,
-        commitment.minCashAmount ? commitment.minCashAmount / forecastDetail.shares : 0,
-        commitment.minPayoutRatio ? annualProfit * commitment.minPayoutRatio / forecastDetail.shares : 0,
-      )
-      : 0
-    setForecastEditor(current => current ? { ...current, input: compactNumber(Math.max(profitDps, policyFloor), 4) } : null)
-  }
+  const editorRecommendedDps = editorCalculatedDps === null
+    ? editorPolicyDpsFloor
+    : Math.max(editorCalculatedDps, editorPolicyDpsFloor ?? 0)
 
   const selectProfitRatio = (choice: ProfitRatioChoice) => {
     if (!forecastDetail) return
@@ -871,19 +860,15 @@ export default function YieldGrid() {
     const annualProfit = forecastDetail.h1Profit / ratio
     setProfitRatioChoice(choice)
     setAnnualProfitInput(compactNumber(toBillion(annualProfit)))
-    applyEditorCalculation(annualProfit, payoutFor(forecastDetail, editorPayoutChoice))
   }
 
   const changeAnnualProfit = (input: string) => {
     setAnnualProfitInput(input)
     setProfitRatioChoice('manual')
-    const annualProfit = Number(input) * 1e8
-    if (forecastDetail) applyEditorCalculation(annualProfit, payoutFor(forecastDetail, editorPayoutChoice))
   }
 
   const selectEditorPayout = (choice: PayoutMethod) => {
     setEditorPayoutChoice(choice)
-    if (forecastDetail) applyEditorCalculation(Number(annualProfitInput) * 1e8, payoutFor(forecastDetail, choice))
   }
 
   const openForecastEditor = (row: Row) => {
@@ -1543,14 +1528,14 @@ export default function YieldGrid() {
 
                   {forecastDetail.commitment?.modelEligible && (
                     <p className="forecast-adjustment-note"><b>当前参数调整：</b>{editorAdjustments.length
-                      ? `${editorAdjustments.join('；')}。利润法为 ${editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股，政策下限为 ${compactNumber(editorPolicyDpsFloor ?? 0, 4)} 元/股，最终已取较高值。`
-                      : `尚未调整上方参数。修改上半年占比、预计全年利润或股息支付率后，会重新比较利润法与政策下限并采用较高值。`}</p>
+                      ? `${editorAdjustments.join('；')}。利润法为 ${editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股，政策下限为 ${compactNumber(editorPolicyDpsFloor ?? 0, 4)} 元/股，算法参考值取较高值。`
+                      : `尚未调整上方参数。修改上半年占比、预计全年利润或股息支付率后，会重新比较利润法与政策下限并生成算法参考值。`}</p>
                   )}
                 </div>
               </div>}
 
               <section className="forecast-final-card">
-                <div><strong>最终采用的 26 年每股股息</strong><span>可直接修改绝对值</span></div>
+                <div><strong>最终采用的 26 年每股股息</strong><span>可采用算法参考，或直接修改绝对值</span></div>
                 <div className="forecast-final-input">
                   <input
                     type="number"
@@ -1566,12 +1551,15 @@ export default function YieldGrid() {
               </section>
 
               <div className="forecast-editor-actions">
+                {editorRecommendedDps !== null && Number.isFinite(editorRecommendedDps) && editorRecommendedDps > 0 && (
+                  <button type="button" className="restore" onClick={() => setForecastEditor(current => current ? { ...current, input: compactNumber(editorRecommendedDps, 4) } : null)}>采用算法参考 {compactNumber(editorRecommendedDps, 4)} 元/股</button>
+                )}
                 {forecastOverrides[forecastEditor.code] !== undefined && (
                   <button type="button" className="restore" onClick={restoreForecastValue}>恢复算法预测</button>
                 )}
                 <button type="button" className="save" onClick={saveForecastOverride}>保存最终值</button>
               </div>
-              <div className="forecast-editor-note">手动值优先于算法预测；登录后会同步到账号，未登录时保存在当前浏览器。<button type="button" className="forecast-help-link ml-1" onClick={() => { setForecastEditor(null); setInfoModal('forecast') }}>查看算法说明</button></div>
+              <div className="forecast-editor-note">上方参数仅用于生成算法参考；保存后的最终值优先。登录后会同步到账号，未登录时保存在当前浏览器。<button type="button" className="forecast-help-link ml-1" onClick={() => { setForecastEditor(null); setInfoModal('forecast') }}>查看算法说明</button></div>
             </div>
           )}
         </Modal>
