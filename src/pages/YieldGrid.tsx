@@ -198,6 +198,7 @@ const FAV = '自选'
 type Custom = { sector: string; name: string; code: string; dive: number; isHK?: boolean }
 const EMPTY_FORECAST_OVERRIDES: Record<string, number> = {}
 type ProfitRatioChoice = 'median' | 'average' | '2023' | '2024' | '2025' | 'manual'
+type EditorPayoutChoice = PayoutMethod | 'manual'
 
 const averageOf = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
 const medianOf = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
@@ -344,7 +345,8 @@ export default function YieldGrid() {
   const [forecastDetailError, setForecastDetailError] = useState('')
   const [profitRatioChoice, setProfitRatioChoice] = useState<ProfitRatioChoice>('median')
   const [annualProfitInput, setAnnualProfitInput] = useState('')
-  const [editorPayoutChoice, setEditorPayoutChoice] = useState<PayoutMethod>('average')
+  const [editorPayoutChoice, setEditorPayoutChoice] = useState<EditorPayoutChoice>('average')
+  const [manualPayoutInput, setManualPayoutInput] = useState('')
   const [infoModal, setInfoModal] = useState<'forecast' | 'boll' | 'data' | null>(null)
   const [date, setDate] = useState('')
   const [fetchedAt, setFetchedAt] = useState(0)
@@ -793,6 +795,7 @@ export default function YieldGrid() {
       setProfitRatioChoice('median')
       setAnnualProfitInput(compactNumber(toBillion(detail.annualProfit)))
       setEditorPayoutChoice(detail.payoutMethod)
+      setManualPayoutInput(compactNumber(detail.payout * 100))
     }
     const cachedDetail = loadForecastDetail(code)
     if (cachedDetail) {
@@ -824,7 +827,11 @@ export default function YieldGrid() {
       ? forecastDetail.h1Profit / editorAnnualProfit
       : profitRatioFor(forecastDetail, profitRatioChoice)
     : null
-  const editorPayout = forecastDetail ? payoutFor(forecastDetail, editorPayoutChoice) : null
+  const editorPayout = forecastDetail
+    ? editorPayoutChoice === 'manual'
+      ? Number(manualPayoutInput) / 100
+      : payoutFor(forecastDetail, editorPayoutChoice)
+    : null
   const editorCalculatedDps = forecastDetail && editorPayout !== null && Number.isFinite(editorAnnualProfit) && editorAnnualProfit > 0
     ? editorAnnualProfit * editorPayout / forecastDetail.shares
     : null
@@ -836,7 +843,8 @@ export default function YieldGrid() {
       changes.push(`上半年占比从三年中位数 ${compactNumber(forecastDetail.medianProfitRatio * 100)}% 调整为${profitRatioChoiceLabel(profitRatioChoice)} ${compactNumber((editorProfitRatio ?? 0) * 100)}%，预计全年利润相应调整为 ${compactNumber(Number(annualProfitInput))} 亿元`)
     }
     if (editorPayoutChoice !== forecastDetail.payoutMethod) {
-      changes.push(`股息支付率从${PAYOUT_METHOD_LABELS[forecastDetail.payoutMethod]} ${compactNumber(forecastDetail.payout * 100)}% 调整为${PAYOUT_METHOD_LABELS[editorPayoutChoice]} ${compactNumber((editorPayout ?? 0) * 100)}%`)
+      const label = editorPayoutChoice === 'manual' ? '自定义' : PAYOUT_METHOD_LABELS[editorPayoutChoice]
+      changes.push(`股息支付率从${PAYOUT_METHOD_LABELS[forecastDetail.payoutMethod]} ${compactNumber(forecastDetail.payout * 100)}% 调整为${label} ${compactNumber((editorPayout ?? 0) * 100)}%`)
     }
     return changes
   })() : []
@@ -867,7 +875,10 @@ export default function YieldGrid() {
     setProfitRatioChoice('manual')
   }
 
-  const selectEditorPayout = (choice: PayoutMethod) => {
+  const selectEditorPayout = (choice: EditorPayoutChoice) => {
+    if (choice === 'manual' && forecastDetail && !manualPayoutInput) {
+      setManualPayoutInput(compactNumber(payoutFor(forecastDetail, editorPayoutChoice === 'manual' ? forecastDetail.payoutMethod : editorPayoutChoice) * 100))
+    }
     setEditorPayoutChoice(choice)
   }
 
@@ -1479,7 +1490,14 @@ export default function YieldGrid() {
                         <b>{compactNumber(value * 100)}%</b>
                       </button>
                     ))}
+                    <button type="button" className={editorPayoutChoice === 'manual' ? 'active' : ''} onClick={() => selectEditorPayout('manual')}>
+                      <span>自定义</span>
+                      <b>{editorPayoutChoice === 'manual' ? `${compactNumber((editorPayout ?? 0) * 100)}%` : '输入比例'}</b>
+                    </button>
                   </div>
+                  {editorPayoutChoice === 'manual' && <label className="forecast-manual-payout">自定义股息支付率
+                    <div className="forecast-number-input"><input type="number" inputMode="decimal" min="0" step="0.01" value={manualPayoutInput} onChange={event => setManualPayoutInput(event.target.value)} /><i>%</i></div>
+                  </label>}
                 </section>
 
                 <div className="forecast-result-summary">
@@ -1502,7 +1520,7 @@ export default function YieldGrid() {
                       <b className="forecast-calculation-label">利润模型</b>
                       <span>26H1 利润 {compactNumber(toBillion(forecastDetail.h1Profit))} 亿</span><i>÷</i>
                       <span>{profitRatioChoiceLabel(profitRatioChoice)} {compactNumber((editorProfitRatio ?? 0) * 100)}%</span><i>×</i>
-                      <span>{PAYOUT_METHOD_LABELS[editorPayoutChoice]} {compactNumber((editorPayout ?? 0) * 100)}%</span><i>÷</i>
+                      <span>{editorPayoutChoice === 'manual' ? '自定义' : PAYOUT_METHOD_LABELS[editorPayoutChoice]} {compactNumber((editorPayout ?? 0) * 100)}%</span><i>÷</i>
                       <span>权益股本 {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股</span><em>=</em>
                       <strong>{editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股</strong>
                       <small>{editorAdjustments.length ? '当前联动' : forecastDetail.forecastMethod === 'profit' ? '原算法采用' : '参考'}</small>
@@ -2383,12 +2401,13 @@ const CSS = `
 .forecast-payout-years p > strong { color: #6d28d9; font-size: 12px; white-space: nowrap; }
 .forecast-payout-track { height: 4px; overflow: hidden; border-radius: 999px; background: #e9e7ef; }
 .forecast-payout-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #c4b5fd, #7c3aed); }
-.forecast-choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 10px; }
+.forecast-choice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 10px; }
 .forecast-choice-grid button { min-width: 0; padding: 8px 5px; border: 1px solid #e5e7eb; border-radius: 9px; background: #fff; color: #64748b;
   font-family: inherit; cursor: pointer; }
 .forecast-choice-grid button.active { border-color: #a78bfa; background: #faf5ff; color: #6d28d9; box-shadow: 0 0 0 1px #ddd6fe; }
 .forecast-choice-grid button span, .forecast-choice-grid button b { display: block; }.forecast-choice-grid button span { font-size: 10px; }
 .forecast-choice-grid button b { margin-top: 2px; font-size: 13px; }.forecast-choice-grid button em { margin-left: 3px; color: #ea580c; font-size: 8px; font-style: normal; }
+.forecast-manual-payout { display: grid; gap: 5px; margin-top: 10px; color: #64748b; font-size: 11px; }
 .forecast-result-summary { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; font-variant-numeric: tabular-nums; }
 .forecast-announcement { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
 .forecast-announcement-head { display: flex; align-items: center; gap: 7px; color: #475569; font-size: 10px; }
