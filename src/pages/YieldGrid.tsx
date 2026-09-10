@@ -840,21 +840,29 @@ export default function YieldGrid() {
     }
     return changes
   })() : []
-  const editorPolicyRatioDps = forecastDetail?.commitment?.minPayoutRatio !== undefined
+  const editorPolicyRatioDps = forecastDetail?.commitment?.modelEligible === true && forecastDetail.commitment.minPayoutRatio !== undefined
     && Number.isFinite(editorAnnualProfit) && editorAnnualProfit > 0
     ? editorAnnualProfit * forecastDetail.commitment.minPayoutRatio / forecastDetail.shares
     : null
-  const originalPolicyCashDps = forecastDetail?.commitment?.minCashAmount !== undefined
+  const originalPolicyCashDps = forecastDetail?.commitment?.modelEligible === true && forecastDetail.commitment.minCashAmount !== undefined
     ? forecastDetail.commitment.minCashAmount / forecastDetail.shares
     : null
-  const editorPolicyDpsFloor = forecastDetail?.commitment
+  const editorPolicyDpsFloor = forecastDetail?.commitment?.modelEligible === true
     ? Math.max(forecastDetail.commitment.minDps ?? 0, originalPolicyCashDps ?? 0, editorPolicyRatioDps ?? 0)
     : null
 
   const applyEditorCalculation = (annualProfit: number, payout: number) => {
     if (!forecastDetail || !Number.isFinite(annualProfit) || annualProfit <= 0) return
-    const calculated = annualProfit * payout / forecastDetail.shares
-    setForecastEditor(current => current ? { ...current, input: compactNumber(calculated, 4) } : null)
+    const profitDps = annualProfit * payout / forecastDetail.shares
+    const commitment = forecastDetail.commitment
+    const policyFloor = commitment?.modelEligible === true
+      ? Math.max(
+        commitment.minDps ?? 0,
+        commitment.minCashAmount ? commitment.minCashAmount / forecastDetail.shares : 0,
+        commitment.minPayoutRatio ? annualProfit * commitment.minPayoutRatio / forecastDetail.shares : 0,
+      )
+      : 0
+    setForecastEditor(current => current ? { ...current, input: compactNumber(Math.max(profitDps, policyFloor), 4) } : null)
   }
 
   const selectProfitRatio = (choice: ProfitRatioChoice) => {
@@ -1490,7 +1498,7 @@ export default function YieldGrid() {
                 </section>
 
                 <div className="forecast-result-summary">
-                  {forecastDetail.forecastMethod === 'policy' && forecastDetail.commitment && (
+                  {forecastDetail.commitment?.modelEligible && (
                     <div className="forecast-announcement">
                       <div className="forecast-announcement-head">
                         <span>承诺重点</span>
@@ -1515,7 +1523,7 @@ export default function YieldGrid() {
                       <small>{editorAdjustments.length ? '当前联动' : forecastDetail.forecastMethod === 'profit' ? '原算法采用' : '参考'}</small>
                     </div>
 
-                    {forecastDetail.forecastMethod === 'policy' && forecastDetail.commitment && (
+                    {forecastDetail.commitment?.modelEligible && (
                       <div className="forecast-calculation-line policy">
                         <b className="forecast-calculation-label">政策下限</b>
                         {editorPolicyRatioDps !== null && <span>比例下限 {compactNumber(forecastDetail.commitment.minPayoutRatio! * 100)}% × {compactNumber(toBillion(editorAnnualProfit))} 亿 ÷ {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股 = {compactNumber(editorPolicyRatioDps, 4)} 元/股</span>}
@@ -1533,10 +1541,10 @@ export default function YieldGrid() {
                     )}
                   </div>
 
-                  {forecastDetail.forecastMethod !== 'profit' && (
+                  {forecastDetail.commitment?.modelEligible && (
                     <p className="forecast-adjustment-note"><b>当前参数调整：</b>{editorAdjustments.length
-                      ? `${editorAdjustments.join('；')}。最终值已按利润法联动重算为 ${editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股，本次联动不继续套用原政策下限或中期息锚定。`
-                      : `尚未调整上方参数。修改上半年占比、预计全年利润或股息支付率后，最终值才会按利润法联动重算。`}</p>
+                      ? `${editorAdjustments.join('；')}。利润法为 ${editorCalculatedDps === null ? '--' : compactNumber(editorCalculatedDps, 4)} 元/股，政策下限为 ${compactNumber(editorPolicyDpsFloor ?? 0, 4)} 元/股，最终已取较高值。`
+                      : `尚未调整上方参数。修改上半年占比、预计全年利润或股息支付率后，会重新比较利润法与政策下限并采用较高值。`}</p>
                   )}
                 </div>
               </div>}
