@@ -1467,6 +1467,7 @@ export default function YieldGrid() {
                         <span>{item.year}</span>
                         <p><i>实际股息</i><b>{typeof item.dividendPerShare === 'number' ? item.dividendPerShare.toFixed(3) : '--'}<small>元/股</small></b></p>
                         <p><i>派息率</i><strong>{compactNumber(item.payoutRatio)}%</strong></p>
+                        <div className="forecast-payout-track" aria-hidden="true"><span style={{ width: `${Math.min(100, Math.max(0, item.payoutRatio))}%` }} /></div>
                       </div>
                     ))}
                   </div>
@@ -2380,6 +2381,8 @@ const CSS = `
 .forecast-payout-years p > i { color: #94a3b8; font-size: 9px; font-style: normal; white-space: nowrap; }
 .forecast-payout-years p > b { color: #475569; font-size: 12px; white-space: nowrap; }.forecast-payout-years p > b small { margin-left: 2px; color: #94a3b8; font-size: 8px; font-weight: 400; }
 .forecast-payout-years p > strong { color: #6d28d9; font-size: 12px; white-space: nowrap; }
+.forecast-payout-track { height: 4px; overflow: hidden; border-radius: 999px; background: #e9e7ef; }
+.forecast-payout-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #c4b5fd, #7c3aed); }
 .forecast-choice-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 10px; }
 .forecast-choice-grid button { min-width: 0; padding: 8px 5px; border: 1px solid #e5e7eb; border-radius: 9px; background: #fff; color: #64748b;
   font-family: inherit; cursor: pointer; }
