@@ -792,6 +792,12 @@ export default function YieldGrid() {
     }
     const applyDetail = (detail: ForecastResult) => {
       setForecastDetail(detail)
+      setForecastDividends(previous => {
+        if (previous[detail.code] === detail.annualDps) return previous
+        const next = { ...previous, [detail.code]: detail.annualDps }
+        saveForecastCache(next)
+        return next
+      })
       setProfitRatioChoice('median')
       setAnnualProfitInput(compactNumber(toBillion(detail.annualProfit)))
       setEditorPayoutChoice(detail.payoutMethod)
@@ -907,6 +913,13 @@ export default function YieldGrid() {
     const next = { ...forecastOverrides }
     delete next[forecastEditor.code]
     persistForecastOverrides(next)
+    if (forecastDetail?.code === forecastEditor.code && Number.isFinite(forecastDetail.annualDps)) {
+      setForecastDividends(previous => {
+        const values = { ...previous, [forecastEditor.code]: forecastDetail.annualDps }
+        saveForecastCache(values)
+        return values
+      })
+    }
     setForecastEditor(null)
     showToast(`${forecastEditor.name} 已恢复算法预测`)
   }
