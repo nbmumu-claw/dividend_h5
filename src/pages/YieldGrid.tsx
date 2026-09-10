@@ -1430,6 +1430,12 @@ export default function YieldGrid() {
                         <strong>{compactNumber(item.ratio * 100)}%</strong>
                       </div>
                     ))}
+                    <div className="forecast-data-row forecast-data-estimate">
+                      <b>2026E</b>
+                      <span>{compactNumber(toBillion(forecastDetail.h1Profit))}亿</span>
+                      <span>{compactNumber(Number(annualProfitInput))}亿</span>
+                      <strong>{compactNumber((editorProfitRatio ?? 0) * 100)}%</strong>
+                    </div>
                   </div>
                   <div className="forecast-control-row">
                     <label>比例取值
@@ -2351,6 +2357,8 @@ const CSS = `
 .forecast-data-head > :first-child, .forecast-data-row > :first-child { text-align: left; }
 .forecast-data-row b { color: #475569; font-weight: 650; }
 .forecast-data-row strong { color: #6d28d9; font-weight: 700; }
+.forecast-data-estimate { background: #faf5ff; }
+.forecast-data-estimate b, .forecast-data-estimate span, .forecast-data-estimate strong { color: #7e22ce; font-weight: 700; }
 .forecast-control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
 .forecast-control-row label { display: grid; gap: 5px; color: #64748b; font-size: 11px; }
 .forecast-control-row select, .forecast-number-input { height: 40px; border: 1px solid #dbe1e8; border-radius: 9px; background: #fff; }
