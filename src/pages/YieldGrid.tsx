@@ -840,11 +840,15 @@ export default function YieldGrid() {
     }
     return changes
   })() : []
-  const originalPolicyRatioDps = forecastDetail?.commitment?.minPayoutRatio !== undefined
-    ? forecastDetail.annualProfit * forecastDetail.commitment.minPayoutRatio / forecastDetail.shares
+  const editorPolicyRatioDps = forecastDetail?.commitment?.minPayoutRatio !== undefined
+    && Number.isFinite(editorAnnualProfit) && editorAnnualProfit > 0
+    ? editorAnnualProfit * forecastDetail.commitment.minPayoutRatio / forecastDetail.shares
     : null
   const originalPolicyCashDps = forecastDetail?.commitment?.minCashAmount !== undefined
     ? forecastDetail.commitment.minCashAmount / forecastDetail.shares
+    : null
+  const editorPolicyDpsFloor = forecastDetail?.commitment
+    ? Math.max(forecastDetail.commitment.minDps ?? 0, originalPolicyCashDps ?? 0, editorPolicyRatioDps ?? 0)
     : null
 
   const applyEditorCalculation = (annualProfit: number, payout: number) => {
@@ -1514,10 +1518,10 @@ export default function YieldGrid() {
                     {forecastDetail.forecastMethod === 'policy' && forecastDetail.commitment && (
                       <div className="forecast-calculation-line policy">
                         <b className="forecast-calculation-label">政策下限</b>
-                        {originalPolicyRatioDps !== null && <span>比例下限 {compactNumber(forecastDetail.commitment.minPayoutRatio! * 100)}% × {compactNumber(toBillion(forecastDetail.annualProfit))} 亿 ÷ {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股 = {compactNumber(originalPolicyRatioDps, 4)} 元/股</span>}
+                        {editorPolicyRatioDps !== null && <span>比例下限 {compactNumber(forecastDetail.commitment.minPayoutRatio! * 100)}% × {compactNumber(toBillion(editorAnnualProfit))} 亿 ÷ {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股 = {compactNumber(editorPolicyRatioDps, 4)} 元/股</span>}
                         {forecastDetail.commitment.minDps !== undefined && <span>每股下限 {compactNumber(forecastDetail.commitment.minDps, 4)} 元/股</span>}
                         {originalPolicyCashDps !== null && <span>现金下限 {compactNumber(toBillion(forecastDetail.commitment.minCashAmount!))} 亿 ÷ {compactNumber(toBillion(forecastDetail.shares), 3)} 亿股 = {compactNumber(originalPolicyCashDps, 4)} 元/股</span>}
-                        <em>→ 取较高值</em><strong>{compactNumber(forecastDetail.policyDpsFloor ?? 0, 4)} 元/股</strong><small>原算法采用</small>
+                        <em>→ 取较高值</em><strong>{compactNumber(editorPolicyDpsFloor ?? 0, 4)} 元/股</strong><small>{editorAdjustments.length ? '同步测算' : '原算法采用'}</small>
                       </div>
                     )}
 
