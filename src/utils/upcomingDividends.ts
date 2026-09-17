@@ -1,6 +1,6 @@
 import { cacheGet, cacheSet } from './cache'
 
-const CACHE_VERSION = 'v3'
+const CACHE_VERSION = 'v4'
 const CACHE_TTL_WITH_RECORDS = 24 * 60 * 60 * 1000
 const CACHE_TTL_EMPTY = 12 * 60 * 60 * 1000
 

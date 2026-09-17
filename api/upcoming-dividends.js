@@ -49,6 +49,38 @@ async function fetchForCode(code) {
   return payload?.result?.data || []
 }
 
+async function fetchCalendarRecords(codes, start) {
+  const codeList = codes.map(code => `"${code}"`).join(',')
+  const params = new URLSearchParams({
+    reportName: 'RPT_STOCKCALENDAR',
+    columns: 'SECURITY_CODE,NOTICE_DATE,EVENT_TYPE_CODE,LEVEL1_CONTENT',
+    filter: `(SECURITY_CODE in (${codeList}))(EVENT_TYPE_CODE="004")(NOTICE_DATE>='${addDays(start, -365)}')`,
+    pageNumber: '1',
+    pageSize: '500',
+    sortColumns: 'NOTICE_DATE',
+    sortTypes: '-1',
+    source: 'WEB',
+    client: 'WEB',
+  })
+  const response = await fetch(`${EASTMONEY_URL}?${params}`)
+  if (!response.ok) throw new Error(`Eastmoney calendar request failed: ${response.status}`)
+  const payload = await response.json()
+  return payload?.result?.data || []
+}
+
+function parseCalendarRecord(record) {
+  const code = String(record.SECURITY_CODE || '')
+  const content = String(record.LEVEL1_CONTENT || '')
+  const date = content.match(/除权除息日[：:]\s*(\d{4})[年-](\d{1,2})[月-](\d{1,2})日?/)
+  const dividend = content.match(/分配方案[：:]\s*10[^；。]*?派\s*(\d+(?:\.\d+)?)\s*元/)
+  if (!/^\d{6}$/.test(code) || !date || !dividend) return null
+
+  const exDate = `${date[1]}-${date[2].padStart(2, '0')}-${date[3].padStart(2, '0')}`
+  const perShare = Number(dividend[1]) / 10
+  if (!(perShare > 0)) return null
+  return { code, exDate, perShare: Number(perShare.toFixed(4)), progress: '正式' }
+}
+
 export default async function handler(req, res) {
   const query = req.query || Object.fromEntries(new URL(req.url || '', 'http://localhost').searchParams)
   const codes = String(query.codes || '')
@@ -63,8 +95,14 @@ export default async function handler(req, res) {
   const end = addDays(start, days)
 
   try {
-    const results = await Promise.allSettled(codes.map(async code => ({ code, records: await fetchForCode(code) })))
-    const items = results.flatMap(result => {
+    const [results, calendarRecords] = await Promise.all([
+      Promise.allSettled(codes.map(async code => ({ code, records: await fetchForCode(code) }))),
+      fetchCalendarRecords(codes, start).catch(error => {
+        console.error('upcoming dividend calendar fallback failed', error)
+        return []
+      }),
+    ])
+    const detailItems = results.flatMap(result => {
       if (result.status !== 'fulfilled') return []
       return result.value.records.flatMap(record => {
         const date = exDate(record)
@@ -73,7 +111,13 @@ export default async function handler(req, res) {
         if (!date || date < start || date > end || perShare <= 0 || !progress) return []
         return [{ code: result.value.code, exDate: date, perShare: Number(perShare.toFixed(4)), progress }]
       })
-    }).sort((a, b) => a.exDate.localeCompare(b.exDate))
+    })
+    const calendarItems = calendarRecords
+      .map(parseCalendarRecord)
+      .filter(item => item && item.exDate >= start && item.exDate <= end)
+    const itemsByKey = new Map()
+    for (const item of [...calendarItems, ...detailItems]) itemsByKey.set(`${item.code}:${item.exDate}`, item)
+    const items = [...itemsByKey.values()].sort((a, b) => a.exDate.localeCompare(b.exDate))
 
     res.setHeader('Cache-Control', 'public, s-maxage=21600, stale-while-revalidate=86400')
     return sendJson(res, 200, { items })

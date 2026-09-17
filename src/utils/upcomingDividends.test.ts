@@ -16,10 +16,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('invalidates the old 30-day cache and caches announced dividends for one day', async () => {
+it('invalidates the previous empty cache and caches announced dividends for one day', async () => {
   const now = 1_000_000
   const storage = memoryStorage({
-    'dh_cache_upcomingDividends:v2:600000': JSON.stringify({ data: [], expiresAt: now + 30 * 24 * 60 * 60 * 1000 }),
+    'dh_cache_upcomingDividends:v3:600000': JSON.stringify({ data: [], expiresAt: now + 12 * 60 * 60 * 1000 }),
   })
   const record = { code: '600000', exDate: '2026-09-20', perShare: 0.5, progress: '实施方案' }
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ items: [record] }) })
@@ -29,7 +29,7 @@ it('invalidates the old 30-day cache and caches announced dividends for one day'
 
   await expect(fetchUpcomingDividends(['600000'])).resolves.toEqual([record])
   expect(fetchMock).toHaveBeenCalledOnce()
-  expect(JSON.parse(storage.data.get('dh_cache_upcomingDividends:v3:600000') || '{}').expiresAt)
+  expect(JSON.parse(storage.data.get('dh_cache_upcomingDividends:v4:600000') || '{}').expiresAt)
     .toBe(now + 24 * 60 * 60 * 1000)
 })
 
@@ -41,6 +41,6 @@ it('rechecks stocks without an announcement after twelve hours', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ items: [] }) }))
 
   await expect(fetchUpcomingDividends(['600000'])).resolves.toEqual([])
-  expect(JSON.parse(storage.data.get('dh_cache_upcomingDividends:v3:600000') || '{}').expiresAt)
+  expect(JSON.parse(storage.data.get('dh_cache_upcomingDividends:v4:600000') || '{}').expiresAt)
     .toBe(now + 12 * 60 * 60 * 1000)
 })
