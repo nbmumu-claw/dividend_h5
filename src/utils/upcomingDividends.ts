@@ -1,6 +1,8 @@
 import { cacheGet, cacheSet } from './cache'
 
-const CACHE_TTL = 30 * 24 * 60 * 60 * 1000
+const CACHE_VERSION = 'v3'
+const CACHE_TTL_WITH_RECORDS = 24 * 60 * 60 * 1000
+const CACHE_TTL_EMPTY = 12 * 60 * 60 * 1000
 
 export interface UpcomingDividendRecord {
   code: string
@@ -13,12 +15,9 @@ export async function fetchUpcomingDividends(codes: string[]): Promise<UpcomingD
   const aShareCodes = [...new Set(codes.filter(code => /^\d{6}$/.test(code)))].sort()
   if (!aShareCodes.length) return []
 
-  const legacyCached = cacheGet<UpcomingDividendRecord[]>(`upcomingDividends:v1:${aShareCodes.join(',')}`)
-  if (legacyCached) return legacyCached
-
   const cachedByCode = new Map<string, UpcomingDividendRecord[]>()
   const uncachedCodes = aShareCodes.filter(code => {
-    const cached = cacheGet<UpcomingDividendRecord[]>(`upcomingDividends:v2:${code}`)
+    const cached = cacheGet<UpcomingDividendRecord[]>(`upcomingDividends:${CACHE_VERSION}:${code}`)
     if (!cached) return true
     cachedByCode.set(code, cached)
     return false
@@ -36,7 +35,11 @@ export async function fetchUpcomingDividends(codes: string[]): Promise<UpcomingD
 
   for (const code of uncachedCodes) {
     const records = items.filter(item => item.code === code)
-    cacheSet(`upcomingDividends:v2:${code}`, records, CACHE_TTL)
+    cacheSet(
+      `upcomingDividends:${CACHE_VERSION}:${code}`,
+      records,
+      records.length > 0 ? CACHE_TTL_WITH_RECORDS : CACHE_TTL_EMPTY,
+    )
     cachedByCode.set(code, records)
   }
 
