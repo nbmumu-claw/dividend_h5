@@ -1105,18 +1105,6 @@ export default function YieldGrid() {
             <button className="yg-cfgbtn" onClick={() => setShowCfg(true)}>⚙ 网格设置</button>
           </div>
         </div>
-        <a
-          className="yg-daily-yield-link"
-          href="https://pan.quark.cn/s/97d15595f7f2"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span aria-hidden="true">📈</span>
-          <span><b>每日股息率 Skill</b>：dividend-tracker.zip · 提取码 /\~61e13b8vZ0\~:/</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-            <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </a>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
         <div className="legend legend-compact">
@@ -1436,6 +1424,19 @@ export default function YieldGrid() {
             </button>
           </div>
         )}
+
+        <a
+          className="yg-daily-yield-link"
+          href="https://pan.quark.cn/s/97d15595f7f2"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span aria-hidden="true">📈</span>
+          <span><b>每日股息率 Skill</b>：dividend-tracker.zip · 提取码 /\~61e13b8vZ0\~:/</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+            <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </a>
 
         <Modal open={forecastEditor !== null} onClose={() => setForecastEditor(null)} title="修改 26 年股息">
           {forecastEditor && (
