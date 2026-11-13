@@ -54,7 +54,9 @@ export default function NasdaqPremium() {
 
   useEffect(() => {
     void refresh()
-    const timer = window.setInterval(() => { void refresh() }, 60_000)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh()
+    }, 5 * 60_000)
     return () => window.clearInterval(timer)
   }, [refresh])
 
@@ -87,7 +89,7 @@ export default function NasdaqPremium() {
         </header>
 
         <div className="nasdaq-status" role="status">
-          <span>行情时间：{timeLabel}（北京时间）· 页面打开期间每 60 秒刷新</span>
+          <span>行情时间：{timeLabel}（北京时间）· 页面可见时每 5 分钟刷新</span>
           <button type="button" onClick={() => { void refresh() }} disabled={refreshing}>{refreshing ? '刷新中…' : '立即刷新'}</button>
         </div>
         {error && <p className="nasdaq-error" role="alert">{error}。{available.length ? '当前显示上次成功获取的数据。' : '请稍后重试。'}</p>}
@@ -127,7 +129,7 @@ export default function NasdaqPremium() {
 
         <footer className="nasdaq-note">
           <p>参考溢价 = 现价 ÷ 报价 IOPV − 1；估算规模 = 基金份额 × IOPV。费率参考原图，非实时数据，且不含券商佣金。</p>
-          <p>行情来自腾讯公开报价，经本站接口获取，可能存在延迟；页面打开期间每 60 秒刷新。休市时显示最近一次报价，请以“行情时间”为准。IOPV 是盘中参考净值，并非正式基金净值。</p>
+          <p>行情来自腾讯公开报价，经本站接口获取，可能存在延迟；页面可见时每 5 分钟刷新。休市时显示最近一次报价，请以“行情时间”为准。IOPV 是盘中参考净值，并非正式基金净值。</p>
           <p>仅供参考，不构成投资建议。</p>
         </footer>
       </div>
