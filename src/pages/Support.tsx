@@ -61,10 +61,10 @@ export default function Support() {
 
         <div className="card p-4">
           <div className="text-sm font-semibold text-gray-800 mb-2">📈 每日股息率 Skill</div>
-          <a href="https://pan.quark.cn/s/97d15595f7f2" target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 underline break-all">
+          <a href="https://pan.quark.cn/s/1fba7077e19f" target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 underline break-all">
             打开夸克网盘分享 · dividend-tracker.zip
           </a>
-          <p className="mt-2 text-xs text-gray-500 break-all">分享口令：/\~61e13b8vZ0\~:/</p>
+          <p className="mt-2 text-xs text-gray-500 break-all">分享口令：/~3ad93cG0A4~:/</p>
         </div>
 
         <p className="text-center text-xs text-gray-400 pt-2">感谢每一位使用者的支持与反馈 🙏</p>
