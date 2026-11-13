@@ -113,6 +113,49 @@ export default function NasdaqPremium() {
               <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
             </button>)}
           </div>
+          <div className="nasdaq-table-scroll">
+            <table className="nasdaq-table">
+              <colgroup>
+                <col className="nasdaq-col-fund" />
+                <col className="nasdaq-col-price" />
+                <col className="nasdaq-col-premium" />
+                <col className="nasdaq-col-iopv" />
+                <col className="nasdaq-col-size" />
+                <col className="nasdaq-col-turnover" />
+                <col className="nasdaq-col-fee" />
+              </colgroup>
+              <thead><tr>
+                <th scope="col">基金 / 代码</th>
+                {sortColumns.map(column => <th
+                  scope="col"
+                  key={column.key}
+                  aria-sort={sort.key === column.key ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}
+                >
+                  <button
+                    type="button"
+                    className={`nasdaq-table-sort${sort.key === column.key ? ' active' : ''}`}
+                    onClick={() => toggleSort(column.key)}
+                    aria-label={`按${column.key === 'fee' ? '合计年费率' : column.key === 'change' ? '日涨跌幅' : column.label}${sort.key === column.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}
+                  >
+                    <span>{column.label}{column.detail && <small>{column.detail}</small>}</span>
+                    <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
+                  </button>
+                </th>)}
+              </tr></thead>
+              <tbody>{sortedFunds.map((fund, index) => {
+                const quote = quotes[fund.code]
+                return <tr key={fund.code}>
+                  <th scope="row" className="nasdaq-table-fund"><span className="nasdaq-table-fund-content"><span className="nasdaq-table-rank">{String(index + 1).padStart(2, '0')}</span><span><strong>{fund.name}</strong><small>{fund.code}</small></span></span></th>
+                  <td><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small></td>
+                  <td className="nasdaq-table-premium"><strong>{quote ? `${quote.premium.toFixed(2)}%` : '—'}</strong></td>
+                  <td><strong>{quote?.iopv.toFixed(4) ?? '—'}</strong></td>
+                  <td><strong>{quote?.size.toFixed(2) ?? '—'}</strong></td>
+                  <td><strong>{quote?.turnover.toFixed(2) ?? '—'}</strong></td>
+                  <td><strong>{fund.manage.toFixed(2)} / {fund.custody.toFixed(2)}</strong><small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></td>
+                </tr>
+              })}</tbody>
+            </table>
+          </div>
           <ol className="nasdaq-grid">
             {sortedFunds.map((fund, index) => {
               const quote = quotes[fund.code]
