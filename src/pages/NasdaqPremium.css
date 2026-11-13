@@ -23,6 +23,19 @@
 .nasdaq-range strong small { color: #6b7280; font: 500 12px/1 "PingFang SC", "Microsoft YaHei", sans-serif; }
 .nasdaq-range p { margin: 0; padding-top: 12px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; }
 
+.nasdaq-market { display: grid; grid-template-columns: 1.15fr 1fr; margin-bottom: 20px; border: 1px solid #e5e7eb; border-top: 0; background: #fff; }
+.nasdaq-market-item { min-width: 0; padding: 22px 28px 16px; }
+.nasdaq-market-futures { border-left: 1px solid #e5e7eb; }
+.nasdaq-market-title span { color: #b91c1c; font: 700 10px/1.2 "DIN Alternate", "PingFang SC", sans-serif; letter-spacing: .13em; }
+.nasdaq-market-title h2 { margin: 5px 0 14px; font-size: 14px; }
+.nasdaq-market-value { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 18px; font-variant-numeric: tabular-nums; }
+.nasdaq-market-value strong { font: 700 clamp(24px, 2.5vw, 34px)/1 "DIN Alternate", "PingFang SC", sans-serif; }
+.nasdaq-market-value span { color: #6b7280; font: 700 14px/1.2 "DIN Alternate", "PingFang SC", sans-serif; }
+.nasdaq-market-value .nasdaq-up { color: #dc2626; }
+.nasdaq-market-value .nasdaq-down { color: #16a34a; }
+.nasdaq-market-item > p { margin: 12px 0 0; color: #6b7280; font-size: 11px; }
+.nasdaq-market-caption { grid-column: 1 / -1; margin: 0; padding: 9px 28px; border-top: 1px solid #e5e7eb; background: #fbfbfc; color: #6b7280; font-size: 11px; line-height: 1.6; }
+
 .nasdaq-status { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 38px; padding: 15px 20px; border-bottom: 2px solid #dc2626; background: #fff; }
 .nasdaq-status > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px; color: #6b7280; font-size: 12px; }
 .nasdaq-status-label { color: #1f2328; font-weight: 700; }
@@ -133,6 +146,10 @@
   .nasdaq-intro { margin-top: 13px; font-size: 12px; }
   .nasdaq-range { justify-self: stretch; width: 100%; }
   .nasdaq-range strong { font-size: 27px; }
+  .nasdaq-market { grid-template-columns: 1fr; }
+  .nasdaq-market-item { padding: 18px 20px 16px; }
+  .nasdaq-market-futures { border-top: 1px solid #e5e7eb; border-left: 0; }
+  .nasdaq-market-caption { padding: 10px 20px; }
   .nasdaq-status { align-items: flex-start; margin-bottom: 30px; padding: 12px; }
   .nasdaq-status > div { gap: 4px 8px; }
   .nasdaq-status button { padding: 9px 10px; }

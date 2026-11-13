@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchTxRawQuotes } from '../utils/api'
+import { fetchNasdaqMarketQuote, formatNasdaqMarketTime, type NasdaqMarketQuote } from '../utils/nasdaqMarket'
 import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
 import './NasdaqPremium.css'
 
@@ -33,21 +34,31 @@ export default function NasdaqPremium() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [marketQuotes, setMarketQuotes] = useState<{ index: NasdaqMarketQuote | null; futures: NasdaqMarketQuote | null }>({ index: null, futures: null })
+  const [marketError, setMarketError] = useState(false)
   const [sort, setSort] = useState<NasdaqSort>({ key: 'premium', direction: 'asc' })
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
+    const [etfResult, indexResult, futuresResult] = await Promise.allSettled([
+      fetchTxRawQuotes(quoteCodes), fetchNasdaqMarketQuote('^NDX'), fetchNasdaqMarketQuote('NQ=F'),
+    ])
     try {
-      const next = parseNasdaqQuotes(await fetchTxRawQuotes(quoteCodes))
+      if (etfResult.status === 'rejected') throw etfResult.reason
+      const next = parseNasdaqQuotes(etfResult.value)
       if (Object.keys(next).length === 0) throw new Error('暂未取得有效行情')
       setQuotes(next)
       setError('')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '行情获取失败')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
     }
+    setMarketQuotes(current => ({
+      index: indexResult.status === 'fulfilled' ? indexResult.value : current.index,
+      futures: futuresResult.status === 'fulfilled' ? futuresResult.value : current.futures,
+    }))
+    setMarketError(indexResult.status === 'rejected' || futuresResult.status === 'rejected')
+    setLoading(false)
+    setRefreshing(false)
   }, [])
 
   useEffect(() => {
@@ -88,6 +99,20 @@ export default function NasdaqPremium() {
             <p>{available.length} / 12 只有效行情</p>
           </div>
         </header>
+
+        <section className="nasdaq-market" aria-label="纳斯达克100市场行情">
+          <div className="nasdaq-market-item">
+            <div className="nasdaq-market-title"><span>NASDAQ 100 / NDX</span><h2>纳指100指数现价</h2></div>
+            <div className="nasdaq-market-value"><strong>{marketQuotes.index?.price.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '—'}</strong><span className={marketQuotes.index ? marketQuotes.index.change >= 0 ? 'nasdaq-up' : 'nasdaq-down' : ''}>{marketQuotes.index ? `${marketQuotes.index.change >= 0 ? '+' : ''}${marketQuotes.index.change.toFixed(2)} / ${marketQuotes.index.changePercent >= 0 ? '+' : ''}${marketQuotes.index.changePercent.toFixed(2)}%` : '等待行情'}</span></div>
+            <p>{marketQuotes.index ? `指数行情 ${formatNasdaqMarketTime(marketQuotes.index.quoteTime)} · 北京时间` : '指数行情暂不可用'}</p>
+          </div>
+          <div className="nasdaq-market-item nasdaq-market-futures">
+            <div className="nasdaq-market-title"><span>NASDAQ 100 FUTURES / NQ</span><h2>期货涨跌 · 盘前参考</h2></div>
+            <div className="nasdaq-market-value"><strong>{marketQuotes.futures?.price.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '—'}</strong><span className={marketQuotes.futures ? marketQuotes.futures.change >= 0 ? 'nasdaq-up' : 'nasdaq-down' : ''}>{marketQuotes.futures ? `${marketQuotes.futures.change >= 0 ? '+' : ''}${marketQuotes.futures.change.toFixed(2)} / ${marketQuotes.futures.changePercent >= 0 ? '+' : ''}${marketQuotes.futures.changePercent.toFixed(2)}%` : '等待行情'}</span></div>
+            <p>{marketQuotes.futures ? `期货行情 ${formatNasdaqMarketTime(marketQuotes.futures.quoteTime)} · 北京时间` : '期货行情暂不可用'}</p>
+          </div>
+          <p className="nasdaq-market-caption">盘前涨跌以纳指100期货相对前收的涨跌作参考，不是纳指100指数的盘前成交价。数据来自 Yahoo Finance，可能延迟。{marketError && '指数或期货行情更新失败；已获取的报价可能为上次成功更新值。'}</p>
+        </section>
 
         <div className="nasdaq-status" role="status">
           <div><span className="nasdaq-status-label">最近行情</span><strong>{timeLabel}</strong><span>北京时间 · 页面可见时每 5 分钟刷新</span></div>
