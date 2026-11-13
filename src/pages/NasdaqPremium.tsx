@@ -100,6 +100,10 @@ export default function NasdaqPremium() {
             <div><span>01 / ETF SCAN</span><h2>基金清单</h2></div>
             <p>按指标排序，点击当前指标可切换升降序</p>
           </div>
+          <aside className="nasdaq-iopv-notice" aria-label="IOPV 时效提示">
+            <strong>IOPV 时效提示</strong>
+            <p>美股与 A 股交易时段不重合，盘中 IOPV 可能无法实时反映美股变化。参考溢价仅基于报价 IOPV；上方“最近行情”是 ETF 行情时间，不代表 IOPV 更新时间。</p>
+          </aside>
           {!loading && <>
           <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
             {sortColumns.map(column => <button
