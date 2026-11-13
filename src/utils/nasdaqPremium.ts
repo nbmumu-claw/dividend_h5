@@ -9,7 +9,7 @@ export type NasdaqQuote = {
   tradeTime: string
 }
 
-export type NasdaqSortKey = 'price' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee'
+export type NasdaqSortKey = 'change' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee'
 export type NasdaqSort = { key: NasdaqSortKey; direction: 'asc' | 'desc' }
 
 export function compareNasdaqFunds(

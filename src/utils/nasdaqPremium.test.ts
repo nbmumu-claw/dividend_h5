@@ -37,11 +37,11 @@ describe('Nasdaq ETF column sorting', () => {
     { code: '513112', manage: 0.6, custody: 0.2 },
   ]
   const quotes = parseNasdaqQuotes(
-    quote('513110') + quote('513111', { 3: '2.000', 57: '20000', 72: '1000000000', 78: '1.7000' }),
+    quote('513110') + quote('513111', { 3: '2.000', 32: '-0.72', 57: '20000', 72: '1000000000', 78: '1.7000' }),
   )
 
   it.each<[NasdaqSortKey, string]>([
-    ['price', '513111'], ['premium', '513110'], ['iopv', '513111'],
+    ['change', '513111'], ['premium', '513110'], ['iopv', '513111'],
     ['size', '513111'], ['turnover', '513110'], ['fee', '513111'],
   ])('sorts %s numerically in both directions', (key, firstAscending) => {
     const ascending = [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, { key, direction: 'asc' }))

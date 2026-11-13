@@ -1093,6 +1093,10 @@ export default function YieldGrid() {
               <span className="yg-reportbtn-short">中报</span>
               <span className="yg-reportbtn-new">NEW</span>
             </button>
+            <button className="yg-reportbtn" onClick={() => navigate('/nasdaq-premium')} aria-label="查看纳指100 ETF 实时溢价">
+              <span className="yg-reportbtn-full">纳指溢价</span>
+              <span className="yg-reportbtn-short">纳指</span>
+            </button>
             <a className="yg-reportbtn yg-forecastbtn" href="https://www.manmanbianfu.top/dividend-forecast">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
                 <path d="M4 18.5h16M6.5 16V10m5 6V5m5 11V8" strokeLinecap="round" strokeLinejoin="round" />
@@ -1107,7 +1111,6 @@ export default function YieldGrid() {
         </div>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
-        <button type="button" className="yg-nasdaq-link" onClick={() => navigate('/nasdaq-premium')} aria-label="查看纳指100 ETF 实时溢价">纳指溢价 <span aria-hidden="true">→</span></button>
         <div className="legend legend-compact">
           <div className="legend-main">
             <span>买卖价 = {dividendBasis === '2026' ? '26年预测股息（无值沿用25年）' : '25年股息'} ÷ 目标股息率</span>
@@ -2057,8 +2060,6 @@ const CSS = `
   border-radius: 999px; background: #dc2626; color: #fff; font-size: 8px; font-weight: 700; line-height: 1.15; letter-spacing: .2px; }
 .yg-page .yg-reportbtn-new { position: absolute; top: -7px; right: -11px; padding: 1px 4px; border: 1px solid #fff;
   border-radius: 999px; background: #dc2626; color: #fff; font-size: 8px; font-weight: 700; line-height: 1.15; letter-spacing: .2px; }
-.yg-page .yg-nasdaq-link { margin: 8px 0 14px; padding: 6px 11px; border: 1px solid #fed7aa; border-radius: 999px; background: #fffaf5; color: #c2410c; font-family: inherit; font-size: 12px; cursor: pointer; }
-.yg-page .yg-nasdaq-link:hover { background: #ffedd5; }
 .yg-page h1 { font-size: 26px; margin: 0 0 6px; }
 .yg-page .sub { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
 .yg-page .legend { color: #6b7280; font-size: 12.5px; margin-bottom: 22px; }
@@ -2452,6 +2453,9 @@ const CSS = `
 .forecast-editor-actions .restore { border: 1px solid #e5e7eb; background: #fff; color: #64748b; }.forecast-editor-actions .save { border: 0; background: #dc2626; color: #fff; }
 .forecast-editor-note { color: #9ca3af; font-size: 10px; line-height: 1.6; }
 @media (max-width: 560px) {
+  .yg-page .yg-back span { display: none; }
+  .yg-page .yg-reportbtn-full, .yg-page .yg-forecastbtn-full { display: none; }
+  .yg-page .yg-reportbtn-short, .yg-page .yg-forecastbtn-short { display: inline; }
   .forecast-assumption-card { padding: 12px; }.forecast-control-row { grid-template-columns: 1fr; }
   .forecast-data-head > *, .forecast-data-row > * { padding-inline: 5px; }.forecast-data-row { font-size: 11px; }
   .forecast-final-card { grid-template-columns: 1fr; }.forecast-choice-grid { gap: 5px; }

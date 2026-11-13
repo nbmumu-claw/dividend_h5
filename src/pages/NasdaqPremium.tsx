@@ -21,7 +21,7 @@ const funds = [
 
 const quoteCodes = funds.map(fund => `${fund.code.startsWith('5') ? 'sh' : 'sz'}${fund.code}`)
 const sortColumns: { key: NasdaqSortKey; label: string; detail?: string }[] = [
-  { key: 'price', label: '现价', detail: '日涨跌' },
+  { key: 'change', label: '现价', detail: '日涨跌' },
   { key: 'premium', label: '参考溢价' },
   { key: 'iopv', label: 'IOPV', detail: '盘中参考净值' },
   { key: 'size', label: '估算规模', detail: '亿元' },
@@ -100,7 +100,7 @@ export default function NasdaqPremium() {
               <thead><tr>
                 <th scope="col">基金<br />代码</th>
                 {sortColumns.map(column => <th scope="col" key={column.key} aria-sort={sort.key === column.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                  <button type="button" className="nasdaq-sort" onClick={() => toggleSort(column.key)} aria-label={`按${column.key === 'fee' ? '合计年费率' : column.label}${sort.key === column.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}>
+                  <button type="button" className="nasdaq-sort" onClick={() => toggleSort(column.key)} aria-label={`按${column.key === 'fee' ? '合计年费率' : column.key === 'change' ? '日涨跌幅' : column.label}${sort.key === column.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}>
                     <span>{column.label}{column.detail && <><br />{column.detail}</>}</span>
                     <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
                   </button>
