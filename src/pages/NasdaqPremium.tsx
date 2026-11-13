@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchTxRawQuotes } from '../utils/api'
-import { formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote } from '../utils/nasdaqPremium'
+import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
 import './NasdaqPremium.css'
 
 const funds = [
@@ -20,6 +20,14 @@ const funds = [
 ]
 
 const quoteCodes = funds.map(fund => `${fund.code.startsWith('5') ? 'sh' : 'sz'}${fund.code}`)
+const sortColumns: { key: NasdaqSortKey; label: string; detail?: string }[] = [
+  { key: 'price', label: '现价', detail: '日涨跌' },
+  { key: 'premium', label: '参考溢价' },
+  { key: 'iopv', label: 'IOPV', detail: '盘中参考净值' },
+  { key: 'size', label: '估算规模', detail: '亿元' },
+  { key: 'turnover', label: '成交额', detail: '亿元' },
+  { key: 'fee', label: '管理 / 托管', detail: '年费率 %' },
+]
 
 export default function NasdaqPremium() {
   const navigate = useNavigate()
@@ -27,6 +35,7 @@ export default function NasdaqPremium() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [sort, setSort] = useState<NasdaqSort>({ key: 'premium', direction: 'asc' })
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
@@ -49,9 +58,11 @@ export default function NasdaqPremium() {
     return () => window.clearInterval(timer)
   }, [refresh])
 
-  const sortedFunds = useMemo(() => [...funds].sort((a, b) =>
-    (quotes[a.code]?.premium ?? Infinity) - (quotes[b.code]?.premium ?? Infinity)
-  ), [quotes])
+  const sortedFunds = useMemo(() => [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, sort)), [quotes, sort])
+  const toggleSort = (key: NasdaqSortKey) => setSort(current => ({
+    key,
+    direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc',
+  }))
   const available = Object.values(quotes)
   const premiumMin = Math.min(...available.map(quote => quote.premium))
   const premiumMax = Math.max(...available.map(quote => quote.premium))
@@ -70,7 +81,7 @@ export default function NasdaqPremium() {
           <div>
             <p className="nasdaq-eyebrow">ETF 溢价观察 · 行情自动更新</p>
             <h1>纳指100 ETF 实时溢价</h1>
-            <p className="nasdaq-intro">12 只基金 · 按参考溢价从低到高排列</p>
+            <p className="nasdaq-intro">12 只基金 · 点击表头切换排序</p>
           </div>
           <div className="nasdaq-range"><span>参考溢价区间</span><strong>{available.length ? `${premiumMin.toFixed(2)}%—${premiumMax.toFixed(2)}%` : '—'}</strong></div>
         </header>
@@ -88,12 +99,12 @@ export default function NasdaqPremium() {
             <table>
               <thead><tr>
                 <th scope="col">基金<br />代码</th>
-                <th scope="col">现价<br />日涨跌</th>
-                <th scope="col">参考溢价</th>
-                <th scope="col">IOPV<br />盘中参考净值</th>
-                <th scope="col">估算规模<br />亿元</th>
-                <th scope="col">成交额<br />亿元</th>
-                <th scope="col">管理 / 托管<br />年费率 %</th>
+                {sortColumns.map(column => <th scope="col" key={column.key} aria-sort={sort.key === column.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" className="nasdaq-sort" onClick={() => toggleSort(column.key)} aria-label={`按${column.key === 'fee' ? '合计年费率' : column.label}${sort.key === column.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}>
+                    <span>{column.label}{column.detail && <><br />{column.detail}</>}</span>
+                    <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
+                  </button>
+                </th>)}
               </tr></thead>
               <tbody>{sortedFunds.map(fund => {
                 const quote = quotes[fund.code]

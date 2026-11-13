@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatQuoteTime, parseNasdaqQuotes } from './nasdaqPremium'
+import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqSortKey } from './nasdaqPremium'
 
 function quote(code: string, overrides: Record<number, string> = {}) {
   const fields = Array(82).fill('')
@@ -27,5 +27,30 @@ describe('Nasdaq ETF quote parsing', () => {
 
   it('ignores quotes with missing IOPV instead of showing a false premium', () => {
     expect(parseNasdaqQuotes(quote('513110', { 78: '' }))).toEqual({})
+  })
+})
+
+describe('Nasdaq ETF column sorting', () => {
+  const funds = [
+    { code: '513110', manage: 0.8, custody: 0.2 },
+    { code: '513111', manage: 0.5, custody: 0.1 },
+    { code: '513112', manage: 0.6, custody: 0.2 },
+  ]
+  const quotes = parseNasdaqQuotes(
+    quote('513110') + quote('513111', { 3: '2.000', 57: '20000', 72: '1000000000', 78: '1.7000' }),
+  )
+
+  it.each<[NasdaqSortKey, string]>([
+    ['price', '513111'], ['premium', '513110'], ['iopv', '513111'],
+    ['size', '513111'], ['turnover', '513110'], ['fee', '513111'],
+  ])('sorts %s numerically in both directions', (key, firstAscending) => {
+    const ascending = [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, { key, direction: 'asc' }))
+    const descending = [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, { key, direction: 'desc' }))
+    expect(ascending[0].code).toBe(firstAscending)
+    expect(descending[0].code).toBe(firstAscending === '513110' ? '513111' : '513110')
+    if (key !== 'fee') {
+      expect(ascending[2].code).toBe('513112')
+      expect(descending[2].code).toBe('513112')
+    }
   })
 })

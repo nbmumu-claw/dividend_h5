@@ -9,6 +9,22 @@ export type NasdaqQuote = {
   tradeTime: string
 }
 
+export type NasdaqSortKey = 'price' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee'
+export type NasdaqSort = { key: NasdaqSortKey; direction: 'asc' | 'desc' }
+
+export function compareNasdaqFunds(
+  a: { code: string; manage: number; custody: number },
+  b: { code: string; manage: number; custody: number },
+  quotes: Record<string, NasdaqQuote>,
+  sort: NasdaqSort,
+): number {
+  const aValue = sort.key === 'fee' ? a.manage + a.custody : quotes[a.code]?.[sort.key]
+  const bValue = sort.key === 'fee' ? b.manage + b.custody : quotes[b.code]?.[sort.key]
+  if (aValue === undefined) return bValue === undefined ? 0 : 1
+  if (bValue === undefined) return -1
+  return (aValue - bValue) * (sort.direction === 'asc' ? 1 : -1)
+}
+
 // 腾讯 ETF 行情：3 现价、30 时间、32 涨跌%、57 成交额(万元)、72 份额(份)、78 IOPV。
 export function parseNasdaqQuotes(body: string): Record<string, NasdaqQuote> {
   const quotes: Record<string, NasdaqQuote> = {}

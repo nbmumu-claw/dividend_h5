@@ -25,6 +25,14 @@
 .nasdaq-scroll th, .nasdaq-scroll td { padding: 15px 16px; border-bottom: 1px solid #e5e7eb; text-align: right; white-space: nowrap; }
 .nasdaq-scroll thead th { background: #f8fafc; color: #6b7280; font-size: 12px; font-weight: 600; line-height: 1.5; }
 .nasdaq-scroll thead th:first-child, .nasdaq-scroll tbody th { text-align: left; }
+.nasdaq-sort { display: inline-flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 0; border: 0; background: none; color: inherit; font: inherit; line-height: inherit; text-align: right; cursor: pointer; }
+.nasdaq-sort:hover, .nasdaq-sort:focus-visible { color: #c2410c; }
+.nasdaq-sort-icons { display: inline-flex; flex-direction: column; gap: 3px; }
+.nasdaq-sort-icons i { width: 0; height: 0; border-right: 4px solid transparent; border-left: 4px solid transparent; }
+.nasdaq-sort-up { border-bottom: 5px solid #cbd5e1; }
+.nasdaq-sort-down { border-top: 5px solid #cbd5e1; }
+.nasdaq-sort-up.active { border-bottom-color: #e03025; }
+.nasdaq-sort-down.active { border-top-color: #e03025; }
 .nasdaq-scroll tbody tr:last-child th, .nasdaq-scroll tbody tr:last-child td { border-bottom: 0; }
 .nasdaq-scroll tbody tr:hover { background: #fffaf9; }
 .nasdaq-scroll tbody th strong, .nasdaq-scroll tbody td strong { display: block; color: #1f2328; font-size: 16px; font-weight: 650; }
