@@ -159,19 +159,18 @@ function toQuarterRecord(current: InterimReportRecord, previous: InterimReportRe
 }
 
 async function fetchDeductReports(codes: string[]): Promise<JsonRecord[]> {
-  const reportDates = [
-    ...FIRST_QUARTER_REPORT_YEARS.map(year => `${year}-03-31`),
-    ...INTERIM_REPORT_YEARS.map(year => `${year}-06-30`),
-    ...THIRD_QUARTER_REPORT_YEARS.map(year => `${year}-09-30`),
-    ...ANNUAL_REPORT_YEARS.map(year => `${year}-12-31`),
-  ]
-  return fetchRows(new URLSearchParams({
-    reportName: 'RPT_F10_FINANCE_GINCOME',
-    columns: DEDUCT_REPORT_COLUMNS,
-    filter: `(REPORT_DATE in (${reportDates.map(date => `'${date}'`).join(',')}))${codeFilter(codes)}`,
-    pageNumber: '1',
-    pageSize: String(codes.length * reportDates.length),
+  const rowsByYear = await Promise.all(INTERIM_REPORT_YEARS.map(year => {
+    const reportDates = [`${year}-03-31`, `${year}-06-30`, `${year}-09-30`]
+    if (ANNUAL_REPORT_YEARS.some(annualYear => annualYear === year)) reportDates.push(`${year}-12-31`)
+    return fetchRows(new URLSearchParams({
+      reportName: 'RPT_F10_FINANCE_GINCOME',
+      columns: DEDUCT_REPORT_COLUMNS,
+      filter: `(REPORT_DATE in (${reportDates.map(date => `'${date}'`).join(',')}))${codeFilter(codes)}`,
+      pageNumber: '1',
+      pageSize: String(codes.length * reportDates.length),
+    }))
   }))
+  return rowsByYear.flat()
 }
 
 async function fetchRows(params: URLSearchParams): Promise<JsonRecord[]> {

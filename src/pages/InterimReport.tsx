@@ -41,7 +41,7 @@ interface DisplayStock extends YieldGridStock {
 }
 
 const CUSTOM_STORAGE_KEY = 'interim-report-custom-stocks'
-const REPORT_CACHE_KEY = 'interim-report-data:v4'
+const REPORT_CACHE_KEY = 'interim-report-data:v5'
 const MAX_CUSTOM_STOCKS = 5
 const TABLE_COLUMN_COUNT = 4 + INTERIM_REPORT_YEARS.length
 
