@@ -15,6 +15,11 @@ export async function fetchTxRawQuotes(codes: string[]): Promise<string> {
   if (!res.ok) throw new Error(`行情请求失败：${res.status}`)
   return res.text()
 }
+export async function fetchNasdaqEtfSnapshot(): Promise<string> {
+  const res = await fetch(`${CLOUDBASE_STOCK_PRICE_URL}?action=nasdaqSnapshot`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`ETF 行情请求失败：${res.status}`)
+  return res.text()
+}
 function useCloudbaseStockPrice(): boolean {
   try { return localStorage.getItem('dh_use_vercel_stockprice') !== '1' } catch { return true }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchTxRawQuotes } from '../utils/api'
+import { fetchNasdaqEtfSnapshot } from '../utils/api'
+import { isChinaTradingSession, readNasdaqEtfCache, writeNasdaqEtfCache } from '../utils/nasdaqEtfCache'
 import { fetchNasdaqMarketQuote, formatNasdaqMarketTime, type NasdaqMarketQuote } from '../utils/nasdaqMarket'
 import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
 import './NasdaqPremium.css'
@@ -19,7 +20,6 @@ const funds = [
   { name: '嘉实纳斯达克100ETF（QDII）', code: '159501', manage: 0.50, custody: 0.10 },
 ]
 
-const quoteCodes = funds.map(fund => `${fund.code.startsWith('5') ? 'sh' : 'sz'}${fund.code}`)
 const sortColumns: { key: NasdaqSortKey; label: string; detail?: string }[] = [
   { key: 'change', label: '现价', detail: '日涨跌' },
   { key: 'premium', label: '参考溢价' },
@@ -40,13 +40,15 @@ export default function NasdaqPremium() {
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
+    const cached = !isChinaTradingSession() && readNasdaqEtfCache()
     const [etfResult, indexResult, futuresResult] = await Promise.allSettled([
-      fetchTxRawQuotes(quoteCodes), fetchNasdaqMarketQuote('^NDX'), fetchNasdaqMarketQuote('NQ=F'),
+      cached ? Promise.resolve(cached) : fetchNasdaqEtfSnapshot(), fetchNasdaqMarketQuote('^NDX'), fetchNasdaqMarketQuote('NQ=F'),
     ])
     try {
       if (etfResult.status === 'rejected') throw etfResult.reason
       const next = parseNasdaqQuotes(etfResult.value)
       if (Object.keys(next).length === 0) throw new Error('暂未取得有效行情')
+      if (!cached) writeNasdaqEtfCache(etfResult.value)
       setQuotes(next)
       setError('')
     } catch (cause) {
@@ -115,7 +117,7 @@ export default function NasdaqPremium() {
         </section>
 
         <div className="nasdaq-status" role="status">
-          <div><span className="nasdaq-status-label">最近行情</span><strong>{timeLabel}</strong><span>北京时间 · 页面可见时每 5 分钟刷新</span></div>
+          <div><span className="nasdaq-status-label">最近行情</span><strong>{timeLabel}</strong><span>北京时间 · ETF 交易时段每 5 分钟更新，盘后使用缓存</span></div>
           <button type="button" onClick={() => { void refresh() }} disabled={refreshing}>{refreshing ? '刷新中…' : '立即刷新'}<span aria-hidden="true">↗</span></button>
         </div>
         {error && <p className="nasdaq-error" role="alert">{error}。{available.length ? '当前显示上次成功获取的数据。' : '请稍后重试。'}</p>}

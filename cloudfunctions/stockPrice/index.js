@@ -16,6 +16,7 @@ const response = require('./utils/response')
 // ── Handler 注册表 ──────────────────────────────────────────────────────
 const HANDLERS = {
   stockPrice: './handlers/stockPrice',
+  nasdaqSnapshot: './handlers/nasdaqSnapshot',
   ownerType:  './handlers/ownerType',
   dividendHistory: './handlers/dividendHistory',
   dividendPayout: './handlers/dividendPayout',
