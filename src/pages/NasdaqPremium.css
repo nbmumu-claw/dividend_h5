@@ -1,0 +1,49 @@
+.nasdaq-page { min-height: 100vh; padding: 28px 20px 48px; background: #f5f6f8; color: #1f2328; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+.nasdaq-wrap { max-width: 1440px; margin: 0 auto; }
+.nasdaq-back { display: inline-flex; align-items: center; gap: 3px; margin: 0 0 22px -6px; padding: 4px 6px; border: 0; background: none; color: #6b7280; font: inherit; font-size: 14px; cursor: pointer; }
+.nasdaq-back svg { width: 18px; height: 18px; }
+.nasdaq-back:hover { color: #1f2328; }
+.nasdaq-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.nasdaq-eyebrow { margin: 0 0 8px; color: #e03025; font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+.nasdaq-heading h1 { margin: 0 0 8px; font-size: clamp(24px, 3vw, 32px); line-height: 1.25; }
+.nasdaq-intro { margin: 0; color: #6b7280; font-size: 14px; }
+.nasdaq-range { flex: 0 0 auto; min-width: 220px; padding: 14px 18px; border-top: 3px solid #e03025; border-radius: 10px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.nasdaq-range span { display: block; margin-bottom: 4px; color: #6b7280; font-size: 12px; }
+.nasdaq-range strong { color: #e03025; font-size: 22px; font-variant-numeric: tabular-nums; }
+.nasdaq-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: #6b7280; font-size: 12px; }
+.nasdaq-status button { flex: 0 0 auto; padding: 7px 12px; border: 1px solid #e03025; border-radius: 7px; background: #fff; color: #e03025; font: inherit; cursor: pointer; }
+.nasdaq-status button:hover:not(:disabled) { background: #fff5f3; }
+.nasdaq-status button:disabled { opacity: .6; cursor: wait; }
+.nasdaq-error { margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: #fff5f3; color: #b91c1c; font-size: 12px; }
+.nasdaq-panel { overflow: hidden; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.nasdaq-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; background: #eef2f5; color: #374151; }
+.nasdaq-panel-head strong { font-size: 17px; }
+.nasdaq-panel-head span { color: #6b7280; font-size: 12px; }
+.nasdaq-swipe-hint { display: none; }
+.nasdaq-scroll { overflow-x: auto; }
+.nasdaq-scroll table { width: 100%; min-width: 900px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.nasdaq-scroll th, .nasdaq-scroll td { padding: 15px 16px; border-bottom: 1px solid #e5e7eb; text-align: right; white-space: nowrap; }
+.nasdaq-scroll thead th { background: #f8fafc; color: #6b7280; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.nasdaq-scroll thead th:first-child, .nasdaq-scroll tbody th { text-align: left; }
+.nasdaq-scroll tbody tr:last-child th, .nasdaq-scroll tbody tr:last-child td { border-bottom: 0; }
+.nasdaq-scroll tbody tr:hover { background: #fffaf9; }
+.nasdaq-scroll tbody th strong, .nasdaq-scroll tbody td strong { display: block; color: #1f2328; font-size: 16px; font-weight: 650; }
+.nasdaq-scroll tbody small { display: block; margin-top: 4px; color: #6b7280; font-size: 12px; font-weight: 400; }
+.nasdaq-scroll tbody small.nasdaq-down { color: #15803d; }
+.nasdaq-scroll tbody small.nasdaq-up { color: #dc2626; }
+.nasdaq-scroll td.nasdaq-premium { color: #c2410c; font-size: 18px; font-weight: 700; }
+.nasdaq-empty { margin: 0; padding: 16px; color: #6b7280; font-size: 12px; }
+.nasdaq-note { margin-top: 16px; padding: 0 2px; color: #6b7280; font-size: 12px; line-height: 1.7; }
+.nasdaq-note p { margin: 0 0 5px; }
+@media (max-width: 719px) {
+  .nasdaq-page { padding: 16px 12px 32px; }
+  .nasdaq-back { margin-bottom: 18px; }
+  .nasdaq-heading { display: block; }
+  .nasdaq-heading h1 { font-size: 22px; }
+  .nasdaq-range { display: inline-block; margin-top: 16px; padding: 10px 14px; }
+  .nasdaq-range strong { font-size: 18px; }
+  .nasdaq-panel-head { padding: 12px; }
+  .nasdaq-panel-head strong { font-size: 15px; }
+  .nasdaq-swipe-hint { display: block; margin: 0; padding: 8px 12px 0; color: #6b7280; font-size: 11px; }
+  .nasdaq-scroll th, .nasdaq-scroll td { padding: 12px; }
+}

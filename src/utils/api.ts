@@ -8,6 +8,13 @@ const RATE_TTL = 6 * 60 * 60 * 1000
 
 // 实时行情由 CloudBase stockPrice 云函数承接；保留开关仅用于公司性质查询的旧代理回退。
 const CLOUDBASE_STOCK_PRICE_URL = 'https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice'
+
+export async function fetchTxRawQuotes(codes: string[]): Promise<string> {
+  const params = new URLSearchParams({ codes: codes.join(','), forceRefresh: 'true' })
+  const res = await fetch(`${CLOUDBASE_STOCK_PRICE_URL}?${params}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`行情请求失败：${res.status}`)
+  return res.text()
+}
 function useCloudbaseStockPrice(): boolean {
   try { return localStorage.getItem('dh_use_vercel_stockprice') !== '1' } catch { return true }
 }

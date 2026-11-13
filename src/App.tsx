@@ -14,6 +14,7 @@ const Watchlist = lazy(() => import('./pages/Watchlist'))
 const Portfolio = lazy(() => import('./pages/Portfolio'))
 const Matrix = lazy(() => import('./pages/Matrix'))
 const YieldGrid = lazy(() => import('./pages/YieldGrid'))
+const NasdaqPremium = lazy(() => import('./pages/NasdaqPremium'))
 const InterimReport = lazy(() => import('./pages/InterimReport'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const Settings = lazy(() => import('./pages/Settings'))
@@ -42,7 +43,7 @@ export default function App() {
   const setUsdRate = useStore(s => s.setUsdRate)
   const syncWatchlistDividends = useStore(s => s.syncWatchlistDividends)
   const pathname = useLocation().pathname
-  const hideTabBar = ['/yield-grid', '/reports/2026-interim', '/dividend-forecast', '/reports/quality-dividend-2026-08-30'].includes(pathname)
+  const hideTabBar = ['/yield-grid', '/nasdaq-premium', '/reports/2026-interim', '/dividend-forecast', '/reports/quality-dividend-2026-08-30'].includes(pathname)
   // PC 端这几页用更宽的容器以容纳多列布局
   const roomy = ['/discovery', '/watchlist'].includes(pathname)
 
@@ -76,6 +77,7 @@ export default function App() {
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/matrix" element={<Matrix />} />
             <Route path="/yield-grid" element={<YieldGrid />} />
+            <Route path="/nasdaq-premium" element={<NasdaqPremium />} />
             <Route path="/dividend-forecast" element={<DividendForecastEngine />} />
             <Route path="/reports/2026-interim" element={<InterimReport />} />
             <Route path="/reports/quality-dividend-2026-08-30" element={<QualityDividendReport />} />
