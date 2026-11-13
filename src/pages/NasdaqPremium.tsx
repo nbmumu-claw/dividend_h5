@@ -74,61 +74,83 @@ export default function NasdaqPremium() {
   return (
     <main className="nasdaq-page">
       <div className="nasdaq-wrap">
-        <button className="nasdaq-back" onClick={() => navigate('/yield-grid')} aria-label="返回股息率网格">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          返回股息率网格
-        </button>
+        <nav className="nasdaq-nav" aria-label="页面导航">
+          <button className="nasdaq-back" onClick={() => navigate('/yield-grid')} aria-label="返回股息率网格">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            返回股息率网格
+          </button>
+          <span>MARKET NOTE / 100</span>
+        </nav>
 
-        <header className="nasdaq-heading">
-          <div>
-            <p className="nasdaq-eyebrow">ETF 溢价观察 · 行情自动更新</p>
-            <h1>纳指100 ETF 实时溢价</h1>
-            <p className="nasdaq-intro">12 只基金 · 点击表头切换排序</p>
+        <header className="nasdaq-hero">
+          <div className="nasdaq-hero-copy">
+            <p className="nasdaq-eyebrow"><i aria-hidden="true" /> ETF 行情观察</p>
+            <h1>纳指100 ETF<br />实时溢价</h1>
+            <p className="nasdaq-intro">12 只基金，同一口径查看溢价、成交与费率。</p>
           </div>
-          <div className="nasdaq-range"><span>参考溢价区间</span><strong>{available.length ? `${premiumMin.toFixed(2)}%—${premiumMax.toFixed(2)}%` : '—'}</strong></div>
+          <div className="nasdaq-range">
+            <span>当前参考溢价区间</span>
+            <strong>{available.length ? `${premiumMin.toFixed(2)}%` : '—'}<small>至</small>{available.length ? `${premiumMax.toFixed(2)}%` : '—'}</strong>
+            <p>{available.length} / 12 只有效行情</p>
+          </div>
         </header>
 
         <div className="nasdaq-status" role="status">
-          <span>行情时间：{timeLabel}（北京时间）· 页面可见时每 5 分钟刷新</span>
-          <button type="button" onClick={() => { void refresh() }} disabled={refreshing}>{refreshing ? '刷新中…' : '立即刷新'}</button>
+          <div><span className="nasdaq-status-label">最近行情</span><strong>{timeLabel}</strong><span>北京时间 · 页面可见时每 5 分钟刷新</span></div>
+          <button type="button" onClick={() => { void refresh() }} disabled={refreshing}>{refreshing ? '刷新中…' : '立即刷新'}<span aria-hidden="true">↗</span></button>
         </div>
         {error && <p className="nasdaq-error" role="alert">{error}。{available.length ? '当前显示上次成功获取的数据。' : '请稍后重试。'}</p>}
 
-        <section className="nasdaq-panel" aria-label="纳指100 ETF 溢价表">
-          <div className="nasdaq-panel-head"><strong>纳斯达克100 ETF</strong><span>{latestTradeTime ? `${timeLabel} · ${available.length} 只有效行情` : '加载中'}</span></div>
-          <p className="nasdaq-swipe-hint">左右滑动查看 IOPV、规模、成交额及费率 →</p>
-          <div className="nasdaq-scroll" role="region" aria-label="可横向滚动的基金数据表" tabIndex={0}>
-            <table>
-              <thead><tr>
-                <th scope="col">基金<br />代码</th>
-                {sortColumns.map(column => <th scope="col" key={column.key} aria-sort={sort.key === column.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                  <button type="button" className="nasdaq-sort" onClick={() => toggleSort(column.key)} aria-label={`按${column.key === 'fee' ? '合计年费率' : column.key === 'change' ? '日涨跌幅' : column.label}${sort.key === column.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}>
-                    <span>{column.label}{column.detail && <><br />{column.detail}</>}</span>
-                    <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
-                  </button>
-                </th>)}
-              </tr></thead>
-              <tbody>{sortedFunds.map(fund => {
-                const quote = quotes[fund.code]
-                return (
-                  <tr key={fund.code}>
-                    <th scope="row"><strong>{fund.name}</strong><small>{fund.code}</small></th>
-                    <td><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small></td>
-                    <td className="nasdaq-premium">{quote ? `${quote.premium.toFixed(2)}%` : '—'}</td>
-                    <td><strong>{quote?.iopv.toFixed(4) ?? '—'}</strong></td>
-                    <td><strong>{quote?.size.toFixed(2) ?? '—'}</strong></td>
-                    <td><strong>{quote?.turnover.toFixed(2) ?? '—'}</strong></td>
-                    <td><strong>{fund.manage.toFixed(2)} / {fund.custody.toFixed(2)}</strong><small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></td>
-                  </tr>
-                )
-              })}</tbody>
-            </table>
+        <section className="nasdaq-panel" aria-label="纳指100 ETF 溢价清单">
+          <div className="nasdaq-panel-head">
+            <div><span>01 / ETF SCAN</span><h2>基金清单</h2></div>
+            <p>按指标排序，点击当前指标可切换升降序</p>
           </div>
+          <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
+            {sortColumns.map(column => <button
+              type="button"
+              key={column.key}
+              className={`nasdaq-sort${sort.key === column.key ? ' active' : ''}`}
+              onClick={() => toggleSort(column.key)}
+              aria-pressed={sort.key === column.key}
+              aria-label={`按${column.key === 'fee' ? '合计年费率' : column.key === 'change' ? '日涨跌幅' : column.label}${sort.key === column.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}
+            >
+              <span>{column.label}{column.detail && <small>{column.detail}</small>}</span>
+              <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
+            </button>)}
+          </div>
+          <ol className="nasdaq-grid">
+            {sortedFunds.map((fund, index) => {
+              const quote = quotes[fund.code]
+              return (
+                <li className="nasdaq-fund-card" key={fund.code}>
+                  <article aria-label={`${fund.name} ${fund.code}`}>
+                    <div className="nasdaq-card-head">
+                      <span className="nasdaq-rank">{String(index + 1).padStart(2, '0')}</span>
+                      <div><h3>{fund.name}</h3><span>{fund.code}</span></div>
+                      <span className="nasdaq-card-tag">NDX 100</span>
+                    </div>
+                    <div className="nasdaq-card-primary">
+                      <div className="nasdaq-card-premium"><span>参考溢价</span><strong>{quote ? `${quote.premium.toFixed(2)}%` : '—'}</strong></div>
+                      <div className="nasdaq-card-price"><span>现价 / 日涨跌</span><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small></div>
+                    </div>
+                    <dl className="nasdaq-card-facts">
+                      <div><dt>IOPV · 盘中参考净值</dt><dd>{quote?.iopv.toFixed(4) ?? '—'}</dd></div>
+                      <div><dt>估算规模 · 亿元</dt><dd>{quote?.size.toFixed(2) ?? '—'}</dd></div>
+                      <div><dt>成交额 · 亿元</dt><dd>{quote?.turnover.toFixed(2) ?? '—'}</dd></div>
+                      <div><dt>管理 / 托管 · 年费率</dt><dd>{fund.manage.toFixed(2)}% / {fund.custody.toFixed(2)}%<small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></dd></div>
+                    </dl>
+                  </article>
+                </li>
+              )
+            })}
+          </ol>
           {loading && <p className="nasdaq-empty">正在获取最新行情…</p>}
         </section>
 
         <footer className="nasdaq-note">
-          <p>参考溢价 = 现价 ÷ 报价 IOPV − 1；估算规模 = 基金份额 × IOPV。费率参考原图，非实时数据，且不含券商佣金。</p>
+          <span>阅读提示 / DATA NOTES</span>
+          <p>参考溢价 = 现价 ÷ 报价 IOPV − 1；估算规模 = 基金份额 × IOPV。费率为静态参考值，非实时数据且不含券商佣金，请以基金正式披露为准。</p>
           <p>行情来自腾讯公开报价，经本站接口获取，可能存在延迟；页面可见时每 5 分钟刷新。休市时显示最近一次报价，请以“行情时间”为准。IOPV 是盘中参考净值，并非正式基金净值。</p>
           <p>仅供参考，不构成投资建议。</p>
         </footer>

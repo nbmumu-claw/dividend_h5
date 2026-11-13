@@ -1,57 +1,114 @@
-.nasdaq-page { min-height: 100vh; padding: 28px 20px 48px; background: #f5f6f8; color: #1f2328; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
+.nasdaq-page {
+  min-height: 100vh;
+  padding: 22px 28px 64px;
+  background: #f4f1e9;
+  color: #183a35;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
 .nasdaq-wrap { max-width: 1440px; margin: 0 auto; }
-.nasdaq-back { display: inline-flex; align-items: center; gap: 3px; margin: 0 0 22px -6px; padding: 4px 6px; border: 0; background: none; color: #6b7280; font: inherit; font-size: 14px; cursor: pointer; }
+.nasdaq-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; color: #64736e; }
+.nasdaq-nav > span { font: 700 11px/1 "DIN Alternate", "PingFang SC", sans-serif; letter-spacing: .2em; }
+.nasdaq-back { display: inline-flex; align-items: center; gap: 5px; padding: 5px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
 .nasdaq-back svg { width: 18px; height: 18px; }
-.nasdaq-back:hover { color: #1f2328; }
-.nasdaq-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
-.nasdaq-eyebrow { margin: 0 0 8px; color: #e03025; font-size: 12px; font-weight: 700; letter-spacing: .06em; }
-.nasdaq-heading h1 { margin: 0 0 8px; font-size: clamp(24px, 3vw, 32px); line-height: 1.25; }
-.nasdaq-intro { margin: 0; color: #6b7280; font-size: 14px; }
-.nasdaq-range { flex: 0 0 auto; min-width: 220px; padding: 14px 18px; border-top: 3px solid #e03025; border-radius: 10px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-.nasdaq-range span { display: block; margin-bottom: 4px; color: #6b7280; font-size: 12px; }
-.nasdaq-range strong { color: #e03025; font-size: 22px; font-variant-numeric: tabular-nums; }
-.nasdaq-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: #6b7280; font-size: 12px; }
-.nasdaq-status button { flex: 0 0 auto; padding: 7px 12px; border: 1px solid #e03025; border-radius: 7px; background: #fff; color: #e03025; font: inherit; cursor: pointer; }
-.nasdaq-status button:hover:not(:disabled) { background: #fff5f3; }
+.nasdaq-back:hover, .nasdaq-back:focus-visible { color: #bd543a; }
+
+.nasdaq-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr); align-items: end; gap: 32px; overflow: hidden; min-height: 272px; padding: 35px 40px; border-radius: 18px 18px 0 0; background: #183a35; color: #fffefa; }
+.nasdaq-hero::after { position: absolute; top: -20%; right: -5%; width: 50%; height: 150%; background: repeating-linear-gradient(135deg, transparent 0 22px, rgba(255, 254, 250, .07) 23px 24px); content: ""; transform: skewX(-10deg); pointer-events: none; }
+.nasdaq-hero-copy, .nasdaq-range { position: relative; z-index: 1; }
+.nasdaq-eyebrow { display: flex; align-items: center; gap: 9px; margin: 0 0 20px; color: #d6e5d8; font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+.nasdaq-eyebrow i { width: 7px; height: 7px; border-radius: 50%; background: #d8815f; box-shadow: 0 0 0 4px rgba(216, 129, 95, .16); }
+.nasdaq-hero h1 { margin: 0; font-size: clamp(32px, 3.8vw, 54px); font-weight: 700; line-height: 1.18; letter-spacing: -.035em; }
+.nasdaq-intro { margin: 20px 0 0; color: #d6e5d8; font-size: 14px; }
+.nasdaq-range { justify-self: end; width: min(100%, 380px); padding: 22px 24px 18px; border-left: 3px solid #bd543a; background: #fffefa; color: #183a35; }
+.nasdaq-range > span { display: block; color: #64736e; font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+.nasdaq-range strong { display: flex; align-items: baseline; flex-wrap: wrap; gap: 9px; margin: 10px 0 13px; color: #bd543a; font: 700 clamp(23px, 2.3vw, 31px)/1.1 "DIN Alternate", "PingFang SC", sans-serif; font-variant-numeric: tabular-nums; }
+.nasdaq-range strong small { color: #64736e; font: 500 12px/1 "PingFang SC", "Microsoft YaHei", sans-serif; }
+.nasdaq-range p { margin: 0; padding-top: 12px; border-top: 1px solid #dae0d9; color: #64736e; font-size: 12px; }
+
+.nasdaq-status { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 38px; padding: 15px 20px; border-bottom: 2px solid #183a35; background: #fffefa; }
+.nasdaq-status > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px; color: #64736e; font-size: 12px; }
+.nasdaq-status-label { color: #183a35; font-weight: 700; }
+.nasdaq-status strong { color: #183a35; font: 700 15px/1.3 "DIN Alternate", "PingFang SC", sans-serif; font-variant-numeric: tabular-nums; }
+.nasdaq-status button { display: inline-flex; align-items: center; gap: 16px; flex: 0 0 auto; padding: 9px 14px; border: 1px solid #183a35; border-radius: 3px; background: #183a35; color: #fffefa; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.nasdaq-status button:hover:not(:disabled), .nasdaq-status button:focus-visible { background: #27554d; }
 .nasdaq-status button:disabled { opacity: .6; cursor: wait; }
-.nasdaq-error { margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: #fff5f3; color: #b91c1c; font-size: 12px; }
-.nasdaq-panel { overflow: hidden; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-.nasdaq-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; background: #eef2f5; color: #374151; }
-.nasdaq-panel-head strong { font-size: 17px; }
-.nasdaq-panel-head span { color: #6b7280; font-size: 12px; }
-.nasdaq-swipe-hint { display: none; }
-.nasdaq-scroll { overflow-x: auto; }
-.nasdaq-scroll table { width: 100%; min-width: 900px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.nasdaq-scroll th, .nasdaq-scroll td { padding: 15px 16px; border-bottom: 1px solid #e5e7eb; text-align: right; white-space: nowrap; }
-.nasdaq-scroll thead th { background: #f8fafc; color: #6b7280; font-size: 12px; font-weight: 600; line-height: 1.5; }
-.nasdaq-scroll thead th:first-child, .nasdaq-scroll tbody th { text-align: left; }
-.nasdaq-sort { display: inline-flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 0; border: 0; background: none; color: inherit; font: inherit; line-height: inherit; text-align: right; cursor: pointer; }
-.nasdaq-sort:hover, .nasdaq-sort:focus-visible { color: #c2410c; }
+.nasdaq-status button span { font-size: 17px; line-height: .7; }
+.nasdaq-error { margin: -18px 0 25px; padding: 11px 14px; border-left: 3px solid #bd543a; background: #fff6f1; color: #a43f2a; font-size: 12px; }
+
+.nasdaq-panel-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.nasdaq-panel-head span { color: #bd543a; font: 700 12px/1 "DIN Alternate", "PingFang SC", sans-serif; letter-spacing: .15em; }
+.nasdaq-panel-head h2 { margin: 7px 0 0; font-size: 25px; line-height: 1.2; }
+.nasdaq-panel-head p { margin: 0 0 3px; color: #64736e; font-size: 12px; }
+.nasdaq-sort-bar { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 18px; padding: 0 0 10px; scrollbar-width: thin; }
+.nasdaq-sort { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; flex: 0 0 auto; min-width: 112px; padding: 10px 12px; border: 1px solid #ced8d0; border-radius: 3px; background: transparent; color: #425e56; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.nasdaq-sort > span:first-child { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; }
+.nasdaq-sort small { opacity: .7; font-size: 10px; font-weight: 500; }
+.nasdaq-sort:hover, .nasdaq-sort:focus-visible { border-color: #bd543a; color: #bd543a; }
+.nasdaq-sort.active { border-color: #183a35; background: #183a35; color: #fffefa; }
 .nasdaq-sort-icons { display: inline-flex; flex-direction: column; gap: 3px; }
 .nasdaq-sort-icons i { width: 0; height: 0; border-right: 4px solid transparent; border-left: 4px solid transparent; }
-.nasdaq-sort-up { border-bottom: 5px solid #cbd5e1; }
-.nasdaq-sort-down { border-top: 5px solid #cbd5e1; }
-.nasdaq-sort-up.active { border-bottom-color: #e03025; }
-.nasdaq-sort-down.active { border-top-color: #e03025; }
-.nasdaq-scroll tbody tr:last-child th, .nasdaq-scroll tbody tr:last-child td { border-bottom: 0; }
-.nasdaq-scroll tbody tr:hover { background: #fffaf9; }
-.nasdaq-scroll tbody th strong, .nasdaq-scroll tbody td strong { display: block; color: #1f2328; font-size: 16px; font-weight: 650; }
-.nasdaq-scroll tbody small { display: block; margin-top: 4px; color: #6b7280; font-size: 12px; font-weight: 400; }
-.nasdaq-scroll tbody small.nasdaq-down { color: #15803d; }
-.nasdaq-scroll tbody small.nasdaq-up { color: #dc2626; }
-.nasdaq-scroll td.nasdaq-premium { color: #c2410c; font-size: 18px; font-weight: 700; }
-.nasdaq-empty { margin: 0; padding: 16px; color: #6b7280; font-size: 12px; }
-.nasdaq-note { margin-top: 16px; padding: 0 2px; color: #6b7280; font-size: 12px; line-height: 1.7; }
+.nasdaq-sort-up { border-bottom: 5px solid #aab8ad; }
+.nasdaq-sort-down { border-top: 5px solid #aab8ad; }
+.nasdaq-sort-up.active { border-bottom-color: #edb091; }
+.nasdaq-sort-down.active { border-top-color: #edb091; }
+
+.nasdaq-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.nasdaq-fund-card { min-width: 0; border: 1px solid #d8dfd6; border-radius: 12px; background: #fffefa; transition: border-color .2s ease, transform .2s ease; }
+.nasdaq-fund-card:hover { border-color: #8ca89a; transform: translateY(-2px); }
+.nasdaq-fund-card article { height: 100%; padding: 19px 20px 18px; }
+.nasdaq-card-head { display: flex; align-items: center; gap: 12px; min-height: 46px; }
+.nasdaq-rank { display: grid; place-items: center; flex: 0 0 31px; height: 31px; border: 1px solid #cbd9cf; border-radius: 3px; color: #64736e; font: 700 13px/1 "DIN Alternate", "PingFang SC", sans-serif; }
+.nasdaq-card-head h3 { margin: 0; font-size: 18px; line-height: 1.2; }
+.nasdaq-card-head div > span { display: block; margin-top: 3px; color: #64736e; font: 500 12px/1.1 "DIN Alternate", "PingFang SC", sans-serif; letter-spacing: .08em; }
+.nasdaq-card-tag { margin-left: auto; padding: 5px 7px; border: 1px solid #dae4db; color: #64736e; font: 700 10px/1 "DIN Alternate", "PingFang SC", sans-serif; letter-spacing: .04em; white-space: nowrap; }
+.nasdaq-card-primary { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: 14px; margin: 19px 0 16px; padding: 17px 0; border-top: 1px solid #dae0d9; border-bottom: 1px solid #dae0d9; }
+.nasdaq-card-primary > div { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
+.nasdaq-card-primary span { color: #64736e; font-size: 11px; }
+.nasdaq-card-premium strong { margin-top: 9px; color: #bd543a; font: 700 clamp(27px, 2.3vw, 34px)/1 "DIN Alternate", "PingFang SC", sans-serif; font-variant-numeric: tabular-nums; }
+.nasdaq-card-price { padding-left: 13px; border-left: 1px solid #dae0d9; text-align: right; }
+.nasdaq-card-price strong { margin-top: 10px; font: 700 21px/1 "DIN Alternate", "PingFang SC", sans-serif; font-variant-numeric: tabular-nums; }
+.nasdaq-card-price small { display: block; margin-top: 5px; font: 700 12px/1.2 "DIN Alternate", "PingFang SC", sans-serif; }
+.nasdaq-card-price small.nasdaq-up { color: #b84731; }
+.nasdaq-card-price small.nasdaq-down { color: #1d7462; }
+.nasdaq-card-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 13px; margin: 0; }
+.nasdaq-card-facts div { min-width: 0; }
+.nasdaq-card-facts dt { margin-bottom: 5px; color: #64736e; font-size: 10px; line-height: 1.4; }
+.nasdaq-card-facts dd { margin: 0; font: 700 16px/1.2 "DIN Alternate", "PingFang SC", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nasdaq-card-facts dd small { display: block; margin-top: 5px; color: #64736e; font: 500 11px/1.2 "PingFang SC", "Microsoft YaHei", sans-serif; }
+.nasdaq-empty { margin: 16px 0 0; color: #64736e; font-size: 12px; }
+
+.nasdaq-note { display: grid; grid-template-columns: 210px 1fr; column-gap: 40px; margin-top: 36px; padding: 24px 0 0; border-top: 1px solid #bdcbbf; color: #64736e; font-size: 12px; line-height: 1.8; }
+.nasdaq-note > span { grid-row: 1 / 4; color: #183a35; font: 700 12px/1.5 "DIN Alternate", "PingFang SC", sans-serif; letter-spacing: .08em; }
 .nasdaq-note p { margin: 0 0 5px; }
+
+@media (max-width: 1100px) {
+  .nasdaq-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 719px) {
-  .nasdaq-page { padding: 16px 12px 32px; }
-  .nasdaq-back { margin-bottom: 18px; }
-  .nasdaq-heading { display: block; }
-  .nasdaq-heading h1 { font-size: 22px; }
-  .nasdaq-range { display: inline-block; margin-top: 16px; padding: 10px 14px; }
-  .nasdaq-range strong { font-size: 18px; }
-  .nasdaq-panel-head { padding: 12px; }
-  .nasdaq-panel-head strong { font-size: 15px; }
-  .nasdaq-swipe-hint { display: block; margin: 0; padding: 8px 12px 0; color: #6b7280; font-size: 11px; }
-  .nasdaq-scroll th, .nasdaq-scroll td { padding: 12px; }
+  .nasdaq-page { padding: 15px 12px 36px; }
+  .nasdaq-nav { margin-bottom: 12px; }
+  .nasdaq-nav > span { font-size: 9px; }
+  .nasdaq-hero { grid-template-columns: 1fr; min-height: 0; gap: 24px; padding: 28px 23px 24px; }
+  .nasdaq-hero::after { right: -20%; width: 80%; }
+  .nasdaq-hero h1 { font-size: 34px; }
+  .nasdaq-intro { margin-top: 13px; font-size: 12px; }
+  .nasdaq-range { justify-self: stretch; width: 100%; }
+  .nasdaq-range strong { font-size: 27px; }
+  .nasdaq-status { align-items: flex-start; margin-bottom: 30px; padding: 12px; }
+  .nasdaq-status > div { gap: 4px 8px; }
+  .nasdaq-status button { padding: 9px 10px; }
+  .nasdaq-panel-head { align-items: start; }
+  .nasdaq-panel-head h2 { font-size: 22px; }
+  .nasdaq-panel-head p { max-width: 145px; text-align: right; line-height: 1.5; }
+  .nasdaq-grid { grid-template-columns: 1fr; gap: 12px; }
+  .nasdaq-card-premium strong { font-size: 34px; }
+  .nasdaq-note { display: block; }
+  .nasdaq-note > span { display: block; margin-bottom: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nasdaq-fund-card { transition: none; }
+  .nasdaq-fund-card:hover { transform: none; }
 }
