@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { fetchTxRawQuotes } from '../utils/api'
 import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
 import './NasdaqPremium.css'
 
 const funds = [
-  { name: '华泰柏瑞', code: '513110', manage: 0.80, custody: 0.20 },
-  { name: '大成', code: '159513', manage: 0.80, custody: 0.20 },
-  { name: '华安', code: '159632', manage: 0.60, custody: 0.20 },
-  { name: '汇添富', code: '159660', manage: 0.50, custody: 0.15 },
-  { name: '博时', code: '513390', manage: 0.50, custody: 0.15 },
-  { name: '富国', code: '513870', manage: 0.50, custody: 0.10 },
-  { name: '华夏', code: '513300', manage: 0.60, custody: 0.20 },
-  { name: '招商', code: '159659', manage: 0.50, custody: 0.15 },
-  { name: '广发', code: '159941', manage: 0.80, custody: 0.20 },
-  { name: '易方达', code: '159696', manage: 0.50, custody: 0.10 },
-  { name: '国泰', code: '513100', manage: 0.60, custody: 0.20 },
-  { name: '嘉实', code: '159501', manage: 0.50, custody: 0.10 },
+  { name: '华泰柏瑞纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '513110', manage: 0.80, custody: 0.20 },
+  { name: '大成纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '159513', manage: 0.80, custody: 0.20 },
+  { name: '华安纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '159632', manage: 0.60, custody: 0.20 },
+  { name: '汇添富纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '159660', manage: 0.50, custody: 0.15 },
+  { name: '博时纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '513390', manage: 0.50, custody: 0.15 },
+  { name: '富国纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '513870', manage: 0.50, custody: 0.10 },
+  { name: '华夏纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '513300', manage: 0.60, custody: 0.20 },
+  { name: '招商纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '159659', manage: 0.50, custody: 0.15 },
+  { name: '广发纳斯达克100交易型开放式指数证券投资基金', code: '159941', manage: 0.80, custody: 0.20 },
+  { name: '易方达纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '159696', manage: 0.50, custody: 0.10 },
+  { name: '纳斯达克100交易型开放式指数证券投资基金', code: '513100', manage: 0.60, custody: 0.20 },
+  { name: '嘉实纳斯达克100交易型开放式指数证券投资基金（QDII）', code: '159501', manage: 0.50, custody: 0.10 },
 ]
 
 const quoteCodes = funds.map(fund => `${fund.code.startsWith('5') ? 'sh' : 'sz'}${fund.code}`)
@@ -30,7 +29,6 @@ const sortColumns: { key: NasdaqSortKey; label: string; detail?: string }[] = [
 ]
 
 export default function NasdaqPremium() {
-  const navigate = useNavigate()
   const [quotes, setQuotes] = useState<Record<string, NasdaqQuote>>({})
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -74,13 +72,9 @@ export default function NasdaqPremium() {
   return (
     <main className="nasdaq-page">
       <div className="nasdaq-wrap">
-        <nav className="nasdaq-nav" aria-label="页面导航">
-          <button className="nasdaq-back" onClick={() => navigate('/yield-grid')} aria-label="返回股息率网格">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            返回股息率网格
-          </button>
+        <div className="nasdaq-nav">
           <span>MARKET NOTE / 100</span>
-        </nav>
+        </div>
 
         <header className="nasdaq-hero">
           <div className="nasdaq-hero-copy">
