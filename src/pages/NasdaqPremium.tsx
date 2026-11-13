@@ -100,6 +100,7 @@ export default function NasdaqPremium() {
             <div><span>01 / ETF SCAN</span><h2>基金清单</h2></div>
             <p>按指标排序，点击当前指标可切换升降序</p>
           </div>
+          {!loading && <>
           <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
             {sortColumns.map(column => <button
               type="button"
@@ -182,6 +183,7 @@ export default function NasdaqPremium() {
               )
             })}
           </ol>
+          </>}
           {loading && <p className="nasdaq-empty">正在获取最新行情…</p>}
         </section>
 
