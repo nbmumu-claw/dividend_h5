@@ -11,6 +11,7 @@ import {
   FIRST_QUARTER_REPORT_YEARS,
   INTERIM_REPORT_YEARS,
   SECOND_QUARTER_REPORT_YEARS,
+  THIRD_QUARTER_REPORT_YEARS,
   searchInterimStocks,
   type InterimReportRecord,
   type InterimReportResult,
@@ -23,9 +24,9 @@ type Metric = 'netProfit' | 'deductNetProfit' | 'revenue' | 'eps' | 'roe'
 type StatusFilter = 'all' | 'published' | 'pending'
 type SortKey = 'disclosure' | 'profit2025' | 'deductProfit2025' | 'latestNetProfitYoy' | 'latestDeductNetProfitYoy' | 'latestRevenueYoy' | 'firstQuarterNetProfitYoy' | 'firstQuarterDeductNetProfitYoy' | 'firstQuarterRevenueYoy'
 type GrowthFilterKey = 'revenueYoy' | 'netProfitYoy'
-type GrowthReportPeriod = 'interim' | 'firstQuarter' | 'secondQuarter'
-type ReportPeriod = '一' | '二' | '中' | '年'
-type ReportView = 'interim' | 'firstQuarter' | 'secondQuarter' | 'annual' | 'all'
+type GrowthReportPeriod = 'interim' | 'firstQuarter' | 'secondQuarter' | 'thirdQuarter'
+type ReportPeriod = '一' | '二' | '中' | '三' | '年'
+type ReportView = GrowthReportPeriod | 'annual' | 'all'
 type SingleColumnSort = { field: 'disclosure' | 'metric'; year?: InterimReportYear; direction: 'asc' | 'desc' }
 
 type GrowthFilters = Record<GrowthFilterKey, string>
@@ -40,7 +41,7 @@ interface DisplayStock extends YieldGridStock {
 }
 
 const CUSTOM_STORAGE_KEY = 'interim-report-custom-stocks'
-const REPORT_CACHE_KEY = 'interim-report-data:v3'
+const REPORT_CACHE_KEY = 'interim-report-data:v4'
 const MAX_CUSTOM_STOCKS = 5
 const TABLE_COLUMN_COUNT = 4 + INTERIM_REPORT_YEARS.length
 
@@ -56,6 +57,7 @@ const REPORT_VIEW_OPTIONS: { key: ReportView; label: string }[] = [
   { key: 'interim', label: '中报' },
   { key: 'firstQuarter', label: '一季报' },
   { key: 'secondQuarter', label: '二季报' },
+  { key: 'thirdQuarter', label: '三季报' },
   { key: 'annual', label: '年报' },
   { key: 'all', label: '全量' },
 ]
@@ -178,6 +180,7 @@ function reportForView(
   if (reportView === 'interim') return snapshot?.reports[year]
   if (reportView === 'firstQuarter') return snapshot?.firstQuarterReports?.[year as (typeof FIRST_QUARTER_REPORT_YEARS)[number]]
   if (reportView === 'secondQuarter') return snapshot?.secondQuarterReports?.[year as (typeof SECOND_QUARTER_REPORT_YEARS)[number]]
+  if (reportView === 'thirdQuarter') return snapshot?.thirdQuarterReports?.[year as (typeof THIRD_QUARTER_REPORT_YEARS)[number]]
   return snapshot?.annualReports?.[year as (typeof ANNUAL_REPORT_YEARS)[number]]
 }
 
@@ -376,7 +379,9 @@ export default function InterimReport() {
           ? snapshot?.reports[2026]
           : growthReportPeriod === 'firstQuarter'
             ? snapshot?.firstQuarterReports?.[2026]
-            : snapshot?.secondQuarterReports?.[2026]
+            : growthReportPeriod === 'secondQuarter'
+              ? snapshot?.secondQuarterReports?.[2026]
+              : snapshot?.thirdQuarterReports?.[2026]
         if (hasGrowthFilters && !report) return false
         return !report || GROWTH_FILTERS.every(({ key }) => meetsGrowthMinimum(growthValue(report, key), growthFilters[key]))
       })
@@ -471,7 +476,7 @@ export default function InterimReport() {
           <div>
             <p className="interim-eyebrow">MID-YEAR EARNINGS / 2026</p>
             <h1>财报五年对比</h1>
-            <p className="interim-subtitle">2026 中报披露进度与 2022–2025 年报 / 中报经营数据</p>
+            <p className="interim-subtitle">2026 中报披露进度与 2022–2026 年季报 / 中报、2022–2025 年报经营数据</p>
           </div>
         </div>
         <div className="interim-summary" aria-label="披露进度摘要">
@@ -568,6 +573,7 @@ export default function InterimReport() {
                         ['interim', '2026 中报'],
                         ['firstQuarter', '2026 一季报'],
                         ['secondQuarter', '2026 二季报'],
+                        ['thirdQuarter', '2026 三季报'],
                       ] as const).map(([key, label]) => (
                         <button
                           key={key}
@@ -609,7 +615,7 @@ export default function InterimReport() {
                       </label>
                     ))}
                   </div>
-                  <p>填写最低增速即可；缺少{growthReportPeriod === 'interim' ? '2026 中报' : growthReportPeriod === 'firstQuarter' ? '2026 一季报' : '2026 二季报'}数据的标的将自动排除。</p>
+                  <p>填写最低增速即可；缺少{REPORT_VIEW_OPTIONS.find(option => option.key === growthReportPeriod)?.label}数据的标的将自动排除。</p>
                 </div>
               </>
             )}
@@ -704,7 +710,7 @@ export default function InterimReport() {
               <tr>
                 <th rowSpan={2} className="stock-column">标的</th>
                 <th rowSpan={2}>板块</th>
-                <th colSpan={2} className="progress-group">2026 披露进度</th>
+                <th colSpan={2} className="progress-group">2026 中报披露进度</th>
                 <th colSpan={INTERIM_REPORT_YEARS.length} className="years-group">财报数据对比 · {METRICS.find(item => item.key === metric)?.label} · {REPORT_VIEW_OPTIONS.find(item => item.key === reportView)?.label}</th>
               </tr>
               <tr>
@@ -789,6 +795,11 @@ export default function InterimReport() {
                                 period="中"
                                 sorted={isSortedReading(sort, year, '中')}
                               />
+                              <MetricReading
+                                report={snapshot?.thirdQuarterReports?.[year as (typeof THIRD_QUARTER_REPORT_YEARS)[number]]}
+                                metric={metric}
+                                period="三"
+                              />
                               {isHistorical ? (
                                 <MetricReading
                                   report={snapshot?.annualReports?.[year as (typeof ANNUAL_REPORT_YEARS)[number]]}
@@ -812,7 +823,7 @@ export default function InterimReport() {
         </div>
 
         <p className="interim-note">
-          数据来自东方财富业绩报表与预约披露表；ROE 为各期披露口径。聚合数据如有差异，以交易所或公司正式公告为准。
+          数据来自东方财富业绩报表与预约披露表；二、三季报为单季值（分别用半年报减一季报、前三季报减半年报），单季 ROE 不展示；披露进度仍按中报统计。聚合数据如有差异，以交易所或公司正式公告为准。
         </p>
         <div className="interim-feedback">
           <button type="button" className={`interim-like${liked ? ' liked' : ''}`} onClick={onLike} disabled={liked || liking} aria-pressed={liked}>

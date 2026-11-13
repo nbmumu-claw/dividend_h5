@@ -1,11 +1,13 @@
 export const INTERIM_REPORT_YEARS = [2026, 2025, 2024, 2023, 2022] as const
 export const FIRST_QUARTER_REPORT_YEARS = [2026, 2025, 2024, 2023, 2022] as const
 export const SECOND_QUARTER_REPORT_YEARS = [2026, 2025, 2024, 2023, 2022] as const
+export const THIRD_QUARTER_REPORT_YEARS = [2026, 2025, 2024, 2023, 2022] as const
 export const ANNUAL_REPORT_YEARS = [2025, 2024, 2023, 2022] as const
 
 export type InterimReportYear = (typeof INTERIM_REPORT_YEARS)[number]
 export type FirstQuarterReportYear = (typeof FIRST_QUARTER_REPORT_YEARS)[number]
 export type SecondQuarterReportYear = (typeof SECOND_QUARTER_REPORT_YEARS)[number]
+export type ThirdQuarterReportYear = (typeof THIRD_QUARTER_REPORT_YEARS)[number]
 export type AnnualReportYear = (typeof ANNUAL_REPORT_YEARS)[number]
 
 export interface InterimReportRecord {
@@ -36,6 +38,7 @@ export interface InterimReportSnapshot {
   reports: Partial<Record<InterimReportYear, InterimReportRecord>>
   firstQuarterReports?: Partial<Record<FirstQuarterReportYear, InterimReportRecord>>
   secondQuarterReports?: Partial<Record<SecondQuarterReportYear, InterimReportRecord>>
+  thirdQuarterReports?: Partial<Record<ThirdQuarterReportYear, InterimReportRecord>>
   annualReports?: Partial<Record<AnnualReportYear, InterimReportRecord>>
   appointment?: InterimAppointment
 }
@@ -135,15 +138,15 @@ function quarterYoy(current: number | null, previous: number | null): number | n
   return current === null || previous === null || previous === 0 ? null : (current - previous) / Math.abs(previous) * 100
 }
 
-function toSecondQuarterRecord(interim: InterimReportRecord, firstQuarter: InterimReportRecord, lastYear?: InterimReportRecord): InterimReportRecord {
-  const revenue = difference(interim.revenue, firstQuarter.revenue)
-  const netProfit = difference(interim.netProfit, firstQuarter.netProfit)
-  const deductNetProfit = difference(interim.deductNetProfit, firstQuarter.deductNetProfit)
-  const eps = difference(interim.eps, firstQuarter.eps)
+function toQuarterRecord(current: InterimReportRecord, previous: InterimReportRecord, lastYear?: InterimReportRecord): InterimReportRecord {
+  const revenue = difference(current.revenue, previous.revenue)
+  const netProfit = difference(current.netProfit, previous.netProfit)
+  const deductNetProfit = difference(current.deductNetProfit, previous.deductNetProfit)
+  const eps = difference(current.eps, previous.eps)
   return {
-    code: interim.code,
-    name: interim.name,
-    noticeDate: interim.noticeDate,
+    code: current.code,
+    name: current.name,
+    noticeDate: current.noticeDate,
     revenue,
     revenueYoy: quarterYoy(revenue, lastYear?.revenue ?? null),
     netProfit,
@@ -159,6 +162,7 @@ async function fetchDeductReports(codes: string[]): Promise<JsonRecord[]> {
   const reportDates = [
     ...FIRST_QUARTER_REPORT_YEARS.map(year => `${year}-03-31`),
     ...INTERIM_REPORT_YEARS.map(year => `${year}-06-30`),
+    ...THIRD_QUARTER_REPORT_YEARS.map(year => `${year}-09-30`),
     ...ANNUAL_REPORT_YEARS.map(year => `${year}-12-31`),
   ]
   return fetchRows(new URLSearchParams({
@@ -201,16 +205,20 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
   const uniqueCodes = [...new Set(codes)].filter(code => /^\d{6}$/.test(code))
   if (!uniqueCodes.length) return { generatedAt: new Date().toISOString(), stocks: {} }
 
-  const [firstQuarterRows, interimRows, annualRows, appointmentRows, deductRows] = await Promise.all([
+  const [firstQuarterRows, interimRows, thirdQuarterRows, annualRows, appointmentRows, deductRows] = await Promise.all([
     Promise.all(FIRST_QUARTER_REPORT_YEARS.map(year => fetchReportDate(`${year}-03-31`, uniqueCodes))),
     Promise.all(INTERIM_REPORT_YEARS.map(year => fetchReportDate(`${year}-06-30`, uniqueCodes))),
+    Promise.all(THIRD_QUARTER_REPORT_YEARS.map(year => fetchReportDate(`${year}-09-30`, uniqueCodes))),
     Promise.all(ANNUAL_REPORT_YEARS.map(year => fetchReportDate(`${year}-12-31`, uniqueCodes))),
     fetchAppointments(uniqueCodes),
     fetchDeductReports(uniqueCodes),
   ])
 
   const stocks: Record<string, InterimReportSnapshot> = Object.fromEntries(
-    uniqueCodes.map(code => [code, { reports: {}, firstQuarterReports: {}, secondQuarterReports: {}, annualReports: {} }]),
+    uniqueCodes.map(code => [code, { reports: {}, firstQuarterReports: {}, secondQuarterReports: {}, thirdQuarterReports: {}, annualReports: {} }]),
+  )
+  const thirdQuarterCumulative: Record<string, Partial<Record<ThirdQuarterReportYear, InterimReportRecord>>> = Object.fromEntries(
+    uniqueCodes.map(code => [code, {}]),
   )
 
   FIRST_QUARTER_REPORT_YEARS.forEach((year, index) => {
@@ -226,6 +234,14 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
       const code = stringOrNull(row.SECURITY_CODE)
       if (!code || !stocks[code]) continue
       stocks[code].reports[year] = toReportRecord(row, code)
+    }
+  })
+
+  THIRD_QUARTER_REPORT_YEARS.forEach((year, index) => {
+    for (const row of thirdQuarterRows[index]) {
+      const code = stringOrNull(row.SECURITY_CODE)
+      if (!code || !thirdQuarterCumulative[code]) continue
+      thirdQuarterCumulative[code][year] = toReportRecord(row, code)
     }
   })
 
@@ -249,17 +265,20 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
       ? stocks[code].firstQuarterReports?.[year as FirstQuarterReportYear]
       : monthDay === '06-30'
         ? stocks[code].reports[year as InterimReportYear]
-        : monthDay === '12-31'
-          ? stocks[code].annualReports?.[year as AnnualReportYear]
-          : undefined
+        : monthDay === '09-30'
+          ? thirdQuarterCumulative[code]?.[year as ThirdQuarterReportYear]
+          : monthDay === '12-31'
+            ? stocks[code].annualReports?.[year as AnnualReportYear]
+            : undefined
     if (!report) continue
     report.deductNetProfit = numberOrNull(row.DEDUCT_PARENT_NETPROFIT)
     report.deductNetProfitYoy = numberOrNull(row.DEDUCT_PARENT_NETPROFIT_YOY)
   }
 
-  for (const snapshot of Object.values(stocks)) {
+  for (const [code, snapshot] of Object.entries(stocks)) {
     const secondQuarterReports = snapshot.secondQuarterReports
-    if (!secondQuarterReports) continue
+    const thirdQuarterReports = snapshot.thirdQuarterReports
+    if (!secondQuarterReports || !thirdQuarterReports) continue
     for (const year of SECOND_QUARTER_REPORT_YEARS) {
       const interim = snapshot.reports[year]
       const firstQuarter = snapshot.firstQuarterReports?.[year]
@@ -267,9 +286,20 @@ export async function fetchInterimReportData(codes: string[]): Promise<InterimRe
       const lastYearFirstQuarter = snapshot.firstQuarterReports?.[year - 1 as FirstQuarterReportYear]
       if (!interim || !firstQuarter) continue
       const lastYear = lastYearInterim && lastYearFirstQuarter
-        ? toSecondQuarterRecord(lastYearInterim, lastYearFirstQuarter)
+        ? toQuarterRecord(lastYearInterim, lastYearFirstQuarter)
         : undefined
-      secondQuarterReports[year] = toSecondQuarterRecord(interim, firstQuarter, lastYear)
+      secondQuarterReports[year] = toQuarterRecord(interim, firstQuarter, lastYear)
+    }
+    for (const year of THIRD_QUARTER_REPORT_YEARS) {
+      const cumulative = thirdQuarterCumulative[code]?.[year]
+      const interim = snapshot.reports[year]
+      if (!cumulative || !interim) continue
+      const previousCumulative = thirdQuarterCumulative[code]?.[year - 1 as ThirdQuarterReportYear]
+      const previousInterim = snapshot.reports[year - 1 as InterimReportYear]
+      const lastYear = previousCumulative && previousInterim
+        ? toQuarterRecord(previousCumulative, previousInterim)
+        : undefined
+      thirdQuarterReports[year] = toQuarterRecord(cumulative, interim, lastYear)
     }
   }
 
