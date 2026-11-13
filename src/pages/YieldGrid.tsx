@@ -1107,7 +1107,7 @@ export default function YieldGrid() {
         </div>
         <h1>股息率网格买卖价位表</h1>
         <div className="sub">{error ? '现价获取失败' : date ? `现价为 ${date} ${priceLabel}${fetchedAt ? ` · 行情时间 ${fmtTs(fetchedAt)}` : ''}` : '正在获取最新行情…'}</div>
-        <button type="button" className="yg-nasdaq-link" onClick={() => navigate('/nasdaq-premium')}>查看纳指100 ETF 实时溢价 <span aria-hidden="true">→</span></button>
+        <button type="button" className="yg-nasdaq-link" onClick={() => navigate('/nasdaq-premium')} aria-label="查看纳指100 ETF 实时溢价">纳指溢价 <span aria-hidden="true">→</span></button>
         <div className="legend legend-compact">
           <div className="legend-main">
             <span>买卖价 = {dividendBasis === '2026' ? '26年预测股息（无值沿用25年）' : '25年股息'} ÷ 目标股息率</span>
