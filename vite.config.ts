@@ -74,7 +74,7 @@ export default defineConfig({
           const ticker = p.get('ticker')
           if (ticker) return `/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=10y&events=div`
           const symbol = (p.get('symbols') || p.get('symbol') || '').split(',')[0]
-          return `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
+          return `/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${symbol === '^NDX' && p.get('range') === '2y' ? '2y' : '1d'}`
         },
       },
       '/api/stock-search-tx': {

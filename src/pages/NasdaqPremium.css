@@ -200,3 +200,9 @@
   .nasdaq-table-sort small { white-space: normal; }
   .nasdaq-performance-cell .nasdaq-performance-values strong { font-size: clamp(11px, .95vw, 14px); }
 }
+
+.nasdaq-index-ytd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-top: 12px; font-size: 12px; }
+.nasdaq-index-ytd > span, .nasdaq-index-ytd small { color: #6b7280; }
+.nasdaq-index-ytd strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.nasdaq-index-ytd .nasdaq-up { color: #dc2626; }
+.nasdaq-index-ytd .nasdaq-down { color: #16a34a; }

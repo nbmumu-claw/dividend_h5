@@ -129,6 +129,11 @@ export default function NasdaqPremium() {
           <div className="nasdaq-market-item">
             <div className="nasdaq-market-title"><span>NASDAQ 100 / NDX</span><h2>纳指100指数现价</h2></div>
             <div className="nasdaq-market-value"><strong>{marketQuotes.index?.price.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? '—'}</strong><span className={marketQuotes.index ? marketQuotes.index.change >= 0 ? 'nasdaq-up' : 'nasdaq-down' : ''}>{marketQuotes.index ? `${marketQuotes.index.change >= 0 ? '+' : ''}${marketQuotes.index.change.toFixed(2)} / ${marketQuotes.index.changePercent >= 0 ? '+' : ''}${marketQuotes.index.changePercent.toFixed(2)}%` : '等待行情'}</span></div>
+            <div className="nasdaq-index-ytd">
+              <span>今年以来（YTD）</span>
+              <strong className={performanceClass(marketQuotes.index?.ytd?.percent)}>{performanceValue(marketQuotes.index?.ytd?.percent)}</strong>
+              <small>{marketQuotes.index?.ytd ? `基准 ${marketQuotes.index.ytd.baseDate} 收盘 ${marketQuotes.index.ytd.baseClose.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}` : '年末基准数据暂不可用'}</small>
+            </div>
             <p>{marketQuotes.index ? `指数行情 ${formatNasdaqMarketTime(marketQuotes.index.quoteTime)} · 北京时间` : '指数行情暂不可用'}</p>
           </div>
           <div className="nasdaq-market-item nasdaq-market-futures">
