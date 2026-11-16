@@ -3,7 +3,15 @@ import { fetchNasdaqEtfSnapshot } from '../utils/api'
 import { isChinaTradingSession, readNasdaqEtfCache, writeNasdaqEtfCache } from '../utils/nasdaqEtfCache'
 import { fetchNasdaqMarketQuote, formatNasdaqMarketTime, type NasdaqMarketQuote } from '../utils/nasdaqMarket'
 import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
+import { fetchNasdaqPerformance, performancePeriods, type NasdaqPerformance } from '../utils/nasdaqPerformance'
 import './NasdaqPremium.css'
+
+function performanceValue(value: number | null | undefined) {
+  return value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
+}
+function performanceClass(value: number | null | undefined) {
+  return value == null || value === 0 ? '' : value > 0 ? 'nasdaq-up' : 'nasdaq-down'
+}
 
 const funds = [
   { name: '华泰柏瑞纳斯达克100ETF（QDII）', code: '513110', manage: 0.80, custody: 0.20 },
@@ -30,6 +38,21 @@ const sortColumns: { key: NasdaqSortKey; label: string; detail?: string }[] = [
 ]
 
 export default function NasdaqPremium() {
+  const [performance, setPerformance] = useState<Record<string, NasdaqPerformance>>({})
+  const [performanceLoading, setPerformanceLoading] = useState(true)
+  const [performanceError, setPerformanceError] = useState(false)
+  const refreshPerformance = useCallback(async () => {
+    setPerformanceLoading(true)
+    const results = await Promise.allSettled(funds.map(async fund => ({ code: fund.code, data: await fetchNasdaqPerformance(fund.code) })))
+    setPerformance(current => {
+      const next = { ...current }
+      for (const result of results) if (result.status === 'fulfilled') next[result.value.code] = result.value.data
+      return next
+    })
+    setPerformanceError(results.some(result => result.status === 'rejected'))
+    setPerformanceLoading(false)
+  }, [])
+  useEffect(() => { void refreshPerformance() }, [refreshPerformance])
   const [quotes, setQuotes] = useState<Record<string, NasdaqQuote>>({})
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -118,7 +141,7 @@ export default function NasdaqPremium() {
 
         <div className="nasdaq-status" role="status">
           <div><span className="nasdaq-status-label">最近行情</span><strong>{timeLabel}</strong><span>北京时间 · ETF 交易时段每 5 分钟更新，盘后使用缓存</span></div>
-          <button type="button" onClick={() => { void refresh() }} disabled={refreshing}>{refreshing ? '刷新中…' : '立即刷新'}<span aria-hidden="true">↗</span></button>
+          <button type="button" onClick={() => { void refresh(); void refreshPerformance() }} disabled={refreshing || performanceLoading}>{refreshing ? '刷新中…' : '立即刷新'}<span aria-hidden="true">↗</span></button>
         </div>
         {error && <p className="nasdaq-error" role="alert">{error}。{available.length ? '当前显示上次成功获取的数据。' : '请稍后重试。'}</p>}
 
@@ -131,6 +154,7 @@ export default function NasdaqPremium() {
             <strong>IOPV 时效提示</strong>
             <p>美股与 A 股交易时段不重合，盘中 IOPV 可能无法实时反映美股变化。参考溢价仅基于报价 IOPV；上方“最近行情”是 ETF 行情时间，不代表 IOPV 更新时间。</p>
           </aside>
+          <p className="nasdaq-performance-note" role="status">业绩趋势 · 前复权收盘价涨跌幅（非净值收益率）。截至各基金所示日期；非交易日取此前最近收盘价。{performanceLoading ? '正在加载历史行情…' : performanceError ? '部分历史行情更新失败，已有数据保留原日期，可点击立即刷新重试。' : '历史不足显示 —。'}</p>
           {!loading && <>
           <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
             {sortColumns.map(column => <button
@@ -155,6 +179,7 @@ export default function NasdaqPremium() {
                 <col className="nasdaq-col-size" />
                 <col className="nasdaq-col-turnover" />
                 <col className="nasdaq-col-fee" />
+                {performancePeriods.map(period => <col className="nasdaq-col-performance" key={period.key} />)}
               </colgroup>
               <thead><tr>
                 <th scope="col">基金 / 代码</th>
@@ -173,6 +198,7 @@ export default function NasdaqPremium() {
                     <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
                   </button>
                 </th>)}
+                {performancePeriods.map(period => <th scope="col" key={period.key}>{period.label}<small className="nasdaq-performance-label">业绩趋势</small></th>)}
               </tr></thead>
               <tbody>{sortedFunds.map((fund, index) => {
                 const quote = quotes[fund.code]
@@ -184,6 +210,7 @@ export default function NasdaqPremium() {
                   <td><strong>{quote?.size.toFixed(2) ?? '—'}</strong></td>
                   <td><strong>{quote?.turnover.toFixed(2) ?? '—'}</strong></td>
                   <td><strong>{fund.manage.toFixed(2)} / {fund.custody.toFixed(2)}</strong><small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></td>
+                  {performancePeriods.map(period => <td key={period.key} className={performanceClass(performance[fund.code]?.returns[period.key])}><strong>{performanceValue(performance[fund.code]?.returns[period.key])}</strong><small>{performance[fund.code]?.date ?? '暂无数据'}</small></td>)}
                 </tr>
               })}</tbody>
             </table>
@@ -209,6 +236,10 @@ export default function NasdaqPremium() {
                       <div><dt>成交额 · 亿元</dt><dd>{quote?.turnover.toFixed(2) ?? '—'}</dd></div>
                       <div><dt>管理 / 托管 · 年费率</dt><dd>{fund.manage.toFixed(2)}% / {fund.custody.toFixed(2)}%<small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></dd></div>
                     </dl>
+                    <div className="nasdaq-card-performance">
+                      <h4>业绩趋势 <small>{performance[fund.code] ? `截至 ${performance[fund.code].date}` : '暂无数据'}</small></h4>
+                      <dl>{performancePeriods.map(period => <div key={period.key}><dt>{period.label}</dt><dd className={performanceClass(performance[fund.code]?.returns[period.key])}>{performanceValue(performance[fund.code]?.returns[period.key])}</dd></div>)}</dl>
+                    </div>
                   </article>
                 </li>
               )

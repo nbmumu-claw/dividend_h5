@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import nasdaqHistoryHandler from './api/nasdaq-history.js'
 import upcomingDividendsHandler from './api/upcoming-dividends.js'
 
 const YF_HEADERS = {
@@ -41,6 +42,9 @@ function upcomingDividendsDevApi() {
   return {
     name: 'upcoming-dividends-dev-api',
     configureServer(server: import('vite').ViteDevServer) {
+      server.middlewares.use('/api/nasdaq-history', (req, res) => {
+        void nasdaqHistoryHandler(req, res)
+      })
       server.middlewares.use('/api/upcoming-dividends', (req, res) => {
         void upcomingDividendsHandler(req, res)
       })
