@@ -206,3 +206,10 @@
 .nasdaq-index-ytd strong { font-size: 16px; font-variant-numeric: tabular-nums; }
 .nasdaq-index-ytd .nasdaq-up { color: #dc2626; }
 .nasdaq-index-ytd .nasdaq-down { color: #16a34a; }
+
+.nasdaq-gap-sort { display: block; margin: 10px auto 0; padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; color: #6b7280; font-size: 11px; cursor: pointer; }
+.nasdaq-gap-sort.active, .nasdaq-gap-sort:hover { color: #b91c1c; border-color: #b91c1c; }
+.nasdaq-ytd-gap { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 11px; }
+.nasdaq-table td .nasdaq-ytd-gap strong, .nasdaq-card-performance .nasdaq-ytd-gap strong { font-size: 12px; }
+.nasdaq-ytd-gap .nasdaq-up { color: #dc2626; }
+.nasdaq-ytd-gap .nasdaq-down { color: #16a34a; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqSortKey } from './nasdaqPremium'
+import { nasdaqYtdGap, compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqSortKey } from './nasdaqPremium'
 
 function quote(code: string, overrides: Record<number, string> = {}) {
   const fields = Array(82).fill('')
@@ -66,6 +66,30 @@ describe('performance sorting', () => {
     for (const direction of ['asc', 'desc'] as const) {
       const sorted = [...funds].sort((a, b) => compareNasdaqFunds(a, b, {}, { key, direction }, performance))
       expect(sorted.map(fund => fund.code)).toEqual(direction === 'asc' ? ['a', 'b', 'c', 'd'] : ['b', 'a', 'c', 'd'])
+    }
+  })
+})
+
+describe('YTD gap to Nasdaq', () => {
+  const index = { price: 100, change: 0, changePercent: 0, quoteTime: Date.parse('2026-11-13T21:00:00Z') / 1000, ytd: { percent: 10.67, baseDate: '2025-12-31', baseClose: 90 } }
+  const make = (ytd: number | null, date = '2026-11-16') => ({ date, returns: { week: null, month: null, quarter: null, year: null, ytd } })
+  it('subtracts percentage returns as percentage points without rounding inputs', () => {
+    expect(nasdaqYtdGap(make(16.89), index)).toBeCloseTo(6.22)
+    expect(nasdaqYtdGap(make(8), index)).toBeCloseTo(-2.67)
+    expect(nasdaqYtdGap(make(10.67), index)).toBe(0)
+    expect(nasdaqYtdGap(make(0), { ...index, ytd: { ...index.ytd, percent: 0 } })).toBe(0)
+  })
+  it('returns missing for unavailable inputs or mismatched years', () => {
+    expect(nasdaqYtdGap(make(null), index)).toBeNull()
+    expect(nasdaqYtdGap(make(10), null)).toBeNull()
+    expect(nasdaqYtdGap(make(10, '2025-12-31'), index)).toBeNull()
+    expect(nasdaqYtdGap(make(NaN), index)).toBeNull()
+  })
+  it('sorts gaps in both directions and keeps unavailable values last', () => {
+    const funds = ['a', 'b', 'c'].map(code => ({ code, manage: 0, custody: 0 }))
+    const performance = { a: make(16.89), b: make(8), c: make(null) }
+    for (const direction of ['asc', 'desc'] as const) {
+      expect([...funds].sort((a, b) => compareNasdaqFunds(a, b, {}, { key: 'ytdGap', direction }, performance, index)).map(fund => fund.code)).toEqual(direction === 'asc' ? ['b', 'a', 'c'] : ['a', 'b', 'c'])
     }
   })
 })

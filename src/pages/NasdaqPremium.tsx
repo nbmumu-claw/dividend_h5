@@ -2,12 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchNasdaqEtfSnapshot } from '../utils/api'
 import { isChinaTradingSession, readNasdaqEtfCache, writeNasdaqEtfCache } from '../utils/nasdaqEtfCache'
 import { fetchNasdaqMarketQuote, formatNasdaqMarketTime, type NasdaqMarketQuote } from '../utils/nasdaqMarket'
-import { compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
+import { nasdaqYtdGap, compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
 import { fetchNasdaqPerformance, performancePeriods, type NasdaqPerformance } from '../utils/nasdaqPerformance'
 import './NasdaqPremium.css'
 
 function performanceValue(value: number | null | undefined) {
   return value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
+}
+function gapValue(value: number | null) {
+  if (value == null) return '—'
+  const rounded = Number(value.toFixed(2))
+  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)} 个百分点`
 }
 function performanceClass(value: number | null | undefined) {
   return value == null || value === 0 ? '' : value > 0 ? 'nasdaq-up' : 'nasdaq-down'
@@ -94,7 +99,7 @@ export default function NasdaqPremium() {
     return () => window.clearInterval(timer)
   }, [refresh])
 
-  const sortedFunds = useMemo(() => [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, sort, performance)), [quotes, sort, performance])
+  const sortedFunds = useMemo(() => [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, sort, performance, marketQuotes.index)), [quotes, sort, performance, marketQuotes.index])
   const toggleSort = (key: NasdaqSortKey) => setSort(current => ({
     key,
     direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc',
@@ -160,9 +165,10 @@ export default function NasdaqPremium() {
             <p>美股与 A 股交易时段不重合，盘中 IOPV 可能无法实时反映美股变化。参考溢价仅基于报价 IOPV；上方“最近行情”是 ETF 行情时间，不代表 IOPV 更新时间。</p>
           </aside>
           <p className="nasdaq-performance-note" role="status">业绩趋势 · 前复权收盘价涨跌幅（非净值收益率）。截至各基金所示日期；非交易日取此前最近收盘价；今年以来以去年最后一个交易日为基准。{performanceLoading ? '正在加载历史行情…' : performanceError ? '部分历史行情更新失败，已有数据保留原日期，可点击立即刷新重试。' : '历史不足显示 —。'}</p>
+          <p className="nasdaq-performance-note">较纳指 YTD = ETF 今年以来涨幅 − 纳指100今年以来涨幅，单位为百分点。正值表示多涨，负值表示少涨。ETF 为人民币场内前复权收盘价，指数为美元计价最新报价，受汇率、溢价和交易时点影响，不是跟踪误差。{marketQuotes.index?.ytd ? `指数基准涨幅 ${performanceValue(marketQuotes.index.ytd.percent)}（报价时间 ${formatNasdaqMarketTime(marketQuotes.index.quoteTime)}，北京时间）；ETF 截至日期见各行。` : '指数 YTD 暂不可用，涨幅差显示 —。'}</p>
           {!loading && <>
           <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
-            {[...sortColumns, ...performancePeriods.map(period => ({ ...period, detail: '业绩趋势' }))].map(column => <button
+            {[...sortColumns, ...performancePeriods.map(period => ({ ...period, detail: '业绩趋势' })), { key: 'ytdGap' as const, label: '较纳指 YTD', detail: '百分点差' }].map(column => <button
               type="button"
               key={column.key}
               className={`nasdaq-sort${sort.key === column.key ? ' active' : ''}`}
@@ -212,6 +218,7 @@ export default function NasdaqPremium() {
                     aria-pressed={sort.key === period.key}
                     aria-label={`按${period.label}涨跌幅${sort.key === period.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}
                   >{period.label}<span aria-hidden="true">{sort.key === period.key ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span></button>)}</div>
+                  <button type="button" className={`nasdaq-gap-sort${sort.key === 'ytdGap' ? ' active' : ''}`} onClick={() => toggleSort('ytdGap')} aria-pressed={sort.key === 'ytdGap'} aria-label={`按较纳指YTD涨幅差${sort.key === 'ytdGap' && sort.direction === 'desc' ? '升序' : '降序'}排列`}>较纳指 YTD · 百分点 <span aria-hidden="true">{sort.key === 'ytdGap' ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span></button>
                 </th>
               </tr></thead>
               <tbody>{sortedFunds.map((fund, index) => {
@@ -226,6 +233,7 @@ export default function NasdaqPremium() {
                   <td><strong>{fund.manage.toFixed(2)} / {fund.custody.toFixed(2)}</strong><small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></td>
                   <td className="nasdaq-performance-cell">
                     <div className="nasdaq-performance-values">{performancePeriods.map(period => <strong key={period.key} className={performanceClass(performance[fund.code]?.returns[period.key])}>{performanceValue(performance[fund.code]?.returns[period.key])}</strong>)}</div>
+                    <div className="nasdaq-ytd-gap">较纳指 YTD <strong className={performanceClass(nasdaqYtdGap(performance[fund.code], marketQuotes.index))}>{gapValue(nasdaqYtdGap(performance[fund.code], marketQuotes.index))}</strong></div>
                     <small>{performance[fund.code] ? `截至 ${performance[fund.code].date}` : '暂无数据'}</small>
                   </td>
                 </tr>
@@ -256,6 +264,7 @@ export default function NasdaqPremium() {
                     <div className="nasdaq-card-performance">
                       <h4>业绩趋势 <small>{performance[fund.code] ? `截至 ${performance[fund.code].date}` : '暂无数据'}</small></h4>
                       <dl>{performancePeriods.map(period => <div key={period.key}><dt>{period.label}</dt><dd className={performanceClass(performance[fund.code]?.returns[period.key])}>{performanceValue(performance[fund.code]?.returns[period.key])}</dd></div>)}</dl>
+                      <div className="nasdaq-ytd-gap">较纳指 YTD <strong className={performanceClass(nasdaqYtdGap(performance[fund.code], marketQuotes.index))}>{gapValue(nasdaqYtdGap(performance[fund.code], marketQuotes.index))}</strong></div>
                     </div>
                   </article>
                 </li>

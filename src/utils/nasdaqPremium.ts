@@ -1,3 +1,4 @@
+import type { NasdaqMarketQuote } from './nasdaqMarket'
 import type { NasdaqPerformance, PerformanceKey } from './nasdaqPerformance'
 
 export type NasdaqQuote = {
@@ -11,8 +12,18 @@ export type NasdaqQuote = {
   tradeTime: string
 }
 
-export type NasdaqSortKey = 'change' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee' | PerformanceKey
+export type NasdaqSortKey = 'change' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee' | 'ytdGap' | PerformanceKey
 export type NasdaqSort = { key: NasdaqSortKey; direction: 'asc' | 'desc' }
+
+// 百分点差；币种、交易时点不同，不作为跟踪误差。
+export function nasdaqYtdGap(performance: NasdaqPerformance | undefined, index: NasdaqMarketQuote | null | undefined): number | null {
+  const fundYtd = performance?.returns.ytd
+  const indexYtd = index?.ytd?.percent
+  if (!index || fundYtd == null || indexYtd == null || !Number.isFinite(fundYtd) || !Number.isFinite(indexYtd)) return null
+  const indexYear = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric' }).format(index.quoteTime * 1000)
+  if (performance?.date.slice(0, 4) !== indexYear) return null
+  return fundYtd - indexYtd
+}
 
 export function compareNasdaqFunds(
   a: { code: string; manage: number; custody: number },
@@ -20,8 +31,10 @@ export function compareNasdaqFunds(
   quotes: Record<string, NasdaqQuote>,
   sort: NasdaqSort,
   performance: Record<string, NasdaqPerformance> = {},
+  index?: NasdaqMarketQuote | null,
 ): number {
   const value = (fund: { code: string; manage: number; custody: number }) => {
+    if (sort.key === 'ytdGap') return nasdaqYtdGap(performance[fund.code], index)
     if (sort.key === 'fee') return fund.manage + fund.custody
     if (sort.key === 'week' || sort.key === 'month' || sort.key === 'quarter' || sort.key === 'year' || sort.key === 'ytd') {
       return performance[fund.code]?.returns[sort.key]
