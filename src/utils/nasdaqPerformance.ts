@@ -3,6 +3,7 @@ export const performancePeriods = [
   { key: 'month', label: '近1月' },
   { key: 'quarter', label: '近3月' },
   { key: 'year', label: '近1年' },
+  { key: 'ytd', label: '今年以来' },
 ] as const
 export type PerformanceKey = typeof performancePeriods[number]['key']
 export type NasdaqPerformance = { date: string; returns: Record<PerformanceKey, number | null> }
@@ -27,6 +28,7 @@ export function calculatePerformance(rows: unknown, today = historyCutoff()): Na
   for (const { key } of performancePeriods) {
     const target = new Date(`${last[0]}T00:00:00Z`)
     if (key === 'week') target.setUTCDate(target.getUTCDate() - 7)
+    else if (key === 'ytd') target.setUTCFullYear(target.getUTCFullYear() - 1, 11, 31)
     else {
       const day = target.getUTCDate()
       target.setUTCDate(1)

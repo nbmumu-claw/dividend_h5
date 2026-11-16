@@ -23,7 +23,7 @@ export function compareNasdaqFunds(
 ): number {
   const value = (fund: { code: string; manage: number; custody: number }) => {
     if (sort.key === 'fee') return fund.manage + fund.custody
-    if (sort.key === 'week' || sort.key === 'month' || sort.key === 'quarter' || sort.key === 'year') {
+    if (sort.key === 'week' || sort.key === 'month' || sort.key === 'quarter' || sort.key === 'year' || sort.key === 'ytd') {
       return performance[fund.code]?.returns[sort.key]
     }
     return quotes[fund.code]?.[sort.key]

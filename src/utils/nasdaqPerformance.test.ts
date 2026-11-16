@@ -24,3 +24,18 @@ describe('calculatePerformance', () => {
     expect(calculatePerformance(null)).toBeNull()
   })
 })
+
+describe('YTD performance', () => {
+  it('uses last year-end close instead of the first close of this year', () => {
+    const result = calculatePerformance([row('2025-12-31', 1.735), row('2026-01-05', 1.8), row('2026-11-16', 2.028)], '2026-11-17')!
+    expect(result.returns.ytd).toBeCloseTo(16.887608)
+  })
+  it('uses the previous trading day when December 31 is a holiday', () => {
+    const result = calculatePerformance([row('2023-12-29', 100), row('2024-01-02', 110)], '2024-01-03')!
+    expect(result.returns.ytd).toBeCloseTo(10)
+  })
+  it('does not invent a YTD return for a fund listed this year', () => {
+    const result = calculatePerformance([row('2026-02-01', 100), row('2026-11-16', 110)], '2026-11-17')!
+    expect(result.returns.ytd).toBeNull()
+  })
+})
