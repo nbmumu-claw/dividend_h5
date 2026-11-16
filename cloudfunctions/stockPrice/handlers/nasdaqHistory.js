@@ -1,9 +1,9 @@
 // 与纳指 ETF 清单保持一致；只代理固定证券的前复权日 K 线。
 const codes = new Set(['513110', '159513', '159632', '159660', '513390', '513870', '513300', '159659', '159941', '159696', '513100', '159501'])
 const cache = new Map()
+// 跨域头由现有 CloudBase 网关统一设置，避免重复 Origin 导致浏览器拒绝。
 const headers = {
   'Content-Type': 'application/json; charset=utf-8',
-  'Access-Control-Allow-Origin': '*',
 }
 
 module.exports = async function nasdaqHistory({ code }) {

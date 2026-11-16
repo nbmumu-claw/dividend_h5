@@ -45,9 +45,6 @@ const server = http.createServer(async (req, res) => {
 
     if (action === 'nasdaqHistory' && req.method !== 'GET') {
       res.writeHead(req.method === 'OPTIONS' ? 204 : 405, {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
         'Allow': 'GET, OPTIONS',
       })
       res.end()

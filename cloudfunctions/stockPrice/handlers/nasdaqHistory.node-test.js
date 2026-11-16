@@ -7,7 +7,7 @@ test('rejects codes outside the allowlist without upstream access', async () => 
   global.fetch = () => { throw new Error('Must not fetch') }
   const response = await handler({ code: '../invalid' })
   assert.equal(response.statusCode, 400)
-  assert.equal(response.headers['Access-Control-Allow-Origin'], '*')
+  assert.equal(response.headers['Access-Control-Allow-Origin'], undefined)
 })
 test('returns adjusted history and reuses successful cached results', async () => {
   let calls = 0
@@ -23,13 +23,13 @@ test('returns adjusted history and reuses successful cached results', async () =
   await handler({ code: '513100' })
   assert.equal(calls, 1)
 })
-test('returns CORS-enabled failure and does not cache it', async () => {
+test('leaves CORS to the gateway and does not cache failures', async () => {
   global.fetch = async () => ({ ok: false, status: 503, text: async () => 'unavailable' })
   assert.equal((await handler({ code: '159501' })).statusCode, 502)
   global.fetch = async () => ({ ok: true, json: async () => ({ data: { sz159501: { day: [['2026-11-13', '1', '1.5']] } } }) })
   const response = await handler({ code: '159501' })
   assert.equal(response.statusCode, 200)
-  assert.equal(response.headers['Access-Control-Allow-Origin'], '*')
+  assert.equal(response.headers['Access-Control-Allow-Origin'], undefined)
 })
 test('retries a transient WAF 501 once with a fresh request', async () => {
   const urls = []
