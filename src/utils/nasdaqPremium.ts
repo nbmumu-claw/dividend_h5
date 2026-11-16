@@ -1,3 +1,5 @@
+import type { NasdaqPerformance, PerformanceKey } from './nasdaqPerformance'
+
 export type NasdaqQuote = {
   code: string
   price: number
@@ -9,7 +11,7 @@ export type NasdaqQuote = {
   tradeTime: string
 }
 
-export type NasdaqSortKey = 'change' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee'
+export type NasdaqSortKey = 'change' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee' | PerformanceKey
 export type NasdaqSort = { key: NasdaqSortKey; direction: 'asc' | 'desc' }
 
 export function compareNasdaqFunds(
@@ -17,11 +19,19 @@ export function compareNasdaqFunds(
   b: { code: string; manage: number; custody: number },
   quotes: Record<string, NasdaqQuote>,
   sort: NasdaqSort,
+  performance: Record<string, NasdaqPerformance> = {},
 ): number {
-  const aValue = sort.key === 'fee' ? a.manage + a.custody : quotes[a.code]?.[sort.key]
-  const bValue = sort.key === 'fee' ? b.manage + b.custody : quotes[b.code]?.[sort.key]
-  if (aValue === undefined) return bValue === undefined ? 0 : 1
-  if (bValue === undefined) return -1
+  const value = (fund: { code: string; manage: number; custody: number }) => {
+    if (sort.key === 'fee') return fund.manage + fund.custody
+    if (sort.key === 'week' || sort.key === 'month' || sort.key === 'quarter' || sort.key === 'year') {
+      return performance[fund.code]?.returns[sort.key]
+    }
+    return quotes[fund.code]?.[sort.key]
+  }
+  const aValue = value(a)
+  const bValue = value(b)
+  if (aValue == null) return bValue == null ? 0 : 1
+  if (bValue == null) return -1
   return (aValue - bValue) * (sort.direction === 'asc' ? 1 : -1)
 }
 

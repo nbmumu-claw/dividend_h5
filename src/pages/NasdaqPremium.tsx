@@ -94,7 +94,7 @@ export default function NasdaqPremium() {
     return () => window.clearInterval(timer)
   }, [refresh])
 
-  const sortedFunds = useMemo(() => [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, sort)), [quotes, sort])
+  const sortedFunds = useMemo(() => [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, sort, performance)), [quotes, sort, performance])
   const toggleSort = (key: NasdaqSortKey) => setSort(current => ({
     key,
     direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc',
@@ -157,7 +157,7 @@ export default function NasdaqPremium() {
           <p className="nasdaq-performance-note" role="status">业绩趋势 · 前复权收盘价涨跌幅（非净值收益率）。截至各基金所示日期；非交易日取此前最近收盘价。{performanceLoading ? '正在加载历史行情…' : performanceError ? '部分历史行情更新失败，已有数据保留原日期，可点击立即刷新重试。' : '历史不足显示 —。'}</p>
           {!loading && <>
           <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
-            {sortColumns.map(column => <button
+            {[...sortColumns, ...performancePeriods.map(period => ({ ...period, detail: '业绩趋势' }))].map(column => <button
               type="button"
               key={column.key}
               className={`nasdaq-sort${sort.key === column.key ? ' active' : ''}`}
@@ -179,7 +179,7 @@ export default function NasdaqPremium() {
                 <col className="nasdaq-col-size" />
                 <col className="nasdaq-col-turnover" />
                 <col className="nasdaq-col-fee" />
-                {performancePeriods.map(period => <col className="nasdaq-col-performance" key={period.key} />)}
+                <col className="nasdaq-col-performance" />
               </colgroup>
               <thead><tr>
                 <th scope="col">基金 / 代码</th>
@@ -198,7 +198,16 @@ export default function NasdaqPremium() {
                     <span className="nasdaq-sort-icons" aria-hidden="true"><i className={`nasdaq-sort-up${sort.key === column.key && sort.direction === 'asc' ? ' active' : ''}`} /><i className={`nasdaq-sort-down${sort.key === column.key && sort.direction === 'desc' ? ' active' : ''}`} /></span>
                   </button>
                 </th>)}
-                {performancePeriods.map(period => <th scope="col" key={period.key}>{period.label}<small className="nasdaq-performance-label">业绩趋势</small></th>)}
+                <th scope="col" className="nasdaq-performance-heading">
+                  <span>业绩趋势</span>
+                  <div className="nasdaq-performance-values">{performancePeriods.map(period => <button
+                    key={period.key} type="button"
+                    className={`nasdaq-table-sort${sort.key === period.key ? ' active' : ''}`}
+                    onClick={() => toggleSort(period.key)}
+                    aria-pressed={sort.key === period.key}
+                    aria-label={`按${period.label}涨跌幅${sort.key === period.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}
+                  >{period.label}<span aria-hidden="true">{sort.key === period.key ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span></button>)}</div>
+                </th>
               </tr></thead>
               <tbody>{sortedFunds.map((fund, index) => {
                 const quote = quotes[fund.code]
@@ -210,7 +219,10 @@ export default function NasdaqPremium() {
                   <td><strong>{quote?.size.toFixed(2) ?? '—'}</strong></td>
                   <td><strong>{quote?.turnover.toFixed(2) ?? '—'}</strong></td>
                   <td><strong>{fund.manage.toFixed(2)} / {fund.custody.toFixed(2)}</strong><small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></td>
-                  {performancePeriods.map(period => <td key={period.key} className={performanceClass(performance[fund.code]?.returns[period.key])}><strong>{performanceValue(performance[fund.code]?.returns[period.key])}</strong><small>{performance[fund.code]?.date ?? '暂无数据'}</small></td>)}
+                  <td className="nasdaq-performance-cell">
+                    <div className="nasdaq-performance-values">{performancePeriods.map(period => <strong key={period.key} className={performanceClass(performance[fund.code]?.returns[period.key])}>{performanceValue(performance[fund.code]?.returns[period.key])}</strong>)}</div>
+                    <small>{performance[fund.code] ? `截至 ${performance[fund.code].date}` : '暂无数据'}</small>
+                  </td>
                 </tr>
               })}</tbody>
             </table>

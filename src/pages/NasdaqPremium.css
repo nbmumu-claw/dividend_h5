@@ -68,14 +68,14 @@
 .nasdaq-sort-down.active { border-top-color: #fecaca; }
 
 .nasdaq-table-scroll { display: none; overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
-.nasdaq-table { width: 100%; min-width: 1580px; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
-.nasdaq-col-fund { width: 280px; }
-.nasdaq-col-price { width: 120px; }
-.nasdaq-col-premium { width: 120px; }
-.nasdaq-col-iopv { width: 120px; }
-.nasdaq-col-size { width: 105px; }
-.nasdaq-col-turnover { width: 105px; }
-.nasdaq-col-fee { width: 150px; }
+.nasdaq-table { width: 100%; min-width: 0; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.nasdaq-col-fund { width: 22%; }
+.nasdaq-col-price { width: 9%; }
+.nasdaq-col-premium { width: 9%; }
+.nasdaq-col-iopv { width: 9%; }
+.nasdaq-col-size { width: 8%; }
+.nasdaq-col-turnover { width: 8%; }
+.nasdaq-col-fee { width: 11%; }
 .nasdaq-table thead th { padding: 15px 16px; border-bottom: 2px solid #e5e7eb; background: #f9fafb; color: #6b7280; font-size: 12px; text-align: right; vertical-align: middle; }
 .nasdaq-table thead th:first-child { text-align: left; }
 .nasdaq-table-sort { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 700; text-align: right; cursor: pointer; }
@@ -173,8 +173,14 @@
 }
 
 .nasdaq-performance-note { margin: 0 0 18px; color: #6b7280; font-size: 12px; line-height: 1.7; }
-.nasdaq-col-performance { width: 145px; }
-.nasdaq-performance-label { display: block; margin-top: 3px; font-size: 10px; font-weight: 400; }
+.nasdaq-col-performance { width: 24%; }
+.nasdaq-performance-values { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; gap: 4px; }
+.nasdaq-performance-heading > span { display: block; margin-bottom: 10px; text-align: center; }
+.nasdaq-performance-heading .nasdaq-table-sort { justify-content: center; gap: 2px; font-size: 11px; white-space: nowrap; }
+.nasdaq-performance-cell .nasdaq-performance-values strong { font-size: 13px; text-align: center; white-space: nowrap; }
+.nasdaq-performance-cell > small { text-align: center; }
+.nasdaq-performance-values .nasdaq-up { color: #dc2626; }
+.nasdaq-performance-values .nasdaq-down { color: #16a34a; }
 .nasdaq-table td.nasdaq-up, .nasdaq-card-performance .nasdaq-up { color: #dc2626; }
 .nasdaq-table td.nasdaq-down, .nasdaq-card-performance .nasdaq-down { color: #16a34a; }
 .nasdaq-card-performance { margin-top: 18px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
@@ -183,3 +189,14 @@
 .nasdaq-card-performance dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; }
 .nasdaq-card-performance dt { color: #6b7280; font-size: 11px; }
 .nasdaq-card-performance dd { margin: 6px 0 0; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+@media (min-width: 960px) {
+  .nasdaq-table thead th, .nasdaq-table tbody th, .nasdaq-table tbody td { padding: 13px 8px; }
+  .nasdaq-table-fund-content { gap: 6px; }
+  .nasdaq-table-fund-content strong { overflow-wrap: anywhere; }
+  .nasdaq-table-rank { flex-basis: 20px; }
+  .nasdaq-table td strong { font-size: clamp(12px, 1.1vw, 16px); }
+  .nasdaq-table-sort { gap: 4px; }
+  .nasdaq-table-sort small { white-space: normal; }
+  .nasdaq-performance-cell .nasdaq-performance-values strong { font-size: clamp(11px, .95vw, 14px); }
+}

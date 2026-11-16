@@ -54,3 +54,18 @@ describe('Nasdaq ETF column sorting', () => {
     }
   })
 })
+
+describe('performance sorting', () => {
+  const funds = ['a', 'b', 'c', 'd'].map(code => ({ code, manage: 0, custody: 0 }))
+  it.each(['week', 'month', 'quarter', 'year'] as const)('sorts %s and keeps missing data last in both directions', key => {
+    const performance = {
+      a: { date: '2026-11-13', returns: { week: -2, month: -2, quarter: -2, year: -2 } },
+      b: { date: '2026-11-13', returns: { week: 0, month: 0, quarter: 0, year: 0 } },
+      c: { date: '2026-11-13', returns: { week: null, month: null, quarter: null, year: null } },
+    }
+    for (const direction of ['asc', 'desc'] as const) {
+      const sorted = [...funds].sort((a, b) => compareNasdaqFunds(a, b, {}, { key, direction }, performance))
+      expect(sorted.map(fund => fund.code)).toEqual(direction === 'asc' ? ['a', 'b', 'c', 'd'] : ['b', 'a', 'c', 'd'])
+    }
+  })
+})
