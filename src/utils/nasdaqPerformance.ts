@@ -42,7 +42,7 @@ export function calculatePerformance(rows: unknown, today = historyCutoff()): Na
 }
 
 export async function fetchNasdaqPerformance(code: string): Promise<NasdaqPerformance> {
-  const response = await fetch(`/api/nasdaq-history?code=${code}`, { signal: AbortSignal.timeout(15000) })
+  const response = await fetch(`https://vercel-dividend-d8faqegf03442b6c.service.tcloudbase.com/stockPrice?action=nasdaqHistory&code=${code}`, { signal: AbortSignal.timeout(15000) })
   if (!response.ok) throw new Error('历史行情获取失败')
   const data = calculatePerformance((await response.json()).rows)
   if (!data) throw new Error('历史行情不足')

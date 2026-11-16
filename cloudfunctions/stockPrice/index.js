@@ -17,6 +17,7 @@ const response = require('./utils/response')
 const HANDLERS = {
   stockPrice: './handlers/stockPrice',
   nasdaqSnapshot: './handlers/nasdaqSnapshot',
+  nasdaqHistory: './handlers/nasdaqHistory',
   ownerType:  './handlers/ownerType',
   dividendHistory: './handlers/dividendHistory',
   dividendPayout: './handlers/dividendPayout',
@@ -41,6 +42,17 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost')
     const action = url.searchParams.get('action') || 'stockPrice'
+
+    if (action === 'nasdaqHistory' && req.method !== 'GET') {
+      res.writeHead(req.method === 'OPTIONS' ? 204 : 405, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Allow': 'GET, OPTIONS',
+      })
+      res.end()
+      return
+    }
 
     if (!HANDLERS[action]) {
       const r = response.badRequest(`未知的 action: ${action}`)
