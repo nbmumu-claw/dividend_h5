@@ -220,11 +220,10 @@ export default function NasdaqPremium() {
             <section className="nasdaq-compare-insights" aria-label="对比结论">
               <h3>对比结论</h3>
               <dl>{insights.map(item => <div key={item.label}>
-                <dt>{item.label.replace('（亿元）', '')}{item.badge && <span>{item.badge}</span>}</dt>
+                <dt>{item.label.replace('（亿元）', '')}</dt>
                 <dd>
-                  <strong>{item.amount}<em>{item.unit}</em></strong>
-                  {item.owner && <b>{item.owner}</b>}
-                  {item.text && <p>{item.text} <span>{item.delta}</span></p>}
+                  {item.owner && <>{item.owner}{item.badge} <strong>{item.amount}{item.unit}</strong></>}
+                  {item.text && <span className="nasdaq-insight-detail">{item.owner ? '，' : ''}{item.text}{item.delta && <> <span>{item.delta}</span></>}</span>}
                 </dd>
               </div>)}</dl>
             </section>

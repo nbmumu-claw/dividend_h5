@@ -232,19 +232,14 @@
 .nasdaq-compare-dialog th:first-child { text-align: left; padding-left: 10px; }
 .nasdaq-compare-dialog small { display: block; color: #697386; }
 
-.nasdaq-compare-insights { padding: 4px clamp(12px, 3vw, 22px) 20px; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
-.nasdaq-compare-insights h3 { margin: 0 0 10px; color: #45403c; font-size: 13px; font-weight: 600; }
-.nasdaq-compare-insights dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; border-block: 1px solid #e3ddd5; background: #fffcf8; }
-.nasdaq-compare-insights dl > div { padding: 14px clamp(10px, 2vw, 18px); }
-.nasdaq-compare-insights dl > div:nth-child(odd) { border-right: 1px solid #e8e2da; }
-.nasdaq-compare-insights dl > div:nth-child(n+3) { border-top: 1px solid #e8e2da; }
-.nasdaq-compare-insights dt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: #534d46; font-size: 12px; font-weight: 600; }
-.nasdaq-compare-insights dt span { color: #814b35; font-size: 10px; font-weight: 500; }
-.nasdaq-compare-insights dd { margin: 5px 0 0; }
-.nasdaq-compare-insights dd strong { display: block; color: #302721; font: 500 clamp(23px, 4vw, 30px)/1.2 Georgia, serif; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
-.nasdaq-compare-insights dd em { margin-left: 3px; font: normal 12px/1 sans-serif; }
-.nasdaq-compare-insights dd b { display: block; margin-top: 5px; font-size: 13px; font-weight: 600; }
-.nasdaq-compare-insights dd p { margin: 2px 0 0; color: #665f59; font-size: 12px; line-height: 1.55; }
-.nasdaq-compare-insights dd p span { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nasdaq-compare-insights { padding: 0 14px 10px; font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-variant-numeric: tabular-nums; }
+.nasdaq-compare-insights h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.nasdaq-compare-insights dl { margin: 0; }
+.nasdaq-compare-insights dl > div { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; padding-block: 2px; }
+.nasdaq-compare-insights dt { color: #635d58; }
+.nasdaq-compare-insights dd { margin: 0; }
+.nasdaq-compare-insights dd strong { font-weight: 600; white-space: nowrap; }
+.nasdaq-insight-detail { color: #615c58; }
+.nasdaq-insight-detail > span { white-space: nowrap; }
 .nasdaq-compare-highlight { background: #fbf5e9; font-weight: 650; }
 .nasdaq-compare-highlight small { color: #73531d; font-size: 10px; }
