@@ -165,7 +165,6 @@ export default function NasdaqPremium() {
             <p>美股与 A 股交易时段不重合，盘中 IOPV 可能无法实时反映美股变化。参考溢价仅基于报价 IOPV；上方“最近行情”是 ETF 行情时间，不代表 IOPV 更新时间。</p>
           </aside>
           <p className="nasdaq-performance-note" role="status">业绩趋势 · 前复权收盘价涨跌幅（非净值收益率）。截至各基金所示日期；非交易日取此前最近收盘价；今年以来以去年最后一个交易日为基准。{performanceLoading ? '正在加载历史行情…' : performanceError ? '部分历史行情更新失败，已有数据保留原日期，可点击立即刷新重试。' : '历史不足显示 —。'}</p>
-          <p className="nasdaq-performance-note">较纳指 YTD = ETF 今年以来涨幅 − 纳指100今年以来涨幅，单位为百分点。正值表示多涨，负值表示少涨。ETF 为人民币场内前复权收盘价，指数为美元计价最新报价，受汇率、溢价和交易时点影响，不是跟踪误差。{marketQuotes.index?.ytd ? `指数基准涨幅 ${performanceValue(marketQuotes.index.ytd.percent)}（报价时间 ${formatNasdaqMarketTime(marketQuotes.index.quoteTime)}，北京时间）；ETF 截至日期见各行。` : '指数 YTD 暂不可用，涨幅差显示 —。'}</p>
           {!loading && <>
           <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
             {[...sortColumns, ...performancePeriods.map(period => ({ ...period, detail: '业绩趋势' })), { key: 'ytdGap' as const, label: '较纳指 YTD', detail: '百分点差' }].map(column => <button
