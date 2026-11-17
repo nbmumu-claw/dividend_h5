@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchNasdaqEtfSnapshot } from '../utils/api'
 import { isChinaTradingSession, readNasdaqEtfCache, writeNasdaqEtfCache } from '../utils/nasdaqEtfCache'
 import { fetchNasdaqMarketQuote, formatNasdaqMarketTime, type NasdaqMarketQuote } from '../utils/nasdaqMarket'
@@ -65,6 +65,16 @@ export default function NasdaqPremium() {
   const [marketQuotes, setMarketQuotes] = useState<{ index: NasdaqMarketQuote | null; futures: NasdaqMarketQuote | null }>({ index: null, futures: null })
   const [marketError, setMarketError] = useState(false)
   const [sort, setSort] = useState<NasdaqSort>({ key: 'premium', direction: 'asc' })
+
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<string[]>([])
+  const dialog = useRef<HTMLDialogElement>(null)
+  const selectedFunds = selected.map(code => funds.find(fund => fund.code === code)!)
+  const checkbox = (fund: typeof funds[number]) => <input type="checkbox" aria-label={`选择${fund.name} ${fund.code}`}
+    checked={selected.includes(fund.code)} disabled={selected.length >= 3 && !selected.includes(fund.code)}
+    onChange={() => setSelected(current => current.includes(fund.code) ? current.filter(code => code !== fund.code) : current.length < 3 ? [...current, fund.code] : current)} />
+  const comparisonRow = (label: string, value: (fund: typeof funds[number]) => string | undefined) =>
+    <tr key={label}><th scope="row">{label}</th>{selectedFunds.map(fund => <td key={fund.code}>{value(fund) ?? '—'}</td>)}</tr>
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
@@ -166,6 +176,32 @@ export default function NasdaqPremium() {
           </aside>
           <p className="nasdaq-performance-note" role="status">业绩趋势 · 前复权收盘价涨跌幅（非净值收益率）。截至各基金所示日期；非交易日取此前最近收盘价；今年以来以去年最后一个交易日为基准。{performanceLoading ? '正在加载历史行情…' : performanceError ? '部分历史行情更新失败，已有数据保留原日期，可点击立即刷新重试。' : '历史不足显示 —。'}</p>
           {!loading && <>
+          <div className={`nasdaq-compare-actions${selecting ? ' selecting' : ''}`}>
+            {selecting ? <>
+              <span role="status">选 2～3 只基金 · 已选 {selected.length}</span>
+              <button type="button" disabled={selected.length < 2} onClick={() => dialog.current?.showModal()}>查看对比</button>
+              <button type="button" onClick={() => { setSelecting(false); setSelected([]) }}>退出</button>
+            </> : <button type="button" onClick={() => setSelecting(true)}>基金对比</button>}
+          </div>
+          <dialog ref={dialog} className="nasdaq-compare-dialog" aria-labelledby="nasdaq-compare-title">
+            <header><h2 id="nasdaq-compare-title">基金对比</h2><form method="dialog"><button>返回清单</button></form></header>
+            <table><thead><tr><th scope="col">指标</th>{selectedFunds.map(fund => <th scope="col" key={fund.code}>{fund.name}<small>{fund.code}</small></th>)}</tr></thead>
+              <tbody>
+                {comparisonRow('参考溢价', f => quotes[f.code] && `${quotes[f.code].premium.toFixed(2)}%`)}
+                {comparisonRow('现价', f => quotes[f.code]?.price.toFixed(3))}
+                {comparisonRow('日涨跌', f => performanceValue(quotes[f.code]?.change))}
+                {comparisonRow('IOPV', f => quotes[f.code]?.iopv.toFixed(4))}
+                {comparisonRow('估算规模（亿元）', f => quotes[f.code]?.size.toFixed(2))}
+                {comparisonRow('成交额（亿元）', f => quotes[f.code]?.turnover.toFixed(2))}
+                {performancePeriods.map(period => comparisonRow(period.label, f => performanceValue(performance[f.code]?.returns[period.key])))}
+                {comparisonRow('较纳指 YTD（百分点）', f => gapValue(nasdaqYtdGap(performance[f.code], marketQuotes.index), false))}
+                {comparisonRow('业绩截至', f => performance[f.code]?.date)}
+                {comparisonRow('管理费率', f => `${f.manage.toFixed(2)}%`)}
+                {comparisonRow('托管费率', f => `${f.custody.toFixed(2)}%`)}
+                {comparisonRow('合计年费率', f => `${(f.manage + f.custody).toFixed(2)}%`)}
+              </tbody>
+            </table>
+          </dialog>
           <div className="nasdaq-sort-bar" role="group" aria-label="基金排序方式">
             {[...sortColumns, ...performancePeriods.map(period => ({ ...period, detail: '业绩趋势' })), { key: 'ytdGap' as const, label: '较纳指 YTD', detail: '百分点差' }].map(column => <button
               type="button"
@@ -226,7 +262,7 @@ export default function NasdaqPremium() {
               <tbody>{sortedFunds.map((fund, index) => {
                 const quote = quotes[fund.code]
                 return <tr key={fund.code}>
-                  <th scope="row" className="nasdaq-table-fund"><span className="nasdaq-table-fund-content"><span className="nasdaq-table-rank">{String(index + 1).padStart(2, '0')}</span><span><strong>{fund.name}</strong><small>{fund.code}</small></span></span></th>
+                  <th scope="row" className="nasdaq-table-fund"><span className="nasdaq-table-fund-content">{selecting ? checkbox(fund) : <span className="nasdaq-table-rank">{String(index + 1).padStart(2, '0')}</span>}<span><strong>{fund.name}</strong><small>{fund.code}</small></span></span></th>
                   <td><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small></td>
                   <td className="nasdaq-table-premium"><strong>{quote ? `${quote.premium.toFixed(2)}%` : '—'}</strong></td>
                   <td><strong>{quote?.iopv.toFixed(4) ?? '—'}</strong></td>
@@ -249,7 +285,7 @@ export default function NasdaqPremium() {
                 <li className="nasdaq-fund-card" key={fund.code}>
                   <article aria-label={`${fund.name} ${fund.code}`}>
                     <div className="nasdaq-card-head">
-                      <span className="nasdaq-rank">{String(index + 1).padStart(2, '0')}</span>
+                      {selecting ? checkbox(fund) : <span className="nasdaq-rank">{String(index + 1).padStart(2, '0')}</span>}
                       <div><h3>{fund.name}</h3><span>{fund.code}</span></div>
                       <span className="nasdaq-card-tag">NDX 100</span>
                     </div>

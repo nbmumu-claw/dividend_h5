@@ -214,3 +214,20 @@
 .nasdaq-card-performance .nasdaq-ytd-gap strong { font-size: 12px; }
 .nasdaq-ytd-gap .nasdaq-up { color: #dc2626; }
 .nasdaq-ytd-gap .nasdaq-down { color: #16a34a; }
+
+.nasdaq-compare-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 6px 0; margin-bottom: 6px; }
+.nasdaq-compare-actions.selecting { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid #e5e7eb; }
+.nasdaq-compare-actions span { margin-right: auto; font-size: 12px; }
+.nasdaq-compare-actions button, .nasdaq-compare-dialog button { border: 1px solid #d1d5db; border-radius: 5px; padding: 6px 12px; background: white; font-size: 13px; cursor: pointer; }
+.nasdaq-compare-actions button:first-of-type { background: #a52d28; border-color: #a52d28; color: white; }
+.nasdaq-compare-actions button:disabled { opacity: .45; cursor: default; }
+.nasdaq-panel input[type=checkbox] { accent-color: #a52d28; width: 18px; height: 18px; flex: none; }
+.nasdaq-compare-dialog { margin: auto; width: min(720px, 96vw); max-height: 88vh; overflow: auto; padding: 0; border: 1px solid #ddd; border-radius: 12px; background: white; color: #20242a; }
+.nasdaq-compare-dialog::backdrop { background: rgb(20 24 30 / 48%); }
+.nasdaq-compare-dialog header { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+.nasdaq-compare-dialog h2 { font-size: 18px; font-weight: 700; }
+.nasdaq-compare-dialog table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: clamp(12px, 1.4vw, 14px); font-variant-numeric: tabular-nums; }
+.nasdaq-compare-dialog th, .nasdaq-compare-dialog td { text-align: center; padding: 8px 4px; overflow-wrap: anywhere; border-top: 1px solid #e5e7eb; }
+.nasdaq-compare-dialog thead th { position: sticky; top: 0; background: #f5f6f8; }
+.nasdaq-compare-dialog th:first-child { text-align: left; padding-left: 10px; }
+.nasdaq-compare-dialog small { display: block; color: #697386; }
