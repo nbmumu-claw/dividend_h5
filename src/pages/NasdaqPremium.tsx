@@ -9,10 +9,10 @@ import './NasdaqPremium.css'
 function performanceValue(value: number | null | undefined) {
   return value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
 }
-function gapValue(value: number | null) {
+function gapValue(value: number | null, withUnit = true) {
   if (value == null) return '—'
   const rounded = Number(value.toFixed(2))
-  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)} 个百分点`
+  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)}${withUnit ? ' 个百分点' : ''}`
 }
 function performanceClass(value: number | null | undefined) {
   return value == null || value === 0 ? '' : value > 0 ? 'nasdaq-up' : 'nasdaq-down'
@@ -191,6 +191,7 @@ export default function NasdaqPremium() {
                 <col className="nasdaq-col-turnover" />
                 <col className="nasdaq-col-fee" />
                 <col className="nasdaq-col-performance" />
+                <col className="nasdaq-col-gap" />
               </colgroup>
               <thead><tr>
                 <th scope="col">基金 / 代码</th>
@@ -218,7 +219,9 @@ export default function NasdaqPremium() {
                     aria-pressed={sort.key === period.key}
                     aria-label={`按${period.label}涨跌幅${sort.key === period.key && sort.direction === 'desc' ? '升序' : '降序'}排列`}
                   >{period.label}<span aria-hidden="true">{sort.key === period.key ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span></button>)}</div>
-                  <button type="button" className={`nasdaq-gap-sort${sort.key === 'ytdGap' ? ' active' : ''}`} onClick={() => toggleSort('ytdGap')} aria-pressed={sort.key === 'ytdGap'} aria-label={`按较纳指YTD涨幅差${sort.key === 'ytdGap' && sort.direction === 'desc' ? '升序' : '降序'}排列`}>较纳指 YTD · 百分点 <span aria-hidden="true">{sort.key === 'ytdGap' ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span></button>
+                </th>
+                <th scope="col" aria-sort={sort.key === 'ytdGap' ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
+                  <button type="button" className={`nasdaq-table-sort${sort.key === 'ytdGap' ? ' active' : ''}`} onClick={() => toggleSort('ytdGap')} aria-label={`按较纳指YTD涨幅差${sort.key === 'ytdGap' && sort.direction === 'desc' ? '升序' : '降序'}排列`}><span>较纳指 YTD<small>百分点</small></span><span aria-hidden="true">{sort.key === 'ytdGap' ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span></button>
                 </th>
               </tr></thead>
               <tbody>{sortedFunds.map((fund, index) => {
@@ -233,9 +236,9 @@ export default function NasdaqPremium() {
                   <td><strong>{fund.manage.toFixed(2)} / {fund.custody.toFixed(2)}</strong><small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></td>
                   <td className="nasdaq-performance-cell">
                     <div className="nasdaq-performance-values">{performancePeriods.map(period => <strong key={period.key} className={performanceClass(performance[fund.code]?.returns[period.key])}>{performanceValue(performance[fund.code]?.returns[period.key])}</strong>)}</div>
-                    <div className="nasdaq-ytd-gap">较纳指 YTD <strong className={performanceClass(nasdaqYtdGap(performance[fund.code], marketQuotes.index))}>{gapValue(nasdaqYtdGap(performance[fund.code], marketQuotes.index))}</strong></div>
                     <small>{performance[fund.code] ? `截至 ${performance[fund.code].date}` : '暂无数据'}</small>
                   </td>
+                  <td className={`nasdaq-gap-cell ${performanceClass(nasdaqYtdGap(performance[fund.code], marketQuotes.index))}`}><strong>{gapValue(nasdaqYtdGap(performance[fund.code], marketQuotes.index), false)}</strong></td>
                 </tr>
               })}</tbody>
             </table>
