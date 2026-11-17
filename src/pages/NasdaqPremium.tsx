@@ -80,18 +80,19 @@ export default function NasdaqPremium() {
       ? [{ fund, value: Math.round(Number(value.toFixed(2)) * 100) }] : [])
     const unavailable = ranked.length !== points.length || ranked.length < 2
     const mixedDates = label === '今年以来' && new Set(selectedFunds.map(f => performance[f.code]?.date)).size > 1
-    if (unavailable || mixedDates) return { label, codes: [] as string[], badge: '', text: unavailable ? '数据不足，暂不比较' : '截至日期不同，暂不比较' }
+    if (unavailable || mixedDates) return { label, codes: [] as string[], badge: '', amount: '—', unit: '', owner: '', delta: '', text: unavailable ? '数据不足，暂不比较' : '截至日期不同，暂不比较' }
     ranked.sort((a, b) => direction === '最低' ? a.value - b.value : b.value - a.value)
     const best = ranked[0].value
     const leaders = ranked.filter(p => p.value === best)
     const other = ranked[ranked.length - 1]
-    const amount = (best / 100).toFixed(2) + unit
-    if (leaders.length === ranked.length) return { label, codes: [], badge: '', text: `所选基金相同，均为 ${amount}` }
+    const amount = (best / 100).toFixed(2)
+    if (leaders.length === ranked.length) return { label, codes: [], badge: '', amount, unit, owner: '所选基金相同', text: '', delta: '' }
     const short = (f: Fund) => f.name.split(/纳斯达克|纳指/)[0] || f.code
     const badge = (leaders.length > 1 ? '并列' : '') + direction
     const spread = (Math.abs(best - other.value) / 100).toFixed(2)
     return { label, codes: leaders.map(p => p.fund.code), badge,
-      text: `${leaders.map(p => short(p.fund)).join('、')}${badge}（${amount}），比${short(other.fund)}${direction === '最低' ? '低' : '高'} ${spread}${unit === '%' ? ' 个百分点' : unit}` }
+      amount, unit, owner: leaders.map(p => short(p.fund)).join('、'),
+      text: `比${short(other.fund)}${direction === '最低' ? '低' : '高'}`, delta: `${spread} ${unit === '%' ? '个百分点' : unit}` }
   }
   const insights = [
     insight('参考溢价', '最低', '%', f => quotes[f.code]?.premium),
@@ -218,7 +219,14 @@ export default function NasdaqPremium() {
             <header><h2 id="nasdaq-compare-title">基金对比</h2><form method="dialog"><button>返回清单</button></form></header>
             <section className="nasdaq-compare-insights" aria-label="对比结论">
               <h3>对比结论</h3>
-              <dl>{insights.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.text}</dd></div>)}</dl>
+              <dl>{insights.map(item => <div key={item.label}>
+                <dt>{item.label.replace('（亿元）', '')}{item.badge && <span>{item.badge}</span>}</dt>
+                <dd>
+                  <strong>{item.amount}<em>{item.unit}</em></strong>
+                  {item.owner && <b>{item.owner}</b>}
+                  {item.text && <p>{item.text} <span>{item.delta}</span></p>}
+                </dd>
+              </div>)}</dl>
             </section>
             <table><thead><tr><th scope="col">指标</th>{selectedFunds.map(fund => <th scope="col" key={fund.code}>{fund.name}<small>{fund.code}</small></th>)}</tr></thead>
               <tbody>
