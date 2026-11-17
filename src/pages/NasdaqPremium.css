@@ -232,14 +232,16 @@
 .nasdaq-compare-dialog th:first-child { text-align: left; padding-left: 10px; }
 .nasdaq-compare-dialog small { display: block; color: #697386; }
 
-.nasdaq-compare-insights { padding: 0 14px 10px; font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-variant-numeric: tabular-nums; }
-.nasdaq-compare-insights h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
-.nasdaq-compare-insights dl { margin: 0; }
-.nasdaq-compare-insights dl > div { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; padding-block: 2px; }
-.nasdaq-compare-insights dt { color: #635d58; }
-.nasdaq-compare-insights dd { margin: 0; }
-.nasdaq-compare-insights dd strong { font-weight: 600; white-space: nowrap; }
-.nasdaq-insight-detail { color: #615c58; }
-.nasdaq-insight-detail > span { white-space: nowrap; }
+.nasdaq-compare-insights { padding: 0 14px 16px; }
+.nasdaq-compare-insights h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+.nasdaq-compare-insights dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.nasdaq-compare-insights dl > div { background: #f7f5f2; border-radius: 6px; padding: 8px 10px; }
+.nasdaq-compare-insights dt { font-size: 11px; color: #685649; }
+.nasdaq-compare-insights dd { margin: 3px 0 0; font-size: 13px; line-height: 1.5; }
 .nasdaq-compare-highlight { background: #fbf5e9; font-weight: 650; }
 .nasdaq-compare-highlight small { color: #73531d; font-size: 10px; }
+@media (max-width: 520px) {
+  .nasdaq-compare-insights dl { grid-template-columns: 1fr; }
+  .nasdaq-compare-insights dl > div { display: grid; grid-template-columns: 6em 1fr; align-items: baseline; gap: 4px; }
+  .nasdaq-compare-insights dd { margin: 0; }
+}
