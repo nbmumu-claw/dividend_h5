@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nasdaqYtdGap, compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqSortKey } from './nasdaqPremium'
+import { nasdaqYtdGap, compareNasdaqFunds, dailyQuoteExtremes, formatQuoteTime, parseNasdaqQuotes, type NasdaqSortKey } from './nasdaqPremium'
 
 function quote(code: string, overrides: Record<number, string> = {}) {
   const fields = Array(82).fill('')
@@ -27,6 +27,25 @@ describe('Nasdaq ETF quote parsing', () => {
 
   it('ignores quotes with missing IOPV instead of showing a false premium', () => {
     expect(parseNasdaqQuotes(quote('513110', { 78: '' }))).toEqual({})
+  })
+})
+
+describe('daily quote extremes', () => {
+  it('compares raw signed values, preserves ties, and separates trading dates', () => {
+    const quotes = parseNasdaqQuotes(
+      quote('513110', { 32: '-2', 57: '10000' }) +
+      quote('513111', { 32: '1.001', 57: '20000' }) +
+      quote('513112', { 32: '1.001', 57: '20000' }) +
+      quote('513113', { 30: '20261112114500', 32: '9', 57: '90000' }),
+    )
+    expect(dailyQuoteExtremes(quotes, 'change')).toEqual({ '513110': '最低', '513111': '最高', '513112': '最高' })
+    expect(dailyQuoteExtremes(quotes, 'turnover')).toEqual({ '513110': '最低', '513111': '最高', '513112': '最高' })
+  })
+
+  it('does not mark equal, invalid, or single valid values', () => {
+    const quotes = parseNasdaqQuotes(quote('513110') + quote('513111'))
+    expect(dailyQuoteExtremes(quotes, 'change')).toEqual({})
+    expect(dailyQuoteExtremes({ ...quotes, '513111': { ...quotes['513111'], change: NaN } }, 'change')).toEqual({})
   })
 })
 

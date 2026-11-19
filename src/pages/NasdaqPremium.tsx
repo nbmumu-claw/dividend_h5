@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchNasdaqEtfSnapshot } from '../utils/api'
 import { isChinaTradingSession, readNasdaqEtfCache, writeNasdaqEtfCache } from '../utils/nasdaqEtfCache'
 import { fetchNasdaqMarketQuote, formatNasdaqMarketTime, type NasdaqMarketQuote } from '../utils/nasdaqMarket'
-import { nasdaqYtdGap, compareNasdaqFunds, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
+import { nasdaqYtdGap, compareNasdaqFunds, dailyQuoteExtremes, formatQuoteTime, parseNasdaqQuotes, type NasdaqQuote, type NasdaqSort, type NasdaqSortKey } from '../utils/nasdaqPremium'
 import { fetchNasdaqPerformance, performancePeriods, type NasdaqPerformance } from '../utils/nasdaqPerformance'
 import './NasdaqPremium.css'
 
@@ -141,6 +141,9 @@ export default function NasdaqPremium() {
   }, [refresh])
 
   const sortedFunds = useMemo(() => [...funds].sort((a, b) => compareNasdaqFunds(a, b, quotes, sort, performance, marketQuotes.index)), [quotes, sort, performance, marketQuotes.index])
+  const changeExtremes = useMemo(() => dailyQuoteExtremes(quotes, 'change'), [quotes])
+  const turnoverExtremes = useMemo(() => dailyQuoteExtremes(quotes, 'turnover'), [quotes])
+  const extremeBadge = (value: '最高' | '最低' | undefined) => value && <span className="nasdaq-extreme-badge">当日{value}</span>
   const toggleSort = (key: NasdaqSortKey) => setSort(current => ({
     key,
     direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc',
@@ -298,11 +301,11 @@ export default function NasdaqPremium() {
                 const quote = quotes[fund.code]
                 return <tr key={fund.code}>
                   <th scope="row" className="nasdaq-table-fund"><span className="nasdaq-table-fund-content">{selecting ? checkbox(fund) : <span className="nasdaq-table-rank">{String(index + 1).padStart(2, '0')}</span>}<span><strong>{fund.name}</strong><small>{fund.code}</small></span></span></th>
-                  <td><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small></td>
+                  <td><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small>{extremeBadge(changeExtremes[fund.code])}</td>
                   <td className="nasdaq-table-premium"><strong>{quote ? `${quote.premium.toFixed(2)}%` : '—'}</strong></td>
                   <td><strong>{quote?.iopv.toFixed(4) ?? '—'}</strong></td>
                   <td><strong>{quote?.size.toFixed(2) ?? '—'}</strong></td>
-                  <td><strong>{quote?.turnover.toFixed(2) ?? '—'}</strong></td>
+                  <td><strong>{quote?.turnover.toFixed(2) ?? '—'}</strong>{extremeBadge(turnoverExtremes[fund.code])}</td>
                   <td><strong>{fund.manage.toFixed(2)} / {fund.custody.toFixed(2)}</strong><small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></td>
                   <td className="nasdaq-performance-cell">
                     <div className="nasdaq-performance-values">{performancePeriods.map(period => <strong key={period.key} className={performanceClass(performance[fund.code]?.returns[period.key])}>{performanceValue(performance[fund.code]?.returns[period.key])}</strong>)}</div>
@@ -326,12 +329,12 @@ export default function NasdaqPremium() {
                     </div>
                     <div className="nasdaq-card-primary">
                       <div className="nasdaq-card-premium"><span>参考溢价</span><strong>{quote ? `${quote.premium.toFixed(2)}%` : '—'}</strong></div>
-                      <div className="nasdaq-card-price"><span>现价 / 日涨跌</span><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small></div>
+                      <div className="nasdaq-card-price"><span>现价 / 日涨跌</span><strong>{quote?.price.toFixed(3) ?? '—'}</strong><small className={quote && quote.change >= 0 ? 'nasdaq-up' : 'nasdaq-down'}>{quote ? `${quote.change > 0 ? '+' : ''}${quote.change.toFixed(2)}%` : '—'}</small>{extremeBadge(changeExtremes[fund.code])}</div>
                     </div>
                     <dl className="nasdaq-card-facts">
                       <div><dt>IOPV · 盘中参考净值</dt><dd>{quote?.iopv.toFixed(4) ?? '—'}</dd></div>
                       <div><dt>估算规模 · 亿元</dt><dd>{quote?.size.toFixed(2) ?? '—'}</dd></div>
-                      <div><dt>成交额 · 亿元</dt><dd>{quote?.turnover.toFixed(2) ?? '—'}</dd></div>
+                      <div><dt>成交额 · 亿元</dt><dd>{quote?.turnover.toFixed(2) ?? '—'}</dd>{extremeBadge(turnoverExtremes[fund.code])}</div>
                       <div><dt>管理 / 托管 · 年费率</dt><dd>{fund.manage.toFixed(2)}% / {fund.custody.toFixed(2)}%<small>合计 {(fund.manage + fund.custody).toFixed(2)}%</small></dd></div>
                     </dl>
                     <div className="nasdaq-card-performance">

@@ -15,6 +15,28 @@ export type NasdaqQuote = {
 export type NasdaqSortKey = 'change' | 'premium' | 'iopv' | 'size' | 'turnover' | 'fee' | 'ytdGap' | PerformanceKey
 export type NasdaqSort = { key: NasdaqSortKey; direction: 'asc' | 'desc' }
 
+export function dailyQuoteExtremes(quotes: Record<string, NasdaqQuote>, key: 'change' | 'turnover'): Record<string, '最高' | '最低'> {
+  const byDate = new Map<string, NasdaqQuote[]>()
+  for (const quote of Object.values(quotes)) {
+    if (!/^\d{14}$/.test(quote.tradeTime) || !Number.isFinite(quote[key])) continue
+    const date = quote.tradeTime.slice(0, 8)
+    byDate.set(date, [...(byDate.get(date) ?? []), quote])
+  }
+  const extremes: Record<string, '最高' | '最低'> = {}
+  for (const dailyQuotes of byDate.values()) {
+    if (dailyQuotes.length < 2) continue
+    const values = dailyQuotes.map(quote => quote[key])
+    const minimum = Math.min(...values)
+    const maximum = Math.max(...values)
+    if (minimum === maximum) continue
+    for (const quote of dailyQuotes) {
+      if (quote[key] === maximum) extremes[quote.code] = '最高'
+      if (quote[key] === minimum) extremes[quote.code] = '最低'
+    }
+  }
+  return extremes
+}
+
 // 百分点差；币种、交易时点不同，不作为跟踪误差。
 export function nasdaqYtdGap(performance: NasdaqPerformance | undefined, index: NasdaqMarketQuote | null | undefined): number | null {
   const fundYtd = performance?.returns.ytd
